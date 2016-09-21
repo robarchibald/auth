@@ -19,6 +19,7 @@ type BackendQuerier interface {
 	UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error)
 	UpdatePasswordAndInvalidateSessions(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
 	InvalidateUserSessions(userId int) error
+	Close() error
 }
 
 var ErrEmailVerifyCodeExists = errors.New("DB: Email verify hash already exists")

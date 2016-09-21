@@ -114,3 +114,7 @@ func (b *BackendPostgres) UpdatePasswordAndInvalidateSessions(email string, oldP
 func (b *BackendPostgres) InvalidateUserSessions(userId int) error {
 	return nil
 }
+
+func (b *BackendPostgres) Close() error {
+	return b.Db.Close()
+}

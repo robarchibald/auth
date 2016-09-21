@@ -196,6 +196,10 @@ func (m *BackendMemory) ToString() string {
 	return buf.String()
 }
 
+func (m *BackendMemory) Close() error {
+	return nil
+}
+
 func (m *BackendMemory) removeSessions(userId int) {
 	for i := 0; i < len(m.Sessions); i++ {
 		session := m.Sessions[i]
