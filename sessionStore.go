@@ -119,7 +119,7 @@ func (s *SessionStore) getRememberMe() (*UserLoginRememberMe, error) {
 		s.deleteRememberMeCookie()
 		return nil, NewLoggedError("RememberMe cookie doesn't match backend token", nil)
 	}
-	if rememberMe.RenewsAt.Before(time.Now().UTC()) {
+	if rememberMe.RenewTimeUTC.Before(time.Now().UTC()) {
 		rememberMe, err = s.backend.RenewRememberMe(cookie.Selector, time.Now().UTC().Add(rememberMeRenewDuration))
 		if err != nil {
 			if err == ErrRememberMeNotFound {
@@ -140,7 +140,7 @@ func (s *SessionStore) renewSession(sessionId string, renewsAt, expiresAt *time.
 			return nil, NewLoggedError("Unable to renew session", err)
 		}
 
-		if err = s.saveSessionCookie(session.SessionId, session.RenewsAt, session.ExpiresAt); err != nil {
+		if err = s.saveSessionCookie(session.SessionId, session.RenewTimeUTC, session.ExpireTimeUTC); err != nil {
 			return nil, err
 		}
 		return session, nil
@@ -159,7 +159,7 @@ func (s *SessionStore) renewSession(sessionId string, renewsAt, expiresAt *time.
 		return nil, NewLoggedError("Problem renewing session", err)
 	}
 
-	if err = s.saveSessionCookie(session.SessionId, session.RenewsAt, session.ExpiresAt); err != nil {
+	if err = s.saveSessionCookie(session.SessionId, session.RenewTimeUTC, session.ExpireTimeUTC); err != nil {
 		return nil, err
 	}
 	return session, nil
@@ -220,12 +220,12 @@ func (s *SessionStore) createSession(loginId int, rememberMe bool) (*UserLoginSe
 	}
 
 	if rememberMe {
-		err := s.saveRememberMeCookie(selector, token, remember.RenewsAt, remember.ExpiresAt)
+		err := s.saveRememberMeCookie(selector, token, remember.RenewTimeUTC, remember.ExpireTimeUTC)
 		if err != nil {
 			return nil, NewAuthError("Unable to save rememberMe cookie", err)
 		}
 	}
-	err = s.saveSessionCookie(session.SessionId, session.RenewsAt, session.ExpiresAt)
+	err = s.saveSessionCookie(session.SessionId, session.RenewTimeUTC, session.ExpireTimeUTC)
 	if err != nil {
 		return nil, err
 	}
@@ -251,15 +251,11 @@ func (s *SessionStore) register(email string) error {
 		return NewAuthError("Invalid email", nil)
 	}
 
-	session, emailConfirmCode, err := s.addUser(email)
+	emailConfirmCode, err := s.addUser(email)
 	if err != nil {
 		return NewLoggedError("Unable to save user", err)
 	}
 
-	err = s.saveSessionCookie(session.SessionId, session.RenewsAt, session.ExpiresAt)
-	if err != nil {
-		return err
-	}
 	code := emailConfirmCode[:len(emailConfirmCode)-1] // drop the "=" at the end of the code
 	if err := s.mailer.SendVerify(email, &SendVerifyParams{code, email, getBaseUrl(s.r.Referer())}); err != nil {
 		return NewLoggedError("Unable to send verification email", err)
@@ -280,22 +276,17 @@ func getBaseUrl(url string) string {
 	return url[:protoIndex+3+firstSlash]
 }
 
-func (s *SessionStore) addUser(email string) (*UserLoginSession, string, error) {
+func (s *SessionStore) addUser(email string) (string, error) {
 	emailConfirmCode, emailConfimHash, err := generateStringAndHash()
 	if err != nil {
-		return nil, "", NewLoggedError("Problem generating email confirmation code", err)
+		return "", NewLoggedError("Problem generating email confirmation code", err)
 	}
 
-	sessionId, err := generateRandomString()
+	err = s.backend.AddUser(email, emailConfimHash)
 	if err != nil {
-		return nil, "", NewLoggedError("Problem generating sessionId", err)
+		return "", NewLoggedError("Problem adding user to database", err)
 	}
-
-	session, err := s.backend.AddUser(email, emailConfimHash, sessionId, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration))
-	if err != nil {
-		return nil, "", NewLoggedError("Problem adding user to database", err)
-	}
-	return session, emailConfirmCode, nil
+	return emailConfirmCode, nil
 }
 
 func (s *SessionStore) CreateProfile() error {
@@ -303,21 +294,22 @@ func (s *SessionStore) CreateProfile() error {
 	if err != nil {
 		return NewAuthError("Unable to get profile information from form", err)
 	}
-	return s.createProfile(profile.FullName, profile.Organization, profile.Password, profile.PicturePath)
+	return s.createProfile(profile.Email, profile.FullName, profile.Organization, profile.Password, profile.PicturePath)
 }
 
-func (s *SessionStore) createProfile(fullName, organization, password, picturePath string) error {
+func (s *SessionStore) createProfile(email, fullName, organization, password, picturePath string) error {
+	// would be good if this were cached so that we don't have to go to DB twice
 	session, err := s.GetSession() // verify the user has access
 	if err != nil {
 		return NewLoggedError("Unable to get session", err)
 	}
 
 	passwordHash := encodeToString(hash([]byte(password)))
-	session, err = s.backend.CreateProfileAndInvalidateSessions(session.LoginId, passwordHash, fullName, organization, picturePath, session.SessionId, session.ExpiresAt, session.RenewsAt)
+	session, err = s.backend.CreateLogin(email, passwordHash, fullName, organization, picturePath, session.SessionId, session.ExpireTimeUTC, session.RenewTimeUTC)
 	if err != nil {
 		return NewLoggedError("Unable to create profile", err)
 	}
-	err = s.saveSessionCookie(session.SessionId, session.RenewsAt, session.ExpiresAt)
+	err = s.saveSessionCookie(session.SessionId, session.RenewTimeUTC, session.ExpireTimeUTC)
 	if err != nil {
 		return err
 	}
@@ -333,30 +325,16 @@ func (s *SessionStore) VerifyEmail() error {
 }
 
 func (s *SessionStore) verifyEmail(emailVerificationCode string) error {
-	var sessionId string
-	cookie, err := s.getSessionCookie()
-	if err == nil { // use sessionId from current session
-		sessionId = cookie.SessionId
-	} else {
-		sessionId, err = generateRandomString()
-		if err != nil {
-			return NewLoggedError("Unable to generate sessionId", err)
-		}
-	}
 	data, err := decodeFromString(emailVerificationCode + "=") // add back the =, then decode
 	if err != nil {
 		return NewLoggedError("Invalid verification code", err)
 	}
 	emailVerifyHash := encodeToString(hash(data))
-	session, email, err := s.backend.VerifyEmail(emailVerifyHash, sessionId, time.Now().UTC().Add(sessionRenewDuration), time.Now().Add(sessionExpireDuration))
+	email, err := s.backend.VerifyEmail(emailVerifyHash)
 	if err != nil {
 		return NewLoggedError("Failed to verify email", err)
 	}
 
-	err = s.saveSessionCookie(session.SessionId, session.RenewsAt, session.ExpiresAt)
-	if err != nil {
-		return err
-	}
 	err = s.mailer.SendWelcome(email, nil)
 	if err != nil {
 		return NewLoggedError("Failed to send welcome email", err)
@@ -453,6 +431,7 @@ func generateThumbnail(filename string) (string, error) {
 }
 
 type Profile struct {
+	Email        string
 	FullName     string
 	Organization string
 	Password     string

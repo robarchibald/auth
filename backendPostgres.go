@@ -9,16 +9,6 @@ import (
 	"github.com/robarchibald/onedb"
 )
 
-type userLoginSessionPlusEmail struct {
-	LoginId      int
-	SessionId    string
-	UserId       int
-	PrimaryEmail string
-	ExpiresAt    time.Time
-	RenewsAt     time.Time
-	IsHalfAuth   bool
-}
-
 type BackendPostgres struct {
 	BackendQuerier
 	Db                                       onedb.DBer
@@ -36,7 +26,7 @@ type BackendPostgres struct {
 	AddUserQuery                             string
 	VerifyEmailQuery                         string
 	UpdateUserQuery                          string
-	CreateProfileAndInvalidateSessionsQuery  string
+	CreateLoginQuery                         string
 	UpdateEmailAndInvalidateSessionsQuery    string
 	UpdatePasswordAndInvalidateSessionsQuery string
 	InvalidateUserSessionsQuery              string
@@ -79,27 +69,24 @@ func (b *BackendPostgres) RenewRememberMe(selector string, renewsAt time.Time) (
 	return rememberMe, b.Db.QueryStructRow(onedb.NewSqlQuery(b.RenewRememberMeQuery, selector), rememberMe)
 }
 
-func (b *BackendPostgres) AddUser(email, emailVerifyHash, sessionId string, sessionRenewsAt, sessionExpiresAt time.Time) (*UserLoginSession, error) {
-	var session *UserLoginSession
-	return session, b.Db.QueryStructRow(onedb.NewSqlQuery(b.AddUserQuery, email, emailVerifyHash), session) // should be stored proc so it'll add to multiple tables, plus return values needed
+func (b *BackendPostgres) AddUser(email, emailVerifyHash string) error {
+	return b.Db.Execute(onedb.NewSqlQuery(b.AddUserQuery, email, emailVerifyHash))
 }
 
-func (b *BackendPostgres) VerifyEmail(emailVerifyCode string, sessionId string, sessionRenewsAt, sessionExpiresAt time.Time) (*UserLoginSession, string, error) {
-	var session *userLoginSessionPlusEmail
-	err := b.Db.QueryStructRow(onedb.NewSqlQuery(b.VerifyEmailQuery, emailVerifyCode), session) // should be stored proc so it'll verify, plus return values needed
-	if err != nil || session == nil {
-		return nil, "", errors.New("Unable to verify email: " + err.Error())
+func (b *BackendPostgres) VerifyEmail(emailVerifyCode string) (string, error) {
+	var user *User
+	err := b.Db.QueryStructRow(onedb.NewSqlQuery(b.VerifyEmailQuery, emailVerifyCode), user)
+	if err != nil || user == nil {
+		return "", errors.New("Unable to verify email: " + err.Error())
 	}
-	return &UserLoginSession{session.LoginId, session.SessionId, session.UserId, session.ExpiresAt, session.RenewsAt, session.IsHalfAuth}, session.PrimaryEmail, err
-
-	return nil, "email", nil
+	return user.PrimaryEmail, err
 }
 
 func (b *BackendPostgres) UpdateUser(session *UserLoginSession, fullname string, company string, pictureUrl string) error {
 	return nil
 }
 
-func (b *BackendPostgres) CreateProfileAndInvalidateSessions(loginId int, passwordHash string, fullName string, company string, pictureUrl string, sessionId string, sessionExpiresAt, sessionRenewsAt time.Time) (*UserLoginSession, error) {
+func (b *BackendPostgres) CreateLogin(email, passwordHash string, fullName string, company string, pictureUrl string, sessionId string, sessionExpiresAt, sessionRenewsAt time.Time) (*UserLoginSession, error) {
 	return nil, nil
 }
 

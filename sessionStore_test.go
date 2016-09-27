@@ -360,12 +360,11 @@ func TestCreateSession(t *testing.T) {
 }
 
 var registerTests = []struct {
-	Scenario          string
-	Email             string
-	HasCookiePutError bool
-	AddUserReturn     *SessionReturn
-	MethodsCalled     []string
-	ExpectedErr       string
+	Scenario      string
+	Email         string
+	AddUserReturn error
+	MethodsCalled []string
+	ExpectedErr   string
 }{
 	{
 		Scenario:    "Invalid email",
@@ -375,22 +374,13 @@ var registerTests = []struct {
 	{
 		Scenario:      "Add User error",
 		Email:         "validemail@test.com",
-		AddUserReturn: sessionErr(),
+		AddUserReturn: errors.New("failed"),
 		MethodsCalled: []string{"AddUser"},
 		ExpectedErr:   "Unable to save user",
 	},
 	{
-		Scenario:          "Save Session Cookie error",
-		Email:             "validemail@test.com",
-		AddUserReturn:     session(futureTime, futureTime),
-		HasCookiePutError: true,
-		MethodsCalled:     []string{"AddUser"},
-		ExpectedErr:       "Error saving session cookie",
-	},
-	{
 		Scenario:      "Send verify email",
 		Email:         "validemail@test.com",
-		AddUserReturn: session(futureTime, futureTime),
 		MethodsCalled: []string{"AddUser"},
 	},
 }
@@ -398,7 +388,7 @@ var registerTests = []struct {
 func TestRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &MockBackend{AddUserReturn: test.AddUserReturn}
-		store := getStore(nil, nil, false, test.HasCookiePutError, backend)
+		store := getStore(nil, nil, false, false, backend)
 		err := store.register(test.Email)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
@@ -409,51 +399,35 @@ func TestRegister(t *testing.T) {
 }
 
 var createProfileTests = []struct {
-	Scenario                                 string
-	HasCookieGetError                        bool
-	HasCookiePutError                        bool
-	SessionCookie                            *SessionCookie
-	GetSessionReturn                         *SessionReturn
-	CreateProfileAndInvalidateSessionsReturn *SessionReturn
-	MethodsCalled                            []string
-	ExpectedErr                              string
+	Scenario          string
+	SessionCookie     *SessionCookie
+	GetSessionReturn  *SessionReturn
+	CreateLoginReturn *SessionReturn
+	MethodsCalled     []string
+	ExpectedErr       string
 }{
 	{
-		Scenario:          "Invalid email",
-		HasCookieGetError: true,
-		ExpectedErr:       "Unable to get session",
+		Scenario:          "Error Creating profile",
+		SessionCookie:     sessionCookie(futureTime, futureTime),
+		GetSessionReturn:  session(futureTime, futureTime),
+		CreateLoginReturn: sessionErr(),
+		MethodsCalled:     []string{"GetSession", "CreateLogin"},
+		ExpectedErr:       "Unable to create profile",
 	},
 	{
-		Scenario:                                 "Error Creating profile",
-		SessionCookie:                            sessionCookie(futureTime, futureTime),
-		GetSessionReturn:                         session(futureTime, futureTime),
-		CreateProfileAndInvalidateSessionsReturn: sessionErr(),
-		MethodsCalled:                            []string{"GetSession", "CreateProfileAndInvalidateSessions"},
-		ExpectedErr:                              "Unable to create profile",
-	},
-	{
-		Scenario:                                 "Error saving session cookie",
-		SessionCookie:                            sessionCookie(futureTime, futureTime),
-		GetSessionReturn:                         session(futureTime, futureTime),
-		CreateProfileAndInvalidateSessionsReturn: session(futureTime, futureTime),
-		HasCookiePutError:                        true,
-		MethodsCalled:                            []string{"GetSession", "CreateProfileAndInvalidateSessions"},
-		ExpectedErr:                              "Error saving session cookie",
-	},
-	{
-		Scenario:                                 "Success",
-		SessionCookie:                            sessionCookie(futureTime, futureTime),
-		GetSessionReturn:                         session(futureTime, futureTime),
-		CreateProfileAndInvalidateSessionsReturn: session(futureTime, futureTime),
-		MethodsCalled:                            []string{"GetSession", "CreateProfileAndInvalidateSessions"},
+		Scenario:          "Success",
+		SessionCookie:     sessionCookie(futureTime, futureTime),
+		GetSessionReturn:  session(futureTime, futureTime),
+		CreateLoginReturn: session(futureTime, futureTime),
+		MethodsCalled:     []string{"GetSession", "CreateLogin"},
 	},
 }
 
 func TestCreateProfile(t *testing.T) {
 	for i, test := range createProfileTests {
-		backend := &MockBackend{CreateProfileAndInvalidateSessionsReturn: test.CreateProfileAndInvalidateSessionsReturn, GetSessionReturn: test.GetSessionReturn}
-		store := getStore(test.SessionCookie, nil, test.HasCookieGetError, test.HasCookiePutError, backend)
-		err := store.createProfile("name", "organization", "password", "path")
+		backend := &MockBackend{CreateLoginReturn: test.CreateLoginReturn, GetSessionReturn: test.GetSessionReturn}
+		store := getStore(test.SessionCookie, nil, false, false, backend)
+		err := store.createProfile("email", "name", "organization", "password", "path")
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -465,8 +439,6 @@ func TestCreateProfile(t *testing.T) {
 var verifyEmailTests = []struct {
 	Scenario          string
 	EmailVerifyCode   string
-	HasCookieGetError bool
-	HasCookiePutError bool
 	SessionCookie     *SessionCookie
 	VerifyEmailReturn *VerifyEmailReturn
 	MethodsCalled     []string
@@ -475,17 +447,8 @@ var verifyEmailTests = []struct {
 	{
 		Scenario:          "Decode error",
 		EmailVerifyCode:   "code",
-		VerifyEmailReturn: verifyEmail(futureTime, futureTime),
+		VerifyEmailReturn: verifyEmail(),
 		ExpectedErr:       "Invalid verification code",
-	},
-	{
-		Scenario:          "Cookie Save error",
-		EmailVerifyCode:   "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0", // random base64 encoded data
-		VerifyEmailReturn: verifyEmail(futureTime, futureTime),
-		HasCookieGetError: true,
-		HasCookiePutError: true,
-		ExpectedErr:       "Error saving session cookie",
-		MethodsCalled:     []string{"VerifyEmail"},
 	},
 	{
 		Scenario:          "Verify Email Error",
@@ -497,7 +460,7 @@ var verifyEmailTests = []struct {
 	{
 		Scenario:          "Email sent",
 		EmailVerifyCode:   "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
-		VerifyEmailReturn: verifyEmail(futureTime, futureTime),
+		VerifyEmailReturn: verifyEmail(),
 		MethodsCalled:     []string{"VerifyEmail"},
 	},
 }
@@ -505,7 +468,7 @@ var verifyEmailTests = []struct {
 func TestVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &MockBackend{VerifyEmailReturn: test.VerifyEmailReturn}
-		store := getStore(test.SessionCookie, nil, test.HasCookieGetError, test.HasCookiePutError, backend)
+		store := getStore(test.SessionCookie, nil, false, false, backend)
 		err := store.verifyEmail(test.EmailVerifyCode)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||

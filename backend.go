@@ -12,10 +12,10 @@ type BackendQuerier interface {
 	RenewSession(sessionId string, renewsAt time.Time) (*UserLoginSession, error)
 	GetRememberMe(selector string) (*UserLoginRememberMe, error)
 	RenewRememberMe(selector string, renewsAt time.Time) (*UserLoginRememberMe, error)
-	AddUser(email, emailVerifyHash, sessionId string, sessionRenewsAt, sessionExpiresAt time.Time) (*UserLoginSession, error)
-	VerifyEmail(emailVerifyCode, sessionId string, sessionRenewsAt, sessionExpiresAt time.Time) (*UserLoginSession, string, error)
+	AddUser(email, emailVerifyHash string) error
+	VerifyEmail(emailVerifyCode string) (string, error)
 	UpdateUser(session *UserLoginSession, fullname string, company string, pictureUrl string) error
-	CreateProfileAndInvalidateSessions(loginId int, passwordHash string, fullName string, company string, pictureUrl string, sessionId string, sessionExpiresAt, sessionRenewsAt time.Time) (*UserLoginSession, error)
+	CreateLogin(email, passwordHash string, fullName string, company string, pictureUrl string, sessionId string, sessionExpiresAt, sessionRenewsAt time.Time) (*UserLoginSession, error)
 	UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error)
 	UpdatePasswordAndInvalidateSessions(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
 	InvalidateUserSessions(userId int) error
@@ -41,7 +41,7 @@ type User struct {
 	PrimaryEmail      string
 	EmailVerifyHash   string
 	EmailVerified     bool
-	LockoutEndDateUtc *time.Time
+	LockoutEndTimeUTC *time.Time
 	AccessFailedCount int
 }
 
@@ -53,25 +53,27 @@ type UserLogin struct {
 }
 
 type UserLoginSession struct {
-	LoginId    int
-	SessionId  string
-	UserId     int
-	ExpiresAt  time.Time
-	RenewsAt   time.Time
-	IsHalfAuth bool
+	LoginId       int
+	SessionId     string
+	UserId        int
+	ExpireTimeUTC time.Time
+	RenewTimeUTC  time.Time
 }
 
 type UserLoginRememberMe struct {
-	LoginId   int
-	Selector  string
-	TokenHash string
-	ExpiresAt time.Time
-	RenewsAt  time.Time
+	LoginId       int
+	Selector      string
+	TokenHash     string
+	ExpireTimeUTC time.Time
+	RenewTimeUTC  time.Time
 }
 
 type UserLoginProvider struct {
-	LoginProviderId int
-	Name            string
+	LoginProviderId   int
+	Name              string
+	OAuthClientId     string
+	OAuthClientSecret string
+	OAuthUrl          string
 }
 
 type AuthError struct {
