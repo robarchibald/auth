@@ -447,7 +447,7 @@ var verifyEmailTests = []struct {
 	{
 		Scenario:          "Decode error",
 		EmailVerifyCode:   "code",
-		VerifyEmailReturn: verifyEmail(),
+		VerifyEmailReturn: verifyEmailErr(),
 		ExpectedErr:       "Invalid verification code",
 	},
 	{
@@ -469,10 +469,10 @@ func TestVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &MockBackend{VerifyEmailReturn: test.VerifyEmailReturn}
 		store := getStore(test.SessionCookie, nil, false, false, backend)
-		err := store.verifyEmail(test.EmailVerifyCode)
+		email, err := store.verifyEmail(test.EmailVerifyCode)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
-			!collectionEqual(test.MethodsCalled, methods) {
+			!collectionEqual(test.MethodsCalled, methods) || email != test.VerifyEmailReturn.Email {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.MethodsCalled, methods)
 		}
 	}
@@ -524,13 +524,13 @@ func TestVerifyEmailPub(t *testing.T) {
 	backend := &MockBackend{VerifyEmailReturn: verifyEmailErr()}
 	store := getStore(nil, nil, true, false, backend)
 	store.r = r
-	err := store.VerifyEmail()
+	_, err := store.VerifyEmail()
 	if err == nil || err.Error() != "Failed to verify email" {
 		t.Error("expected error from child verifyEmail method", err)
 	}
 
 	buf.WriteString("b")
-	err = store.VerifyEmail()
+	_, err = store.VerifyEmail()
 	if err == nil || err.Error() != "Unable to get verification email from JSON" {
 		t.Error("expected error from VerifyEmail method", err)
 	}
