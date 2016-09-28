@@ -22,7 +22,7 @@ type SessionStorer interface {
 	Login() error
 	Register() error
 	CreateProfile() error
-	VerifyEmail() (string, error)
+	VerifyEmail() error
 	UpdateEmail() error
 	UpdatePassword() error
 }
@@ -316,30 +316,30 @@ func (s *SessionStore) createProfile(email, fullName, organization, password, pi
 	return nil
 }
 
-func (s *SessionStore) VerifyEmail() (string, error) {
+func (s *SessionStore) VerifyEmail() error {
 	verify, err := getVerificationCode(s.r)
 	if err != nil {
-		return "", NewAuthError("Unable to get verification email from JSON", err)
+		return NewAuthError("Unable to get verification email from JSON", err)
 	}
 	return s.verifyEmail(verify.EmailVerificationCode)
 }
 
-func (s *SessionStore) verifyEmail(emailVerificationCode string) (string, error) {
+func (s *SessionStore) verifyEmail(emailVerificationCode string) error {
 	data, err := decodeFromString(emailVerificationCode + "=") // add back the =, then decode
 	if err != nil {
-		return "", NewLoggedError("Invalid verification code", err)
+		return NewLoggedError("Invalid verification code", err)
 	}
 	emailVerifyHash := encodeToString(hash(data))
 	email, err := s.backend.VerifyEmail(emailVerifyHash)
 	if err != nil {
-		return email, NewLoggedError("Failed to verify email", err)
+		return NewLoggedError("Failed to verify email", err)
 	}
 
 	err = s.mailer.SendWelcome(email, nil)
 	if err != nil {
-		return email, NewLoggedError("Failed to send welcome email", err)
+		return NewLoggedError("Failed to send welcome email", err)
 	}
-	return email, nil
+	return nil
 }
 
 func (s *SessionStore) UpdateEmail() error { return nil }
