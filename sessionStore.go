@@ -65,7 +65,8 @@ var emailCookieName = "Email"
 var sessionCookieName = "Session"
 var rememberMeCookieName = "RememberMe"
 
-const emailExpireDuration time.Duration = time.Hour * 24 * 365 // 1 year
+const emailExpireMins int = 60 * 24 * 365 // 1 year
+const emailExpireDuration time.Duration = time.Duration(emailExpireMins) * time.Minute
 const sessionRenewDuration time.Duration = 5 * time.Minute
 const sessionExpireDuration time.Duration = time.Hour
 const rememberMeRenewDuration time.Duration = time.Hour
@@ -406,7 +407,7 @@ func (s *SessionStore) deleteRememberMeCookie() {
 
 func (s *SessionStore) saveEmailCookie(emailVerificationCode string, expireTimeUTC time.Time) error {
 	cookie := EmailCookie{EmailVerificationCode: emailVerificationCode, ExpireTimeUTC: expireTimeUTC}
-	return s.cookieStore.Put(emailCookieName, &cookie)
+	return s.cookieStore.PutWithExpire(emailCookieName, &cookie, emailExpireMins)
 }
 
 func (s *SessionStore) saveSessionCookie(sessionId string, renewTimeUTC, expireTimeUTC time.Time) error {

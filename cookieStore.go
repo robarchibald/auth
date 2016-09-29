@@ -14,13 +14,14 @@ var cookieStore *securecookie.SecureCookie
 type CookieStorer interface {
 	Get(key string, result interface{}) error
 	Put(key string, value interface{}) error
+	PutWithExpire(key string, value interface{}, expireMins int) error
 	Delete(key string)
 }
 
 type CookieStore struct {
-	w      http.ResponseWriter
-	r      *http.Request
-	secure bool
+	w          http.ResponseWriter
+	r          *http.Request
+	secureOnly bool
 }
 
 func NewCookieStore(w http.ResponseWriter, r *http.Request, cookieKey []byte, secureOnly bool) *CookieStore {
@@ -30,15 +31,15 @@ func NewCookieStore(w http.ResponseWriter, r *http.Request, cookieKey []byte, se
 	return &CookieStore{w, r, secureOnly}
 }
 
-func (s CookieStore) Encode(key string, value interface{}) (string, error) {
+func (s *CookieStore) Encode(key string, value interface{}) (string, error) {
 	return cookieStore.Encode(key, value)
 }
 
-func (s CookieStore) Decode(key string, value string, result interface{}) error {
+func (s *CookieStore) Decode(key string, value string, result interface{}) error {
 	return cookieStore.Decode(key, value, result)
 }
 
-func (s CookieStore) Get(key string, result interface{}) error {
+func (s *CookieStore) Get(key string, result interface{}) error {
 	cookie, err := s.r.Cookie(key)
 	if err != nil {
 		return err
@@ -52,26 +53,30 @@ func (s CookieStore) Get(key string, result interface{}) error {
 	return nil
 }
 
-func (s CookieStore) Put(key string, value interface{}) error {
+func (s *CookieStore) Put(key string, value interface{}) error {
+	return s.PutWithExpire(key, value, 60*24*30) // default to 30 day expiration
+}
+
+func (s *CookieStore) PutWithExpire(key string, value interface{}, expireMins int) error {
 	encoded, err := s.Encode(key, value)
 	if err != nil {
 		return err
 	}
 
 	cookie := &http.Cookie{
-		Expires:  time.Now().UTC().AddDate(0, 1, 0),
+		Expires:  time.Now().UTC().Add(time.Duration(expireMins) * time.Minute),
 		Name:     key,
 		Value:    encoded,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   s.secure,
-		MaxAge:   30 * 24 * 60, // number of minutes in 30 days
+		Secure:   s.secureOnly,
+		MaxAge:   expireMins,
 	}
 	http.SetCookie(s.w, cookie)
 	return nil
 }
 
-func (s CookieStore) Delete(key string) {
+func (s *CookieStore) Delete(key string) {
 	cookie := &http.Cookie{
 		MaxAge: -1,
 		Name:   key,
