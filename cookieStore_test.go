@@ -16,13 +16,13 @@ var cookieKey []byte = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
 
 func getCookieStore() *CookieStore {
 	r, _ := http.NewRequest("GET", "www.google.com", nil)
-	return NewCookieStore(httptest.NewRecorder(), r, cookieKey)
+	return NewCookieStore(httptest.NewRecorder(), r, cookieKey, false)
 }
 
 func TestNewCookieStore(t *testing.T) {
 	r := &http.Request{}
 	w := httptest.NewRecorder()
-	actual := NewCookieStore(w, r, cookieKey)
+	actual := NewCookieStore(w, r, cookieKey, false)
 	if actual.w != w || actual.r != r {
 		t.Fatal("expected correct init", actual)
 	}
@@ -37,7 +37,7 @@ func TestGetCookie(t *testing.T) {
 
 	cookie := SessionCookie{}
 	err = store.Get("myCookie", &cookie)
-	if err != nil || cookie.ExpiresAt != expiresAt || cookie.RenewsAt != renewsAt || cookie.SessionId != "sessionId" {
+	if err != nil || cookie.ExpireTimeUTC != expiresAt || cookie.RenewTimeUTC != renewsAt || cookie.SessionId != "sessionId" {
 		t.Fatal("unexpected", err, cookie)
 	}
 }
@@ -81,7 +81,7 @@ func TestPutCookie(t *testing.T) {
 	maxAge := substringBetween(rawCookie, "Max-Age=", ";")
 	expireTime, err := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", expires)
 	if err != nil || name != "myCookie" || actual.SessionId != expected.SessionId ||
-		actual.ExpiresAt != expected.ExpiresAt || actual.RenewsAt != expected.RenewsAt ||
+		actual.ExpireTimeUTC != expected.ExpireTimeUTC || actual.RenewTimeUTC != expected.RenewTimeUTC ||
 		path != "/" || maxAge != "43200" || expireTime.Sub(expectedCookieExpiration) > 1*time.Second {
 		t.Fatal("unexpected", err, name, path, expireTime, maxAge)
 	}

@@ -18,15 +18,16 @@ type CookieStorer interface {
 }
 
 type CookieStore struct {
-	w http.ResponseWriter
-	r *http.Request
+	w      http.ResponseWriter
+	r      *http.Request
+	secure bool
 }
 
-func NewCookieStore(w http.ResponseWriter, r *http.Request, cookieKey []byte) *CookieStore {
+func NewCookieStore(w http.ResponseWriter, r *http.Request, cookieKey []byte, secureOnly bool) *CookieStore {
 	if cookieStore == nil {
 		cookieStore = securecookie.New(cookieKey, nil)
 	}
-	return &CookieStore{w, r}
+	return &CookieStore{w, r, secureOnly}
 }
 
 func (s CookieStore) Encode(key string, value interface{}) (string, error) {
@@ -63,7 +64,7 @@ func (s CookieStore) Put(key string, value interface{}) error {
 		Value:    encoded,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false,
+		Secure:   s.secure,
 		MaxAge:   30 * 24 * 60, // number of minutes in 30 days
 	}
 	http.SetCookie(s.w, cookie)

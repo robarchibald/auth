@@ -15,7 +15,7 @@ type BackendQuerier interface {
 	AddUser(email, emailVerifyHash string) error
 	VerifyEmail(emailVerifyCode string) (string, error)
 	UpdateUser(session *UserLoginSession, fullname string, company string, pictureUrl string) error
-	CreateLogin(email, passwordHash string, fullName string, company string, pictureUrl string, sessionId string, sessionExpiresAt, sessionRenewsAt time.Time) (*UserLoginSession, error)
+	CreateLogin(emailVerificationHash, passwordHash string, fullName string, company string, pictureUrl string, sessionId string, sessionExpiresAt, sessionRenewsAt time.Time) (*UserLoginSession, error)
 	UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error)
 	UpdatePasswordAndInvalidateSessions(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
 	InvalidateUserSessions(userId int) error

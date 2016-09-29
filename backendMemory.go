@@ -129,8 +129,8 @@ func (m *BackendMemory) UpdateUser(session *UserLoginSession, fullname string, c
 }
 
 // This function isn't right yet. Not creating company. Not sure if anything else is missing
-func (m *BackendMemory) CreateLogin(email, passwordHash string, fullName string, company string, pictureUrl string, sessionId string, sessionExpiresAt, sessionRenewsAt time.Time) (*UserLoginSession, error) {
-	user := m.getUserByEmail(email)
+func (m *BackendMemory) CreateLogin(emailVerifyHash, passwordHash string, fullName string, company string, pictureUrl string, sessionId string, sessionExpiresAt, sessionRenewsAt time.Time) (*UserLoginSession, error) {
+	user := m.getUserByEmailVerifyHash(emailVerifyHash)
 	if user == nil {
 		return nil, ErrUserNotFound
 	}

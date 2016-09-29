@@ -40,9 +40,9 @@ func TestBackendEndToEnd(t *testing.T) {
 	}
 
 	// create profile
-	session, err := backend.CreateLogin("test@test.com", "passwordHash", "fullName", "company", "pictureUrl", "sessionId", time.Now().UTC().AddDate(0, 0, 1), time.Now().UTC().AddDate(0, 0, 5))
+	session, err := backend.CreateLogin("emailVerifyHash", "passwordHash", "fullName", "company", "pictureUrl", "sessionId", time.Now().UTC().AddDate(0, 0, 1), time.Now().UTC().AddDate(0, 0, 5))
 	if err != nil || session.SessionId != "sessionId" || len(backend.Logins) != 1 || backend.Logins[0].UserId != session.UserId || len(backend.Sessions) != 1 {
-		t.Fatal("expected profile to be created")
+		t.Fatal("expected profile to be created", err)
 	}
 
 	// login on same browser with same session ID
@@ -201,12 +201,12 @@ func TestBackendCreateLogin(t *testing.T) {
 	renews := time.Now().UTC()
 	expires := time.Now().UTC().Add(time.Hour)
 	backend := NewBackendMemory()
-	if _, err := backend.CreateLogin("email", "passwordHash", "fullName", "company", "pictureUrl", "sessionId", expires, renews); err != ErrUserNotFound {
+	if _, err := backend.CreateLogin("emailVerifyHash", "passwordHash", "fullName", "company", "pictureUrl", "sessionId", expires, renews); err != ErrUserNotFound {
 		t.Error("expected login not found err", err)
 	}
 
-	backend.Users = append(backend.Users, &User{EmailVerifyHash: "verifyHash", UserId: 1, PrimaryEmail: "email"})
-	if session, err := backend.CreateLogin("email", "passwordHash", "fullName", "company", "pictureUrl", "sessionId", expires, renews); err != nil || session.SessionId != "sessionId" || session.ExpireTimeUTC != expires || session.RenewTimeUTC != renews || session.LoginId != 1 || session.UserId != 1 {
+	backend.Users = append(backend.Users, &User{EmailVerifyHash: "emailVerifyHash", UserId: 1, PrimaryEmail: "email"})
+	if session, err := backend.CreateLogin("emailVerifyHash", "passwordHash", "fullName", "company", "pictureUrl", "sessionId", expires, renews); err != nil || session.SessionId != "sessionId" || session.ExpireTimeUTC != expires || session.RenewTimeUTC != renews || session.LoginId != 1 || session.UserId != 1 {
 		t.Error("expected valid session", session)
 	}
 }
