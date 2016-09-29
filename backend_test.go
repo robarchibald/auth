@@ -64,15 +64,15 @@ func (b *MockBackend) GetUserLogin(email, loginProvider string) (*UserLogin, err
 	b.MethodsCalled = append(b.MethodsCalled, "GetUserLogin")
 	return b.LoginReturn, b.ErrReturn
 }
-func (b *MockBackend) GetSession(sessionId string) (*UserLoginSession, error) {
+func (b *MockBackend) GetSession(sessionHash string) (*UserLoginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetSession")
 	return b.GetSessionReturn.Session, b.GetSessionReturn.Err
 }
-func (b *MockBackend) NewLoginSession(loginId int, sessionId string, sessionRenewsAt, sessionExpiresAt time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewsAt, rememberMeExpiresAt time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
+func (b *MockBackend) NewLoginSession(loginId int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "NewSession")
 	return b.NewSessionReturn.Session, b.NewSessionReturn.RememberMe, b.NewSessionReturn.Err
 }
-func (b *MockBackend) RenewSession(sessionId string, renewsAt time.Time) (*UserLoginSession, error) {
+func (b *MockBackend) RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "RenewSession")
 	return b.RenewSessionReturn.Session, b.RenewSessionReturn.Err
 }
@@ -80,7 +80,7 @@ func (b *MockBackend) GetRememberMe(selector string) (*UserLoginRememberMe, erro
 	b.MethodsCalled = append(b.MethodsCalled, "GetRememberMe")
 	return b.GetRememberMeReturn.RememberMe, b.GetRememberMeReturn.Err
 }
-func (b *MockBackend) RenewRememberMe(selector string, renewsAt time.Time) (*UserLoginRememberMe, error) {
+func (b *MockBackend) RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "RenewRememberMe")
 	return b.RenewRememberMeReturn.RememberMe, b.RenewRememberMeReturn.Err
 }
@@ -89,7 +89,7 @@ func (b *MockBackend) AddUser(email, emailVerifyHash string) error {
 	return b.AddUserReturn
 }
 
-func (b *MockBackend) VerifyEmail(emailVerifyCode string) (string, error) {
+func (b *MockBackend) VerifyEmail(emailVerifyHash string) (string, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "VerifyEmail")
 	return b.VerifyEmailReturn.Email, b.VerifyEmailReturn.Err
 }
@@ -99,7 +99,7 @@ func (b *MockBackend) UpdateUser(session *UserLoginSession, fullname string, com
 	return b.ErrReturn
 }
 
-func (b *MockBackend) CreateLogin(email string, passwordHash string, fullName string, company string, pictureUrl string, sessionId string, sessionExpiresAt, sessionRenewsAt time.Time) (*UserLoginSession, error) {
+func (b *MockBackend) CreateLogin(email string, passwordHash string, fullName string, company string, pictureUrl string, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*UserLoginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateLogin")
 	return b.CreateLoginReturn.Session, b.CreateLoginReturn.Err
 }
@@ -114,29 +114,29 @@ func (b *MockBackend) UpdatePasswordAndInvalidateSessions(email string, oldPassw
 	return b.UpdatePasswordAndInvalidateSessionsReturn.Session, b.UpdatePasswordAndInvalidateSessionsReturn.Err
 }
 
-func (b *MockBackend) InvalidateUserSessions(userId int) error {
-	b.MethodsCalled = append(b.MethodsCalled, "InvalidateUserSessions")
+func (b *MockBackend) InvalidateSession(sessionHash string) error {
+	b.MethodsCalled = append(b.MethodsCalled, "InvalidateSession")
 	return b.ErrReturn
 }
 
-func session(renewsAt, expiresAt time.Time) *SessionReturn {
-	return &SessionReturn{&UserLoginSession{1, "sessionId", 2, renewsAt, expiresAt}, nil}
+func session(renewTimeUTC, expireTimeUTC time.Time) *SessionReturn {
+	return &SessionReturn{&UserLoginSession{1, "sessionHash", 2, renewTimeUTC, expireTimeUTC}, nil}
 }
 
 func sessionErr() *SessionReturn {
 	return &SessionReturn{&UserLoginSession{}, errors.New("failed")}
 }
 
-func rememberMe(renewsAt, expiresAt time.Time) *RememberMeReturn { // hash of the word "token"
-	return &RememberMeReturn{&UserLoginRememberMe{TokenHash: "PEaenWxYddN6Q_NT1PiOYfz4EsZu7jRXRlpAsNpBU-A=", ExpireTimeUTC: expiresAt, RenewTimeUTC: renewsAt}, nil}
+func rememberMe(renewTimeUTC, expireTimeUTC time.Time) *RememberMeReturn { // hash of the word "token"
+	return &RememberMeReturn{&UserLoginRememberMe{TokenHash: "PEaenWxYddN6Q_NT1PiOYfz4EsZu7jRXRlpAsNpBU-A=", ExpireTimeUTC: expireTimeUTC, RenewTimeUTC: renewTimeUTC}, nil}
 }
 
 func rememberErr() *RememberMeReturn {
 	return &RememberMeReturn{&UserLoginRememberMe{}, errors.New("failed")}
 }
 
-func sessionRemember(renewsAt, expiresAt time.Time) *SessionRememberReturn {
-	return &SessionRememberReturn{&UserLoginSession{1, "sessionId", 2, renewsAt, expiresAt}, &UserLoginRememberMe{TokenHash: "PEaenWxYddN6Q_NT1PiOYfz4EsZu7jRXRlpAsNpBU-A=", ExpireTimeUTC: expiresAt, RenewTimeUTC: renewsAt}, nil}
+func sessionRemember(renewTimeUTC, expireTimeUTC time.Time) *SessionRememberReturn {
+	return &SessionRememberReturn{&UserLoginSession{1, "sessionHash", 2, renewTimeUTC, expireTimeUTC}, &UserLoginRememberMe{TokenHash: "PEaenWxYddN6Q_NT1PiOYfz4EsZu7jRXRlpAsNpBU-A=", ExpireTimeUTC: expireTimeUTC, RenewTimeUTC: renewTimeUTC}, nil}
 }
 
 func sessionRememberErr() *SessionRememberReturn {

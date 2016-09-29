@@ -3,6 +3,7 @@ package nginxauth
 import (
 	"bytes"
 	"errors"
+	"github.com/robarchibald/substring"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
@@ -32,6 +33,68 @@ func TestNewSessionStore(t *testing.T) {
 	}
 }
 
+func TestSessionStoreEndToEnd(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := &http.Request{Header: http.Header{}}
+	b := NewBackendMemory()
+	m := &TextMailer{}
+	s := NewSessionStore(b, m, w, r, cookieKey, "prefix", false)
+
+	// register new user
+	// adds to users, logins and sessions
+	err := s.register("test@test.com")
+	if err != nil || len(b.Users) != 1 || b.Users[0].EmailVerified || len(b.Sessions) != 0 {
+		t.Fatal("expected to be able to add user")
+	}
+
+	// get code from "email"
+	data := m.MessageData.(*SendVerifyParams)
+
+	// verify email
+	err = s.verifyEmail(data.VerificationCode)
+
+	// decode email cookie
+	value := substring.Between(w.HeaderMap["Set-Cookie"][0], "prefixEmail=", ";")
+	emailCookie := EmailCookie{}
+	cookieStore.Decode("prefixEmail", value, &emailCookie)
+	emailVerifyHash, _ := decodeStringToHash(emailCookie.EmailVerificationCode)
+	if err != nil || len(b.Users) != 1 || !b.Users[0].EmailVerified || emailVerifyHash != b.Users[0].EmailVerifyHash {
+		t.Fatal("expected email to be verified", err, data.Email, b.Users)
+	}
+
+	// add email cookie to the next request
+	r.AddCookie(newCookie("prefixEmail", value, false, emailExpireMins))
+
+	// create profile
+	err = s.createProfile("fullName", "company", "password", "picturePath")
+
+	// decode session cookie
+	value = substring.Between(w.HeaderMap["Set-Cookie"][1], "prefixSession=", ";")
+	sessionCookie := SessionCookie{}
+	cookieStore.Decode("prefixSession", value, &sessionCookie)
+	sessionHash, _ := decodeStringToHash(sessionCookie.SessionId)
+
+	// add session cookie to the next request
+	r.AddCookie(newCookie("prefixSession", value, false, emailExpireMins))
+
+	if err != nil || len(b.Sessions) != 1 || b.Sessions[0].SessionHash != sessionHash || len(b.Logins) != 1 || b.Logins[0].UserId != 1 ||
+		b.Users[0].FullName != "fullName" || b.Users[0].PrimaryEmail != "test@test.com" {
+		t.Fatal("expected profile to be created", err, b.Sessions[0].SessionHash, b.Logins[0].UserId, b.Users[0].FullName, b.Users[0].PrimaryEmail)
+	}
+
+	// login on same browser with same existing session
+	session, err := s.login("test@test.com", "password", true)
+	if err != nil || len(b.Logins) != 1 || len(b.Sessions) != 1 || len(b.Users) != 1 || session.SessionHash != b.Sessions[0].SessionHash || session.UserId != 1 {
+		t.Fatal("expected to login to existing session", len(b.Logins), len(b.Sessions), len(b.Users), session, b.Sessions[0].SessionHash)
+	}
+
+	// now login with different browser with new session ID. Create new session
+	/*	session, rememberMe, err = b.NewLoginSession(login.LoginId, "newSessionHash", time.Now().UTC().AddDate(0, 0, 1), time.Now().UTC().AddDate(0, 0, 5), false, "", "", time.Time{}, time.Time{})
+		if err != nil || login == nil || rememberMe != nil || len(b.Sessions) != 2 {
+			t.Fatal("expected new User Login to be created")
+		}*/
+}
+
 var getSessionTests = []struct {
 	Scenario            string
 	HasCookieGetError   bool
@@ -54,6 +117,11 @@ var getSessionTests = []struct {
 		Scenario:          "Get Session Cookie Error",
 		HasCookieGetError: true,
 		ExpectedErr:       "Session cookie not found",
+	},
+	{
+		Scenario:      "Get Session Invalid Cookie Error",
+		SessionCookie: sessionBogusCookie(futureTime, futureTime),
+		ExpectedErr:   "Unable to decode session cookie",
 	},
 	{
 		Scenario:         "Get Session Error",
@@ -85,8 +153,8 @@ func TestGetSession(t *testing.T) {
 
 var renewSessionTests = []struct {
 	Scenario            string
-	RenewsAt            time.Time
-	ExpiresAt           time.Time
+	RenewTimeUTC        time.Time
+	ExpireTimeUTC       time.Time
 	HasCookieGetError   bool
 	HasCookiePutError   bool
 	RememberCookie      *RememberMeCookie
@@ -98,16 +166,16 @@ var renewSessionTests = []struct {
 }{
 	{
 		Scenario:           "Renew Error",
-		RenewsAt:           pastTime,
-		ExpiresAt:          futureTime,
+		RenewTimeUTC:       pastTime,
+		ExpireTimeUTC:      futureTime,
 		RenewSessionReturn: sessionErr(),
 		MethodsCalled:      []string{"RenewSession"},
 		ExpectedErr:        "Unable to renew session",
 	},
 	{
 		Scenario:           "Renew Save cookie error",
-		RenewsAt:           pastTime,
-		ExpiresAt:          futureTime,
+		RenewTimeUTC:       pastTime,
+		ExpireTimeUTC:      futureTime,
 		HasCookiePutError:  true,
 		RenewSessionReturn: session(futureTime, futureTime),
 		MethodsCalled:      []string{"RenewSession"},
@@ -115,15 +183,15 @@ var renewSessionTests = []struct {
 	},
 	{
 		Scenario:          "Error Getting RememberMe",
-		RenewsAt:          pastTime,
-		ExpiresAt:         pastTime,
+		RenewTimeUTC:      pastTime,
+		ExpireTimeUTC:     pastTime,
 		HasCookieGetError: true,
 		ExpectedErr:       "Unable to renew session",
 	},
 	{
 		Scenario:            "Renew With RememberMe",
-		RenewsAt:            pastTime,
-		ExpiresAt:           pastTime,
+		RenewTimeUTC:        pastTime,
+		ExpireTimeUTC:       pastTime,
 		RememberCookie:      rememberCookie(futureTime, futureTime),
 		RenewSessionReturn:  session(futureTime, futureTime),
 		GetRememberMeReturn: rememberMe(futureTime, futureTime),
@@ -131,8 +199,8 @@ var renewSessionTests = []struct {
 	},
 	{
 		Scenario:            "Renew With RememberMe Error",
-		RenewsAt:            pastTime,
-		ExpiresAt:           pastTime,
+		RenewTimeUTC:        pastTime,
+		ExpireTimeUTC:       pastTime,
 		RememberCookie:      rememberCookie(futureTime, futureTime),
 		GetRememberMeReturn: rememberMe(futureTime, futureTime),
 		RenewSessionReturn:  &SessionReturn{nil, ErrSessionNotFound},
@@ -141,8 +209,8 @@ var renewSessionTests = []struct {
 	},
 	{
 		Scenario:            "Save cookie error",
-		RenewsAt:            pastTime,
-		ExpiresAt:           pastTime,
+		RenewTimeUTC:        pastTime,
+		ExpireTimeUTC:       pastTime,
 		RememberCookie:      rememberCookie(futureTime, futureTime),
 		GetRememberMeReturn: rememberMe(futureTime, futureTime),
 		RenewSessionReturn:  session(futureTime, futureTime),
@@ -157,7 +225,7 @@ func TestRenewSession(t *testing.T) {
 	for i, test := range renewSessionTests {
 		backend := &MockBackend{RenewSessionReturn: test.RenewSessionReturn, GetRememberMeReturn: test.GetRememberMeReturn}
 		store := getStore(nil, nil, test.RememberCookie, test.HasCookieGetError, test.HasCookiePutError, backend)
-		val, err := store.renewSession("sessionId", &test.RenewsAt, &test.ExpiresAt)
+		val, err := store.renewSession("sessionId", "sessionHash", &test.RenewTimeUTC, &test.ExpireTimeUTC)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -321,7 +389,7 @@ var createSessionTests = []struct {
 		Scenario:         "Valid cookie.  delete in backend",
 		SessionCookie:    sessionCookie(futureTime, futureTime),
 		NewSessionReturn: sessionRemember(futureTime, futureTime),
-		MethodsCalled:    []string{"NewSession"},
+		MethodsCalled:    []string{"NewSession", "InvalidateSession"},
 	},
 	{
 		Scenario:         "Set RememberMe",
@@ -454,31 +522,31 @@ func TestCreateProfile(t *testing.T) {
 }
 
 var verifyEmailTests = []struct {
-	Scenario          string
-	EmailVerifyCode   string
-	SessionCookie     *SessionCookie
-	VerifyEmailReturn *VerifyEmailReturn
-	MethodsCalled     []string
-	ExpectedErr       string
+	Scenario              string
+	EmailVerificationCode string
+	SessionCookie         *SessionCookie
+	VerifyEmailReturn     *VerifyEmailReturn
+	MethodsCalled         []string
+	ExpectedErr           string
 }{
 	{
-		Scenario:          "Decode error",
-		EmailVerifyCode:   "code",
-		VerifyEmailReturn: verifyEmailErr(),
-		ExpectedErr:       "Invalid verification code",
+		Scenario:              "Decode error",
+		EmailVerificationCode: "code",
+		VerifyEmailReturn:     verifyEmailErr(),
+		ExpectedErr:           "Invalid verification code",
 	},
 	{
-		Scenario:          "Verify Email Error",
-		EmailVerifyCode:   "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
-		VerifyEmailReturn: verifyEmailErr(),
-		MethodsCalled:     []string{"VerifyEmail"},
-		ExpectedErr:       "Failed to verify email",
+		Scenario:              "Verify Email Error",
+		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
+		VerifyEmailReturn:     verifyEmailErr(),
+		MethodsCalled:         []string{"VerifyEmail"},
+		ExpectedErr:           "Failed to verify email",
 	},
 	{
-		Scenario:          "Email sent",
-		EmailVerifyCode:   "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
-		VerifyEmailReturn: verifyEmail(),
-		MethodsCalled:     []string{"VerifyEmail"},
+		Scenario:              "Email sent",
+		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
+		VerifyEmailReturn:     verifyEmail(),
+		MethodsCalled:         []string{"VerifyEmail"},
 	},
 }
 
@@ -486,7 +554,7 @@ func TestVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &MockBackend{VerifyEmailReturn: test.VerifyEmailReturn}
 		store := getStore(nil, test.SessionCookie, nil, false, false, backend)
-		err := store.verifyEmail(test.EmailVerifyCode)
+		err := store.verifyEmail(test.EmailVerificationCode)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {

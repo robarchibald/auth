@@ -14,7 +14,7 @@ var cookieStore *securecookie.SecureCookie
 type CookieStorer interface {
 	Get(key string, result interface{}) error
 	Put(key string, value interface{}) error
-	PutWithExpire(key string, value interface{}, expireMins int) error
+	PutWithExpire(key string, expireMins int, value interface{}) error
 	Delete(key string)
 }
 
@@ -54,25 +54,16 @@ func (s *CookieStore) Get(key string, result interface{}) error {
 }
 
 func (s *CookieStore) Put(key string, value interface{}) error {
-	return s.PutWithExpire(key, value, 60*24*30) // default to 30 day expiration
+	return s.PutWithExpire(key, 60*24*30, value) // default to 30 day expiration
 }
 
-func (s *CookieStore) PutWithExpire(key string, value interface{}, expireMins int) error {
+func (s *CookieStore) PutWithExpire(key string, expireMins int, value interface{}) error {
 	encoded, err := s.Encode(key, value)
 	if err != nil {
 		return err
 	}
 
-	cookie := &http.Cookie{
-		Expires:  time.Now().UTC().Add(time.Duration(expireMins) * time.Minute),
-		Name:     key,
-		Value:    encoded,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   s.secureOnly,
-		MaxAge:   expireMins,
-	}
-	http.SetCookie(s.w, cookie)
+	http.SetCookie(s.w, newCookie(key, encoded, s.secureOnly, expireMins))
 	return nil
 }
 
@@ -83,4 +74,16 @@ func (s *CookieStore) Delete(key string) {
 		Path:   "/",
 	}
 	http.SetCookie(s.w, cookie)
+}
+
+func newCookie(name string, value string, secureOnly bool, expireMins int) *http.Cookie {
+	return &http.Cookie{
+		Expires:  time.Now().UTC().Add(time.Duration(expireMins) * time.Minute),
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secureOnly,
+		MaxAge:   expireMins,
+	}
 }

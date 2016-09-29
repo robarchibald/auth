@@ -30,14 +30,14 @@ func TestNewCookieStore(t *testing.T) {
 
 func TestGetCookie(t *testing.T) {
 	store := getCookieStore()
-	renewsAt := time.Date(2001, 1, 1, 12, 0, 0, 0, time.Local)
-	expiresAt := time.Date(2002, 1, 1, 12, 0, 0, 0, time.Local)
-	value, err := securecookie.New(cookieKey, nil).Encode("myCookie", &SessionCookie{"sessionId", renewsAt, expiresAt})
+	renewsTimeUTC := time.Date(2001, 1, 1, 12, 0, 0, 0, time.Local)
+	expiresTimeUTC := time.Date(2002, 1, 1, 12, 0, 0, 0, time.Local)
+	value, err := securecookie.New(cookieKey, nil).Encode("myCookie", &SessionCookie{"sessionId", renewsTimeUTC, expiresTimeUTC})
 	store.r.AddCookie(&http.Cookie{Expires: time.Date(2001, 1, 1, 12, 0, 0, 0, time.Local), Name: "myCookie", Value: value})
 
 	cookie := SessionCookie{}
 	err = store.Get("myCookie", &cookie)
-	if err != nil || cookie.ExpireTimeUTC != expiresAt || cookie.RenewTimeUTC != renewsAt || cookie.SessionId != "sessionId" {
+	if err != nil || cookie.ExpireTimeUTC != expiresTimeUTC || cookie.RenewTimeUTC != renewsTimeUTC || cookie.SessionId != "sessionId" {
 		t.Fatal("unexpected", err, cookie)
 	}
 }
@@ -65,10 +65,10 @@ func TestGetCookieMissing(t *testing.T) {
 
 func TestPutCookie(t *testing.T) {
 	store := getCookieStore()
-	renewsAt := time.Date(2001, 1, 1, 12, 0, 0, 0, time.Local)
-	expiresAt := time.Date(2002, 1, 1, 12, 0, 0, 0, time.Local)
+	renewTimeUTC := time.Date(2001, 1, 1, 12, 0, 0, 0, time.Local)
+	expireTimeUTC := time.Date(2002, 1, 1, 12, 0, 0, 0, time.Local)
 	expectedCookieExpiration := time.Now().AddDate(0, 1, 1) // add 1 month to today
-	expected := &SessionCookie{"sessionId", renewsAt, expiresAt}
+	expected := &SessionCookie{"sessionId", renewTimeUTC, expireTimeUTC}
 	err := store.Put("myCookie", expected)
 
 	rawCookie := store.w.Header().Get("Set-Cookie")
@@ -135,19 +135,27 @@ func (c *MockCookieStore) Get(key string, result interface{}) error {
 	return c.getErr
 }
 
-func (c *MockCookieStore) Put(key string, value interface{}) error {
+func (c *MockCookieStore) PutWithExpire(key string, expire int, value interface{}) error {
 	c.cookies[key] = value
 	return c.putErr
+}
+
+func (c *MockCookieStore) Put(key string, value interface{}) error {
+	return c.PutWithExpire(key, 150, value)
 }
 
 func (c *MockCookieStore) Delete(key string) {
 	c.cookies[key] = nil
 }
 
-func rememberCookie(renewsAt, expiresAt time.Time) *RememberMeCookie {
-	return &RememberMeCookie{"selector", "dG9rZW4=", renewsAt, expiresAt} // dG9rZW4= is base64 encode of "token"
+func rememberCookie(renewTimeUTC, expireTimeUTC time.Time) *RememberMeCookie {
+	return &RememberMeCookie{"selector", "dG9rZW4=", renewTimeUTC, expireTimeUTC} // dG9rZW4= is base64 encode of "token"
 }
 
-func sessionCookie(renewsAt, expiresAt time.Time) *SessionCookie {
-	return &SessionCookie{"sessionId", renewsAt, expiresAt}
+func sessionCookie(renewTimeUTC, expireTimeUTC time.Time) *SessionCookie {
+	return &SessionCookie{"nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", renewTimeUTC, expireTimeUTC}
+}
+
+func sessionBogusCookie(renewTimeUTC, expireTimeUTC time.Time) *SessionCookie {
+	return &SessionCookie{"sessionId", renewTimeUTC, expireTimeUTC}
 }

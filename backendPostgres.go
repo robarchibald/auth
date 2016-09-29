@@ -49,14 +49,14 @@ func (b *BackendPostgres) GetUserLogin(email, loginProvider string) (*UserLogin,
 	var login *UserLogin
 	return login, b.Db.QueryStruct(onedb.NewSqlQuery(b.GetUserLoginQuery, email, loginProvider), login)
 }
-func (b *BackendPostgres) GetSession(sessionId string) (*UserLoginSession, error) {
+func (b *BackendPostgres) GetSession(sessionHash string) (*UserLoginSession, error) {
 	var session *UserLoginSession
-	return session, b.Db.QueryStructRow(onedb.NewSqlQuery(b.GetSessionQuery, sessionId), session)
+	return session, b.Db.QueryStructRow(onedb.NewSqlQuery(b.GetSessionQuery, sessionHash), session)
 }
 
-func (b *BackendPostgres) RenewSession(sessionId string, renewsAt time.Time) (*UserLoginSession, error) {
+func (b *BackendPostgres) RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error) {
 	var session *UserLoginSession
-	return session, b.Db.QueryStructRow(onedb.NewSqlQuery(b.RenewSessionQuery, sessionId), session)
+	return session, b.Db.QueryStructRow(onedb.NewSqlQuery(b.RenewSessionQuery, sessionHash), session)
 }
 
 func (b *BackendPostgres) GetRememberMe(selector string) (*UserLoginRememberMe, error) {
@@ -64,7 +64,7 @@ func (b *BackendPostgres) GetRememberMe(selector string) (*UserLoginRememberMe, 
 	return rememberMe, b.Db.QueryStructRow(onedb.NewSqlQuery(b.GetRememberMeQuery, selector), rememberMe)
 }
 
-func (b *BackendPostgres) RenewRememberMe(selector string, renewsAt time.Time) (*UserLoginRememberMe, error) {
+func (b *BackendPostgres) RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error) {
 	var rememberMe *UserLoginRememberMe
 	return rememberMe, b.Db.QueryStructRow(onedb.NewSqlQuery(b.RenewRememberMeQuery, selector), rememberMe)
 }
@@ -73,9 +73,9 @@ func (b *BackendPostgres) AddUser(email, emailVerifyHash string) error {
 	return b.Db.Execute(onedb.NewSqlQuery(b.AddUserQuery, email, emailVerifyHash))
 }
 
-func (b *BackendPostgres) VerifyEmail(emailVerifyCode string) (string, error) {
+func (b *BackendPostgres) VerifyEmail(emailVerifyHash string) (string, error) {
 	var user *User
-	err := b.Db.QueryStructRow(onedb.NewSqlQuery(b.VerifyEmailQuery, emailVerifyCode), user)
+	err := b.Db.QueryStructRow(onedb.NewSqlQuery(b.VerifyEmailQuery, emailVerifyHash), user)
 	if err != nil || user == nil {
 		return "", errors.New("Unable to verify email: " + err.Error())
 	}
@@ -86,7 +86,7 @@ func (b *BackendPostgres) UpdateUser(session *UserLoginSession, fullname string,
 	return nil
 }
 
-func (b *BackendPostgres) CreateLogin(email, passwordHash string, fullName string, company string, pictureUrl string, sessionId string, sessionExpiresAt, sessionRenewsAt time.Time) (*UserLoginSession, error) {
+func (b *BackendPostgres) CreateLogin(email, passwordHash string, fullName string, company string, pictureUrl string, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*UserLoginSession, error) {
 	return nil, nil
 }
 
@@ -98,7 +98,7 @@ func (b *BackendPostgres) UpdatePasswordAndInvalidateSessions(email string, oldP
 	return nil, nil
 }
 
-func (b *BackendPostgres) InvalidateUserSessions(userId int) error {
+func (b *BackendPostgres) InvalidateSession(sessionHash string) error {
 	return nil
 }
 

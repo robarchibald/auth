@@ -7,25 +7,25 @@ import (
 
 type BackendQuerier interface {
 	GetUserLogin(email, loginProvider string) (*UserLogin, error)
-	NewLoginSession(loginId int, sessionId string, sessionRenewsAt, sessionExpiresAt time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewsAt, rememberMeExpiresAt time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
-	GetSession(sessionId string) (*UserLoginSession, error)
-	RenewSession(sessionId string, renewsAt time.Time) (*UserLoginSession, error)
+	NewLoginSession(loginId int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
+	GetSession(sessionHash string) (*UserLoginSession, error)
+	RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error)
 	GetRememberMe(selector string) (*UserLoginRememberMe, error)
-	RenewRememberMe(selector string, renewsAt time.Time) (*UserLoginRememberMe, error)
+	RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error)
 	AddUser(email, emailVerifyHash string) error
-	VerifyEmail(emailVerifyCode string) (string, error)
+	VerifyEmail(emailVerifyHash string) (string, error)
 	UpdateUser(session *UserLoginSession, fullname string, company string, pictureUrl string) error
-	CreateLogin(emailVerificationHash, passwordHash string, fullName string, company string, pictureUrl string, sessionId string, sessionExpiresAt, sessionRenewsAt time.Time) (*UserLoginSession, error)
+	CreateLogin(emailVerifyHash, passwordHash string, fullName string, company string, pictureUrl string, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*UserLoginSession, error)
 	UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error)
 	UpdatePasswordAndInvalidateSessions(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
-	InvalidateUserSessions(userId int) error
+	InvalidateSession(sessionHash string) error
 	Close() error
 }
 
-var ErrEmailVerifyCodeExists = errors.New("DB: Email verify hash already exists")
-var ErrInvalidEmailVerifyCode = errors.New("DB: Invalid verify code")
-var ErrInvalidRenewsAtTime = errors.New("DB: Invalid RenewsAt time")
-var ErrInvalidSessionId = errors.New("DB: Invalid SessionId")
+var ErrEmailVerifyHashExists = errors.New("DB: Email verify hash already exists")
+var ErrInvalidEmailVerifyHash = errors.New("DB: Invalid verify code")
+var ErrInvalidRenewTimeUTC = errors.New("DB: Invalid RenewTimeUTC")
+var ErrInvalidSessionHash = errors.New("DB: Invalid SessionHash")
 var ErrRememberMeSelectorExists = errors.New("DB: RememberMe selector already exists")
 var ErrUserNotFound = errors.New("DB: User not found")
 var ErrLoginNotFound = errors.New("DB: Login not found")
@@ -54,18 +54,18 @@ type UserLogin struct {
 
 type UserLoginSession struct {
 	LoginId       int
-	SessionId     string
+	SessionHash   string
 	UserId        int
-	ExpireTimeUTC time.Time
 	RenewTimeUTC  time.Time
+	ExpireTimeUTC time.Time
 }
 
 type UserLoginRememberMe struct {
 	LoginId       int
 	Selector      string
 	TokenHash     string
-	ExpireTimeUTC time.Time
 	RenewTimeUTC  time.Time
+	ExpireTimeUTC time.Time
 }
 
 type UserLoginProvider struct {

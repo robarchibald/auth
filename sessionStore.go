@@ -74,15 +74,19 @@ const rememberMeExpireDuration time.Duration = time.Hour * 24 * 30 // 30 days
 
 func (s *SessionStore) GetSession() (*UserLoginSession, error) {
 	cookie, err := s.getSessionCookie()
-	if err != nil { // impossible to get the session if there is no cookie
+	if err != nil || cookie.SessionId == "" { // impossible to get the session if there is no cookie
 		return nil, NewAuthError("Session cookie not found", err)
+	}
+	sessionHash, err := decodeStringToHash(cookie.SessionId)
+	if err != nil {
+		return nil, NewAuthError("Unable to decode session cookie", err)
 	}
 
 	if cookie.RenewTimeUTC.Before(time.Now().UTC()) || cookie.ExpireTimeUTC.Before(time.Now().UTC()) {
-		return s.renewSession(cookie.SessionId, &cookie.RenewTimeUTC, &cookie.ExpireTimeUTC)
+		return s.renewSession(cookie.SessionId, sessionHash, &cookie.RenewTimeUTC, &cookie.ExpireTimeUTC)
 	}
 
-	session, err := s.backend.GetSession(cookie.SessionId)
+	session, err := s.backend.GetSession(sessionHash)
 	if err != nil {
 		if err == ErrSessionNotFound {
 			s.deleteSessionCookie()
@@ -109,7 +113,7 @@ func (s *SessionStore) GetBasicAuth() (*UserLoginSession, error) {
 
 func (s *SessionStore) getRememberMe() (*UserLoginRememberMe, error) {
 	cookie, err := s.getRememberMeCookie()
-	if err != nil { // impossible to get the remember Me if there is no cookie
+	if err != nil || cookie.Selector == "" { // impossible to get the remember Me if there is no cookie
 		return nil, NewAuthError("RememberMe cookie not found", err)
 	}
 	if cookie.ExpireTimeUTC.Before(time.Now().UTC()) {
@@ -140,27 +144,25 @@ func (s *SessionStore) getRememberMe() (*UserLoginRememberMe, error) {
 	return rememberMe, nil
 }
 
-func (s *SessionStore) renewSession(sessionId string, renewTimeUTC, expireTimeUTC *time.Time) (*UserLoginSession, error) {
-	var session *UserLoginSession
-	var err error
+func (s *SessionStore) renewSession(sessionID, sessionHash string, renewTimeUTC, expireTimeUTC *time.Time) (*UserLoginSession, error) {
 	if renewTimeUTC.Before(time.Now().UTC()) && expireTimeUTC.After(time.Now().UTC()) {
-		session, err := s.backend.RenewSession(sessionId, time.Now().UTC().Add(sessionRenewDuration))
+		session, err := s.backend.RenewSession(sessionHash, time.Now().UTC().Add(sessionRenewDuration))
 		if err != nil {
 			return nil, NewLoggedError("Unable to renew session", err)
 		}
 
-		if err = s.saveSessionCookie(session.SessionId, session.RenewTimeUTC, session.ExpireTimeUTC); err != nil {
+		if err = s.saveSessionCookie(sessionID, session.RenewTimeUTC, session.ExpireTimeUTC); err != nil {
 			return nil, err
 		}
 		return session, nil
 	}
 
-	_, err = s.getRememberMe()
+	_, err := s.getRememberMe()
 	if err != nil {
 		return nil, NewAuthError("Unable to renew session", err)
 	}
 
-	session, err = s.backend.RenewSession(sessionId, time.Now().UTC().Add(sessionRenewDuration))
+	session, err := s.backend.RenewSession(sessionHash, time.Now().UTC().Add(sessionRenewDuration))
 	if err != nil {
 		if err == ErrSessionNotFound {
 			s.deleteSessionCookie()
@@ -168,7 +170,7 @@ func (s *SessionStore) renewSession(sessionId string, renewTimeUTC, expireTimeUT
 		return nil, NewLoggedError("Problem renewing session", err)
 	}
 
-	if err = s.saveSessionCookie(session.SessionId, session.RenewTimeUTC, session.ExpireTimeUTC); err != nil {
+	if err = s.saveSessionCookie(sessionID, session.RenewTimeUTC, session.ExpireTimeUTC); err != nil {
 		return nil, err
 	}
 	return session, nil
@@ -213,19 +215,22 @@ func (s *SessionStore) createSession(loginId int, rememberMe bool) (*UserLoginSe
 			return nil, NewLoggedError("Unable to generate RememberMe", err)
 		}
 	}
-	sessionId, err := generateRandomString()
+	sessionId, sessionHash, err := generateStringAndHash()
 	if err != nil {
 		return nil, NewLoggedError("Problem generating sessionId", nil)
 	}
 
-	session, remember, err := s.backend.NewLoginSession(loginId, sessionId, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
+	session, remember, err := s.backend.NewLoginSession(loginId, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
 	if err != nil {
 		return nil, NewLoggedError("Unable to create new session", err)
 	}
 
 	cookie, err := s.getSessionCookie()
-	if err == nil && cookie != nil {
-		// remove existing session from backend
+	if err == nil && cookie.SessionId != "" {
+		oldSessionHash, err := decodeStringToHash(cookie.SessionId)
+		if err == nil {
+			s.backend.InvalidateSession(oldSessionHash)
+		}
 	}
 
 	if rememberMe {
@@ -234,7 +239,7 @@ func (s *SessionStore) createSession(loginId int, rememberMe bool) (*UserLoginSe
 			return nil, NewAuthError("Unable to save rememberMe cookie", err)
 		}
 	}
-	err = s.saveSessionCookie(session.SessionId, session.RenewTimeUTC, session.ExpireTimeUTC)
+	err = s.saveSessionCookie(sessionId, session.RenewTimeUTC, session.ExpireTimeUTC)
 	if err != nil {
 		return nil, err
 	}
@@ -308,28 +313,27 @@ func (s *SessionStore) CreateProfile() error {
 
 func (s *SessionStore) createProfile(fullName, organization, password, picturePath string) error {
 	emailCookie, err := s.getEmailCookie()
-	if err != nil {
+	if err != nil || emailCookie.EmailVerificationCode == "" {
 		return NewLoggedError("Unable to get email verification cookie", err)
 	}
 
-	code, err := decodeFromString(emailCookie.EmailVerificationCode) // base64 decode
+	emailVerifyHash, err := decodeStringToHash(emailCookie.EmailVerificationCode) // base64 decode and hash
 	if err != nil {
 		return NewLoggedError("Invalid email verification cookie", err)
 	}
 
-	sessionID, err := generateRandomString()
+	sessionID, sessionHash, err := generateStringAndHash()
 	if err != nil {
 		return NewLoggedError("Problem generating sessionId", err)
 	}
 
 	passwordHash := encodeToString(hash([]byte(password)))
-	emailVerifyHash := encodeToString(hash(code))
-	session, err := s.backend.CreateLogin(emailVerifyHash, passwordHash, fullName, organization, picturePath, sessionID, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration))
+	session, err := s.backend.CreateLogin(emailVerifyHash, passwordHash, fullName, organization, picturePath, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration))
 	if err != nil {
 		return NewLoggedError("Unable to create profile", err)
 	}
 
-	err = s.saveSessionCookie(session.SessionId, session.RenewTimeUTC, session.ExpireTimeUTC)
+	err = s.saveSessionCookie(sessionID, session.RenewTimeUTC, session.ExpireTimeUTC)
 	if err != nil {
 		return err
 	}
@@ -350,11 +354,11 @@ func (s *SessionStore) verifyEmail(emailVerificationCode string) error {
 	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
 		emailVerificationCode = emailVerificationCode + "="
 	}
-	data, err := decodeFromString(emailVerificationCode)
+	emailVerifyHash, err := decodeStringToHash(emailVerificationCode)
 	if err != nil {
 		return NewLoggedError("Invalid verification code", err)
 	}
-	emailVerifyHash := encodeToString(hash(data))
+
 	email, err := s.backend.VerifyEmail(emailVerifyHash)
 	if err != nil {
 		return NewLoggedError("Failed to verify email", err)
@@ -407,7 +411,7 @@ func (s *SessionStore) deleteRememberMeCookie() {
 
 func (s *SessionStore) saveEmailCookie(emailVerificationCode string, expireTimeUTC time.Time) error {
 	cookie := EmailCookie{EmailVerificationCode: emailVerificationCode, ExpireTimeUTC: expireTimeUTC}
-	return s.cookieStore.PutWithExpire(emailCookieName, &cookie, emailExpireMins)
+	return s.cookieStore.PutWithExpire(emailCookieName, emailExpireMins, &cookie)
 }
 
 func (s *SessionStore) saveSessionCookie(sessionId string, renewTimeUTC, expireTimeUTC time.Time) error {
@@ -522,6 +526,14 @@ func isValidPassword(password string) bool {
 
 func isValidEmail(email string) bool {
 	return len(email) <= 254 && len(email) >= 6 && emailRegex.MatchString(email) == true
+}
+
+func decodeStringToHash(token string) (string, error) {
+	data, err := decodeFromString(token)
+	if err != nil {
+		return "", err
+	}
+	return encodeToString(hash(data)), nil
 }
 
 func decodeFromString(token string) ([]byte, error) {
