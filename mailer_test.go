@@ -1,28 +1,11 @@
-package nginxauth
+package main
 
 import (
 	"html/template"
-	"strings"
 	"testing"
 )
 
 const verifyEmailTmpl string = "code:{{ .VerificationCode }}, email:{{ .Email }}"
-
-func TestNewEmailer(t *testing.T) {
-	_, err := NewEmailer("bogus") // invalid path
-	if !strings.HasPrefix(err.Error(), "Unable to open config file: ") {
-		t.Error("Expected error opening config file")
-	}
-
-	_, err = NewEmailer("mailer.go") // valid path, but invalid config file
-	if !strings.HasPrefix(err.Error(), "Unable to parse template files: ") {
-		t.Error("Expected error parsing template files")
-	}
-
-	if _, err := NewEmailer("testTemplates/mailer.conf"); err != nil {
-		t.Error("Expected success")
-	}
-}
 
 func TestRenderHtmlBody(t *testing.T) {
 	m := Emailer{templateCache: template.Must(template.New("verifyEmail").Parse(verifyEmailTmpl))}
@@ -37,11 +20,26 @@ func TestRenderHtmlBody(t *testing.T) {
 }
 
 func TestSends(t *testing.T) {
-	m, _ := NewEmailer("testTemplates/mailer.conf")
+	sender := &NilSender{}
+	m := Emailer{
+		sender:                  sender,
+		VerifyEmailTemplate:     "testTemplates/verifyEmail.html",
+		VerifyEmailSubject:      "verifyEmailSubject",
+		WelcomeTemplate:         "testTemplates/welcomeEmail.html",
+		WelcomeSubject:          "welcomeSubject",
+		NewLoginTemplate:        "testTemplates/newLogin.html",
+		NewLoginSubject:         "newLoginSubject",
+		LockedOutTemplate:       "testTemplates/lockedOut.html",
+		LockedOutSubject:        "lockedOutSubject",
+		EmailChangedTemplate:    "testTemplates/emailChanged.html",
+		EmailChangedSubject:     "emailChangedSubject",
+		PasswordChangedTemplate: "testTemplates/passwordChanged.html",
+		PasswordChangedSubject:  "passwordChangedSubject",
+	}
+	m.templateCache = template.Must(template.ParseFiles(m.VerifyEmailTemplate, m.WelcomeTemplate,
+		m.NewLoginTemplate, m.LockedOutTemplate, m.EmailChangedTemplate, m.PasswordChangedTemplate))
 	data := &VerifyEmailReturn{Email: "myemail@here.com"}
-	m.sender = &NilSender{}
 	m.SendVerify("to", data)
-	sender := m.sender.(*NilSender)
 	if sender.LastBody != "verifyEmail:myemail@here.com" || sender.LastTo != "to" || sender.LastSubject != "verifyEmailSubject" {
 		t.Error("expected valid values", sender)
 	}

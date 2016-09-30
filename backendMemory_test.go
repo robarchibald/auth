@@ -1,4 +1,4 @@
-package nginxauth
+package main
 
 import (
 	"testing"

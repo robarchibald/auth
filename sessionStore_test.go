@@ -1,4 +1,4 @@
-package nginxauth
+package main
 
 import (
 	"bytes"
@@ -350,7 +350,7 @@ var loginTests = []struct {
 	},
 }
 
-func TestLogin(t *testing.T) {
+func TestSessionLogin(t *testing.T) {
 	for i, test := range loginTests {
 		backend := &MockBackend{LoginReturn: test.LoginReturn, ErrReturn: test.ErrReturn, NewSessionReturn: test.NewSessionReturn}
 		store := getStore(nil, nil, nil, false, false, backend)
@@ -453,7 +453,7 @@ var registerTests = []struct {
 	},
 }
 
-func TestRegister(t *testing.T) {
+func TestSessionRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &MockBackend{AddUserReturn: test.AddUserReturn}
 		store := getStore(nil, nil, nil, false, false, backend)
@@ -508,7 +508,7 @@ var createProfileTests = []struct {
 	},
 }
 
-func TestCreateProfile(t *testing.T) {
+func TestSessionCreateProfile(t *testing.T) {
 	for i, test := range createProfileTests {
 		backend := &MockBackend{CreateLoginReturn: test.CreateLoginReturn}
 		store := getStore(test.EmailCookie, nil, nil, test.HasCookieGetError, test.HasCookiePutError, backend)
@@ -545,12 +545,12 @@ var verifyEmailTests = []struct {
 	{
 		Scenario:              "Email sent",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
-		VerifyEmailReturn:     verifyEmail(),
+		VerifyEmailReturn:     verifyEmailSuccess(),
 		MethodsCalled:         []string{"VerifyEmail"},
 	},
 }
 
-func TestVerifyEmail(t *testing.T) {
+func TestSessionVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &MockBackend{VerifyEmailReturn: test.VerifyEmailReturn}
 		store := getStore(nil, test.SessionCookie, nil, false, false, backend)

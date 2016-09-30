@@ -1,6 +1,6 @@
 // This file taken with some modification from authboss
 // github.com/go-authboss
-package nginxauth
+package main
 
 import (
 	"net/http"

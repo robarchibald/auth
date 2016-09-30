@@ -1,4 +1,4 @@
-package nginxauth
+package main
 
 import (
 	"bytes"
@@ -233,15 +233,6 @@ func (m *BackendMemory) getLoginByLoginId(loginId int) *UserLogin {
 	return nil
 }
 
-func (m *BackendMemory) getUserByUserId(userId int) *User {
-	for _, user := range m.Users {
-		if user.UserId == userId {
-			return user
-		}
-	}
-	return nil
-}
-
 func (m *BackendMemory) getUserByEmail(email string) *User {
 	for _, user := range m.Users {
 		if user.PrimaryEmail == email {
@@ -263,15 +254,6 @@ func (m *BackendMemory) getUserByEmailVerifyHash(hash string) *User {
 func (m *BackendMemory) getSessionByHash(sessionHash string) *UserLoginSession {
 	for _, session := range m.Sessions {
 		if session.SessionHash == sessionHash {
-			return session
-		}
-	}
-	return nil
-}
-
-func (m *BackendMemory) getSessionByLoginId(loginId int) *UserLoginSession {
-	for _, session := range m.Sessions {
-		if session.LoginId == loginId {
 			return session
 		}
 	}

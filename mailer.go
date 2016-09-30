@@ -1,12 +1,10 @@
-package nginxauth
+package main
 
 import (
 	"bytes"
-	"errors"
 	"html/template"
 	"path/filepath"
 
-	"github.com/robarchibald/configReader"
 	"gopkg.in/gomail.v2"
 )
 
@@ -24,13 +22,9 @@ type Sender interface {
 }
 
 type Emailer struct {
-	templateCache           *template.Template
-	sender                  Sender
-	SmtpServer              string
-	SmtpPort                int
-	SmtpFromEmail           string
-	SmtpPassword            string
-	EmailFromDisplayName    string
+	templateCache *template.Template
+	sender        Sender
+
 	VerifyEmailTemplate     string
 	VerifyEmailSubject      string
 	WelcomeTemplate         string
@@ -66,21 +60,6 @@ func (s *SmtpSender) Send(to, subject, body string) error {
 		return err
 	}
 	return nil
-}
-
-func NewEmailer(configPath string) (*Emailer, error) {
-	mailer := &Emailer{}
-	err := configReader.ReadFile(configPath, mailer)
-	if err != nil {
-		return nil, errors.New("Unable to open config file: " + err.Error())
-	}
-	mailer.sender = &SmtpSender{mailer.SmtpServer, mailer.SmtpPort, mailer.SmtpFromEmail, mailer.SmtpPassword, mailer.EmailFromDisplayName}
-	mailer.templateCache, err = template.ParseFiles(mailer.VerifyEmailTemplate, mailer.WelcomeTemplate,
-		mailer.NewLoginTemplate, mailer.LockedOutTemplate, mailer.EmailChangedTemplate, mailer.PasswordChangedTemplate)
-	if err != nil {
-		return nil, errors.New("Unable to parse template files: " + err.Error())
-	}
-	return mailer, nil
 }
 
 func (e *Emailer) SendVerify(to string, data interface{}) error {

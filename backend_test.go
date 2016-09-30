@@ -1,4 +1,4 @@
-package nginxauth
+package main
 
 import (
 	"errors"
@@ -143,7 +143,7 @@ func sessionRememberErr() *SessionRememberReturn {
 	return &SessionRememberReturn{nil, nil, errors.New("failed")}
 }
 
-func verifyEmail() *VerifyEmailReturn {
+func verifyEmailSuccess() *VerifyEmailReturn {
 	return &VerifyEmailReturn{"email", nil}
 }
 func verifyEmailErr() *VerifyEmailReturn {
