@@ -225,12 +225,18 @@ func (s *SessionStore) createSession(loginId int, rememberMe bool) (*UserLoginSe
 		return nil, NewLoggedError("Unable to create new session", err)
 	}
 
-	cookie, err := s.getSessionCookie()
-	if err == nil && cookie.SessionId != "" {
-		oldSessionHash, err := decodeStringToHash(cookie.SessionId)
+	sessionCookie, err := s.getSessionCookie()
+	if err == nil {
+		oldSessionHash, err := decodeStringToHash(sessionCookie.SessionId)
 		if err == nil {
 			s.backend.InvalidateSession(oldSessionHash)
 		}
+	}
+
+	rememberCookie, err := s.getRememberMeCookie()
+	if err == nil && rememberCookie.Selector != "" {
+		s.backend.InvalidateRememberMe(rememberCookie.Selector)
+		s.deleteRememberMeCookie()
 	}
 
 	if rememberMe {

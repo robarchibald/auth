@@ -119,6 +119,11 @@ func (b *MockBackend) InvalidateSession(sessionHash string) error {
 	return b.ErrReturn
 }
 
+func (b *MockBackend) InvalidateRememberMe(selector string) error {
+	b.MethodsCalled = append(b.MethodsCalled, "InvalidateRememberMe")
+	return b.ErrReturn
+}
+
 func session(renewTimeUTC, expireTimeUTC time.Time) *SessionReturn {
 	return &SessionReturn{&UserLoginSession{1, "sessionHash", 2, renewTimeUTC, expireTimeUTC}, nil}
 }

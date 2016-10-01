@@ -353,7 +353,7 @@ var loginTests = []struct {
 func TestSessionLogin(t *testing.T) {
 	for i, test := range loginTests {
 		backend := &MockBackend{LoginReturn: test.LoginReturn, ErrReturn: test.ErrReturn, NewSessionReturn: test.NewSessionReturn}
-		store := getStore(nil, nil, nil, false, false, backend)
+		store := getStore(nil, nil, nil, true, false, backend) // cookie get error so we don't try to invalidate old session or rememberme
 		val, err := store.login(test.Email, test.Password, test.RememberMe)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
@@ -369,6 +369,7 @@ var createSessionTests = []struct {
 	HasCookieGetError bool
 	HasCookiePutError bool
 	SessionCookie     *SessionCookie
+	RememberMeCookie  *RememberMeCookie
 	NewSessionReturn  *SessionRememberReturn
 	MethodsCalled     []string
 	ExpectedResult    *UserLoginRememberMe
@@ -381,24 +382,28 @@ var createSessionTests = []struct {
 		ExpectedErr:      "Unable to create new session",
 	},
 	{
-		Scenario:         "Got session",
-		NewSessionReturn: sessionRemember(futureTime, futureTime),
-		MethodsCalled:    []string{"NewSession"},
+		Scenario:          "Got session",
+		NewSessionReturn:  sessionRemember(futureTime, futureTime),
+		HasCookieGetError: true,
+		MethodsCalled:     []string{"NewSession"},
 	},
 	{
-		Scenario:         "Valid cookie.  delete in backend",
+		Scenario:         "Valid old session and rememberme cookies.  delete in backend",
 		SessionCookie:    sessionCookie(futureTime, futureTime),
+		RememberMeCookie: rememberCookie(futureTime, futureTime),
 		NewSessionReturn: sessionRemember(futureTime, futureTime),
-		MethodsCalled:    []string{"NewSession", "InvalidateSession"},
+		MethodsCalled:    []string{"NewSession", "InvalidateSession", "InvalidateRememberMe"},
 	},
 	{
-		Scenario:         "Set RememberMe",
-		RememberMe:       true,
-		NewSessionReturn: sessionRemember(futureTime, futureTime),
-		MethodsCalled:    []string{"NewSession"},
+		Scenario:          "Set RememberMe",
+		RememberMe:        true,
+		HasCookieGetError: true,
+		NewSessionReturn:  sessionRemember(futureTime, futureTime),
+		MethodsCalled:     []string{"NewSession"},
 	},
 	{
 		Scenario:          "Session Cookie save failure",
+		HasCookieGetError: true,
 		HasCookiePutError: true,
 		NewSessionReturn:  sessionRemember(futureTime, futureTime),
 		MethodsCalled:     []string{"NewSession"},
@@ -407,6 +412,7 @@ var createSessionTests = []struct {
 	{
 		Scenario:          "RememberMe Cookie save failure",
 		RememberMe:        true,
+		HasCookieGetError: true,
 		HasCookiePutError: true,
 		NewSessionReturn:  sessionRemember(futureTime, futureTime),
 		MethodsCalled:     []string{"NewSession"},
@@ -417,7 +423,7 @@ var createSessionTests = []struct {
 func TestCreateSession(t *testing.T) {
 	for i, test := range createSessionTests {
 		backend := &MockBackend{NewSessionReturn: test.NewSessionReturn}
-		store := getStore(nil, test.SessionCookie, nil, test.HasCookieGetError, test.HasCookiePutError, backend)
+		store := getStore(nil, test.SessionCookie, test.RememberMeCookie, test.HasCookieGetError, test.HasCookiePutError, backend)
 		val, err := store.createSession(1, test.RememberMe)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||

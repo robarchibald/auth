@@ -156,6 +156,10 @@ func (m *BackendMemory) InvalidateSession(sessionHash string) error {
 	m.removeSession(sessionHash)
 	return nil
 }
+func (m *BackendMemory) InvalidateRememberMe(selector string) error {
+	m.removeRememberMe(selector)
+	return nil
+}
 
 func (m *BackendMemory) ToString() string {
 	var buf bytes.Buffer
@@ -180,6 +184,16 @@ func (m *BackendMemory) ToString() string {
 
 func (m *BackendMemory) Close() error {
 	return nil
+}
+
+func (m *BackendMemory) removeRememberMe(selector string) {
+	for i := 0; i < len(m.RememberMes); i++ {
+		rememberMe := m.RememberMes[i]
+		if rememberMe.Selector == selector {
+			m.RememberMes = append(m.RememberMes[:i], m.RememberMes[i+1:]...) // remove item
+			break
+		}
+	}
 }
 
 func (m *BackendMemory) removeSession(sessionHash string) {

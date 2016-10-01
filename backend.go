@@ -19,6 +19,7 @@ type BackendQuerier interface {
 	UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error)
 	UpdatePasswordAndInvalidateSessions(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
 	InvalidateSession(sessionHash string) error
+	InvalidateRememberMe(selector string) error
 	Close() error
 }
 
