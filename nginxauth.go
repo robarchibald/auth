@@ -35,10 +35,10 @@ type authConf struct {
 
 	CookieBase64Key string
 
-	SmtpServer              string
-	SmtpPort                int
-	SmtpFromEmail           string
-	SmtpPassword            string
+	SMTPServer              string
+	SMTPPort                int
+	SMTPFromEmail           string
+	SMTPPassword            string
 	EmailFromDisplayName    string
 	VerifyEmailTemplate     string
 	VerifyEmailSubject      string
@@ -113,14 +113,14 @@ func (n *authConf) newOnedbBackend() (BackendQuerier, error) {
 		InvalidateUserSessionsQuery:              n.InvalidateUserSessionsQuery}, nil
 }
 
-func (n *authConf) NewEmailer() (*Emailer, error) {
-	sender := &SmtpSender{n.SmtpServer, n.SmtpPort, n.SmtpFromEmail, n.SmtpPassword, n.EmailFromDisplayName}
+func (n *authConf) NewEmailer() (*emailer, error) {
+	sender := &smtpSender{n.SMTPServer, n.SMTPPort, n.SMTPFromEmail, n.SMTPPassword, n.EmailFromDisplayName}
 	templateCache, err := template.ParseFiles(n.VerifyEmailTemplate, n.WelcomeTemplate,
 		n.NewLoginTemplate, n.LockedOutTemplate, n.EmailChangedTemplate, n.PasswordChangedTemplate)
 	if err != nil {
 		return nil, err
 	}
-	return &Emailer{
+	return &emailer{
 		templateCache:           templateCache,
 		sender:                  sender,
 		VerifyEmailTemplate:     n.VerifyEmailTemplate,

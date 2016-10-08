@@ -8,20 +8,20 @@ import (
 const verifyEmailTmpl string = "code:{{ .VerificationCode }}, email:{{ .Email }}"
 
 func TestRenderHtmlBody(t *testing.T) {
-	m := Emailer{templateCache: template.Must(template.New("verifyEmail").Parse(verifyEmailTmpl))}
-	if txt, err := m.renderHtmlBody("verifyEmail", SendVerifyParams{VerificationCode: "1234", Email: "email@example.com"}); txt != "code:1234, email:email@example.com" || err != nil {
+	m := emailer{templateCache: template.Must(template.New("verifyEmail").Parse(verifyEmailTmpl))}
+	if txt, err := m.renderHTMLBody("verifyEmail", sendVerifyParams{VerificationCode: "1234", Email: "email@example.com"}); txt != "code:1234, email:email@example.com" || err != nil {
 		t.Error("expected correct txt and no error", txt, err)
 	}
 
-	m = Emailer{templateCache: template.Must(template.New("verifyEmail").Parse(verifyEmailTmpl))}
-	if _, err := m.renderHtmlBody("verifyEmail..", nil); err == nil {
+	m = emailer{templateCache: template.Must(template.New("verifyEmail").Parse(verifyEmailTmpl))}
+	if _, err := m.renderHTMLBody("verifyEmail..", nil); err == nil {
 		t.Error("expected error", err)
 	}
 }
 
 func TestSends(t *testing.T) {
 	sender := &NilSender{}
-	m := Emailer{
+	m := emailer{
 		sender:                  sender,
 		VerifyEmailTemplate:     "testTemplates/verifyEmail.html",
 		VerifyEmailSubject:      "verifyEmailSubject",

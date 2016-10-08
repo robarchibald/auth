@@ -6,17 +6,17 @@ import (
 	"time"
 )
 
-func getSessionStore(emailCookieToReturn *EmailCookie, sessionCookieToReturn *SessionCookie, rememberMeCookieToReturn *RememberMeCookie, hasCookieGetError, hasCookiePutError bool, backend *MockBackend) *SessionStore {
+func getSessionStore(emailCookieToReturn *emailCookie, sessionCookieToReturn *sessionCookie, rememberMeCookieToReturn *rememberMeCookie, hasCookieGetError, hasCookiePutError bool, backend *MockBackend) *sessionStore {
 	r := &http.Request{}
 	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookieToReturn, sessionCookieName: sessionCookieToReturn, rememberMeCookieName: rememberMeCookieToReturn}, hasCookieGetError, hasCookiePutError)
-	return &SessionStore{backend, cookieStore, r}
+	return &sessionStore{backend, cookieStore, r}
 }
 
 var getSessionTests = []struct {
 	Scenario            string
 	HasCookieGetError   bool
 	HasCookiePutError   bool
-	SessionCookie       *SessionCookie
+	SessionCookie       *sessionCookie
 	GetSessionReturn    *SessionReturn
 	RenewSessionReturn  *SessionReturn
 	GetRememberMeReturn *RememberMeReturn
@@ -26,7 +26,7 @@ var getSessionTests = []struct {
 }{
 	{
 		Scenario:         "Get Session Valid",
-		SessionCookie:    sessionCookie(futureTime, futureTime),
+		SessionCookie:    sessionCookieGood(futureTime, futureTime),
 		GetSessionReturn: sessionSuccess(futureTime, futureTime),
 		MethodsCalled:    []string{"GetSession"},
 	},
@@ -37,19 +37,19 @@ var getSessionTests = []struct {
 	},
 	{
 		Scenario:      "Get Session Invalid Cookie Error",
-		SessionCookie: sessionBogusCookie(futureTime, futureTime),
+		SessionCookie: sessionCookieBogus(futureTime, futureTime),
 		ExpectedErr:   "Unable to decode session cookie",
 	},
 	{
 		Scenario:         "Get Session Error",
-		SessionCookie:    sessionCookie(futureTime, futureTime),
-		GetSessionReturn: &SessionReturn{&UserLoginSession{}, ErrSessionNotFound},
+		SessionCookie:    sessionCookieGood(futureTime, futureTime),
+		GetSessionReturn: &SessionReturn{&UserLoginSession{}, errSessionNotFound},
 		MethodsCalled:    []string{"GetSession"},
 		ExpectedErr:      "Failed to verify session",
 	},
 	{
 		Scenario:           "Get Session Renew",
-		SessionCookie:      sessionCookie(pastTime, futureTime),
+		SessionCookie:      sessionCookieGood(pastTime, futureTime),
 		RenewSessionReturn: sessionSuccess(futureTime, futureTime),
 		MethodsCalled:      []string{"RenewSession"},
 	},
@@ -74,7 +74,7 @@ var renewSessionTests = []struct {
 	ExpireTimeUTC       time.Time
 	HasCookieGetError   bool
 	HasCookiePutError   bool
-	RememberCookie      *RememberMeCookie
+	RememberCookie      *rememberMeCookie
 	RenewSessionReturn  *SessionReturn
 	GetRememberMeReturn *RememberMeReturn
 	MethodsCalled       []string
@@ -120,7 +120,7 @@ var renewSessionTests = []struct {
 		ExpireTimeUTC:       pastTime,
 		RememberCookie:      rememberCookie(futureTime, futureTime),
 		GetRememberMeReturn: rememberMe(futureTime, futureTime),
-		RenewSessionReturn:  &SessionReturn{nil, ErrSessionNotFound},
+		RenewSessionReturn:  &SessionReturn{nil, errSessionNotFound},
 		MethodsCalled:       []string{"GetRememberMe", "RenewSession"},
 		ExpectedErr:         "Problem renewing session",
 	},
@@ -155,7 +155,7 @@ var rememberMeTests = []struct {
 	Scenario              string
 	HasCookieGetError     bool
 	HasCookiePutError     bool
-	RememberCookie        *RememberMeCookie
+	RememberCookie        *rememberMeCookie
 	GetRememberMeReturn   *RememberMeReturn
 	RenewRememberMeReturn *RememberMeReturn
 	MethodsCalled         []string
@@ -176,13 +176,13 @@ var rememberMeTests = []struct {
 	{
 		Scenario:            "Get RememberMe Error",
 		RememberCookie:      rememberCookie(futureTime, futureTime),
-		GetRememberMeReturn: &RememberMeReturn{&UserLoginRememberMe{}, ErrRememberMeNotFound},
+		GetRememberMeReturn: &RememberMeReturn{&UserLoginRememberMe{}, errRememberMeNotFound},
 		MethodsCalled:       []string{"GetRememberMe"},
 		ExpectedErr:         "Unable to find matching RememberMe in DB",
 	},
 	{
 		Scenario:            "Get RememberMe Hash Isn't equal",
-		RememberCookie:      &RememberMeCookie{"selector", "bogusToken", futureTime, futureTime},
+		RememberCookie:      &rememberMeCookie{"selector", "bogusToken", futureTime, futureTime},
 		GetRememberMeReturn: rememberMe(futureTime, futureTime),
 		MethodsCalled:       []string{"GetRememberMe"},
 		ExpectedErr:         "RememberMe cookie doesn't match backend token",
@@ -191,7 +191,7 @@ var rememberMeTests = []struct {
 		Scenario:              "Renew RememberMe Error",
 		RememberCookie:        rememberCookie(pastTime, futureTime),
 		GetRememberMeReturn:   rememberMe(pastTime, futureTime),
-		RenewRememberMeReturn: &RememberMeReturn{&UserLoginRememberMe{}, ErrRememberMeNotFound},
+		RenewRememberMeReturn: &RememberMeReturn{&UserLoginRememberMe{}, errRememberMeNotFound},
 		MethodsCalled:         []string{"GetRememberMe", "RenewRememberMe"},
 		ExpectedErr:           "Unable to renew RememberMe",
 	},
@@ -222,8 +222,8 @@ var createSessionTests = []struct {
 	RememberMe            bool
 	HasCookieGetError     bool
 	HasCookiePutError     bool
-	SessionCookie         *SessionCookie
-	RememberMeCookie      *RememberMeCookie
+	SessionCookie         *sessionCookie
+	RememberMeCookie      *rememberMeCookie
 	NewLoginSessionReturn *SessionRememberReturn
 	MethodsCalled         []string
 	ExpectedResult        *UserLoginRememberMe
@@ -243,7 +243,7 @@ var createSessionTests = []struct {
 	},
 	{
 		Scenario:              "Valid old session and rememberme cookies.  delete in backend",
-		SessionCookie:         sessionCookie(futureTime, futureTime),
+		SessionCookie:         sessionCookieGood(futureTime, futureTime),
 		RememberMeCookie:      rememberCookie(futureTime, futureTime),
 		NewLoginSessionReturn: sessionRemember(futureTime, futureTime),
 		MethodsCalled:         []string{"NewLoginSession", "InvalidateSession", "InvalidateRememberMe"},
@@ -297,6 +297,6 @@ func (m *MockSessionStore) GetSession() (*UserLoginSession, error) {
 	return m.GetSessionReturn.Session, m.GetSessionReturn.Err
 }
 
-func (m *MockSessionStore) CreateSession(loginId, userId int, rememberMe bool) (*UserLoginSession, error) {
+func (m *MockSessionStore) CreateSession(loginID, userID int, rememberMe bool) (*UserLoginSession, error) {
 	return m.CreateSessionReturn.Session, m.CreateSessionReturn.Err
 }

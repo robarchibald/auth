@@ -6,38 +6,42 @@ import (
 )
 
 type BackendQuerier interface {
-	GetUserLogin(email, loginProvider string) (*UserLogin, error)
-	NewLoginSession(loginId, userId int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
-	GetSession(sessionHash string) (*UserLoginSession, error)
-	RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error)
-	GetRememberMe(selector string) (*UserLoginRememberMe, error)
-	RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error)
 	AddUser(email, emailVerifyHash string) error
 	VerifyEmail(emailVerifyHash string) (string, error)
-	UpdateUser(session *UserLoginSession, fullname string, company string, pictureUrl string) error
-	CreateLogin(emailVerifyHash, passwordHash string, fullName string, company string, pictureUrl string) (*UserLogin, error)
+	UpdateUser(session *UserLoginSession, fullname string, company string, pictureURL string) error
 	UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error)
 	UpdatePasswordAndInvalidateSessions(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
+
+	CreateLogin(emailVerifyHash, passwordHash string, fullName string, company string, pictureURL string) (*UserLogin, error)
+	GetLogin(email, loginProvider string) (*UserLogin, error)
+
+	CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
+	GetSession(sessionHash string) (*UserLoginSession, error)
+	RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error)
 	InvalidateSession(sessionHash string) error
+
+	GetRememberMe(selector string) (*UserLoginRememberMe, error)
+	RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error)
 	InvalidateRememberMe(selector string) error
+
 	Close() error
 }
 
-var ErrEmailVerifyHashExists = errors.New("DB: Email verify hash already exists")
-var ErrInvalidEmailVerifyHash = errors.New("DB: Invalid verify code")
-var ErrInvalidRenewTimeUTC = errors.New("DB: Invalid RenewTimeUTC")
-var ErrInvalidSessionHash = errors.New("DB: Invalid SessionHash")
-var ErrRememberMeSelectorExists = errors.New("DB: RememberMe selector already exists")
-var ErrUserNotFound = errors.New("DB: User not found")
-var ErrLoginNotFound = errors.New("DB: Login not found")
-var ErrSessionNotFound = errors.New("DB: Session not found")
-var ErrRememberMeNotFound = errors.New("DB: RememberMe not found")
-var ErrRememberMeNeedsRenew = errors.New("DB: RememberMe needs to be renewed")
-var ErrRememberMeExpired = errors.New("DB: RememberMe is expired")
-var ErrUserAlreadyExists = errors.New("DB: User already exists")
+var errEmailVerifyHashExists = errors.New("DB: Email verify hash already exists")
+var errInvalidEmailVerifyHash = errors.New("DB: Invalid verify code")
+var errInvalidRenewTimeUTC = errors.New("DB: Invalid RenewTimeUTC")
+var errInvalidSessionHash = errors.New("DB: Invalid SessionHash")
+var errRememberMeSelectorExists = errors.New("DB: RememberMe selector already exists")
+var errUserNotFound = errors.New("DB: User not found")
+var errLoginNotFound = errors.New("DB: Login not found")
+var errSessionNotFound = errors.New("DB: Session not found")
+var errRememberMeNotFound = errors.New("DB: RememberMe not found")
+var errRememberMeNeedsRenew = errors.New("DB: RememberMe needs to be renewed")
+var errRememberMeExpired = errors.New("DB: RememberMe is expired")
+var errUserAlreadyExists = errors.New("DB: User already exists")
 
 type User struct {
-	UserId            int
+	UserID            int
 	FullName          string
 	PrimaryEmail      string
 	EmailVerifyHash   string
@@ -47,22 +51,22 @@ type User struct {
 }
 
 type UserLogin struct {
-	LoginId         int
-	UserId          int
-	LoginProviderId int
+	LoginID         int
+	UserID          int
+	LoginProviderID int
 	ProviderKey     string
 }
 
 type UserLoginSession struct {
-	LoginId       int
+	LoginID       int
 	SessionHash   string
-	UserId        int
+	UserID        int
 	RenewTimeUTC  time.Time
 	ExpireTimeUTC time.Time
 }
 
 type UserLoginRememberMe struct {
-	LoginId       int
+	LoginID       int
 	Selector      string
 	TokenHash     string
 	RenewTimeUTC  time.Time
@@ -70,36 +74,36 @@ type UserLoginRememberMe struct {
 }
 
 type UserLoginProvider struct {
-	LoginProviderId   int
+	LoginProviderID   int
 	Name              string
-	OAuthClientId     string
+	OAuthClientID     string
 	OAuthClientSecret string
-	OAuthUrl          string
+	OAuthURL          string
 }
 
 type AuthError struct {
-	Message    string
-	InnerError error
-	ShouldLog  bool
+	message    string
+	innerError error
+	shouldLog  bool
 	error
 }
 
-func NewLoggedError(message string, innerError error) *AuthError {
-	return &AuthError{Message: message, InnerError: innerError, ShouldLog: true}
+func newLoggedError(message string, innerError error) *AuthError {
+	return &AuthError{message: message, innerError: innerError, shouldLog: true}
 }
 
-func NewAuthError(message string, innerError error) *AuthError {
-	return &AuthError{Message: message, InnerError: innerError}
+func newAuthError(message string, innerError error) *AuthError {
+	return &AuthError{message: message, innerError: innerError}
 }
 
 func (a *AuthError) Error() string {
-	return a.Message
+	return a.message
 }
 
 func (a *AuthError) Trace() string {
-	trace := a.Message + "\n"
+	trace := a.message + "\n"
 	indent := "  "
-	inner := a.InnerError
+	inner := a.innerError
 	for inner != nil {
 		trace += indent + inner.Error() + "\n"
 		e, ok := inner.(*AuthError)
@@ -107,7 +111,7 @@ func (a *AuthError) Trace() string {
 			break
 		}
 		indent += "  "
-		inner = e.InnerError
+		inner = e.innerError
 	}
 	return trace
 }

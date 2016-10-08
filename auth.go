@@ -72,5 +72,5 @@ func run(method func() error, w http.ResponseWriter) {
 }
 
 func addUserHeader(session *UserLoginSession, w http.ResponseWriter) {
-	w.Header().Add("X-User-Id", strconv.Itoa(session.UserId))
+	w.Header().Add("X-User-Id", strconv.Itoa(session.UserID))
 }

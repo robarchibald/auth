@@ -21,7 +21,7 @@ type Sender interface {
 	Send(to, subject, body string) error
 }
 
-type Emailer struct {
+type emailer struct {
 	templateCache *template.Template
 	sender        Sender
 
@@ -39,22 +39,22 @@ type Emailer struct {
 	PasswordChangedSubject  string
 }
 
-type SmtpSender struct {
-	SmtpServer           string
-	SmtpPort             int
-	SmtpFromEmail        string
-	SmtpPassword         string
+type smtpSender struct {
+	SMTPServer           string
+	SMTPPort             int
+	SMTPFromEmail        string
+	SMTPPassword         string
 	EmailFromDisplayName string
 }
 
-func (s *SmtpSender) Send(to, subject, body string) error {
+func (s *smtpSender) Send(to, subject, body string) error {
 	m := gomail.NewMessage()
-	m.SetHeader("From", m.FormatAddress(s.SmtpFromEmail, s.EmailFromDisplayName))
+	m.SetHeader("From", m.FormatAddress(s.SMTPFromEmail, s.EmailFromDisplayName))
 	m.SetHeader("To", to)
 	m.SetHeader("Subject", subject)
 	m.SetBody("text/html", body)
 
-	d := gomail.NewPlainDialer(s.SmtpServer, s.SmtpPort, s.SmtpFromEmail, s.SmtpPassword)
+	d := gomail.NewPlainDialer(s.SMTPServer, s.SMTPPort, s.SMTPFromEmail, s.SMTPPassword)
 
 	if err := d.DialAndSend(m); err != nil {
 		return err
@@ -62,32 +62,32 @@ func (s *SmtpSender) Send(to, subject, body string) error {
 	return nil
 }
 
-func (e *Emailer) SendVerify(to string, data interface{}) error {
+func (e *emailer) SendVerify(to string, data interface{}) error {
 	return e.send(to, e.VerifyEmailSubject, e.VerifyEmailTemplate, data)
 }
 
-func (e *Emailer) SendWelcome(to string, data interface{}) error {
+func (e *emailer) SendWelcome(to string, data interface{}) error {
 	return e.send(to, e.WelcomeSubject, e.WelcomeTemplate, data)
 }
 
-func (e *Emailer) SendNewLogin(to string, data interface{}) error {
+func (e *emailer) SendNewLogin(to string, data interface{}) error {
 	return e.send(to, e.NewLoginSubject, e.NewLoginTemplate, data)
 }
 
-func (e *Emailer) SendLockedOut(to string, data interface{}) error {
+func (e *emailer) SendLockedOut(to string, data interface{}) error {
 	return e.send(to, e.LockedOutSubject, e.LockedOutTemplate, data)
 }
 
-func (e *Emailer) SendEmailChanged(to string, data interface{}) error {
+func (e *emailer) SendEmailChanged(to string, data interface{}) error {
 	return e.send(to, e.EmailChangedSubject, e.EmailChangedTemplate, data)
 }
 
-func (e *Emailer) SendPasswordChanged(to string, data interface{}) error {
+func (e *emailer) SendPasswordChanged(to string, data interface{}) error {
 	return e.send(to, e.PasswordChangedSubject, e.PasswordChangedTemplate, data)
 }
 
-func (e *Emailer) send(to string, subject string, emailTemplate string, data interface{}) error {
-	body, err := e.renderHtmlBody(emailTemplate, data)
+func (e *emailer) send(to string, subject string, emailTemplate string, data interface{}) error {
+	body, err := e.renderHTMLBody(emailTemplate, data)
 	if err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func (e *Emailer) send(to string, subject string, emailTemplate string, data int
 	return e.sender.Send(to, subject, body)
 }
 
-func (e *Emailer) renderHtmlBody(path string, data interface{}) (string, error) {
+func (e *emailer) renderHTMLBody(path string, data interface{}) (string, error) {
 	var buf bytes.Buffer
 	err := e.templateCache.ExecuteTemplate(&buf, filepath.Base(path), data)
 	if err != nil {

@@ -27,12 +27,12 @@ type AuthStorer interface {
 	UpdatePassword() error
 }
 
-type EmailCookie struct {
+type emailCookie struct {
 	EmailVerificationCode string
 	ExpireTimeUTC         time.Time
 }
 
-type AuthStore struct {
+type authStore struct {
 	backend      BackendQuerier
 	sessionStore SessionStorer
 	mailer       Mailer
@@ -42,93 +42,93 @@ type AuthStore struct {
 
 var emailRegex = regexp.MustCompile(`^(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$`)
 
-func NewAuthStore(backend BackendQuerier, mailer Mailer, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) *AuthStore {
+func NewAuthStore(backend BackendQuerier, mailer Mailer, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) AuthStorer {
 	sessionStore := NewSessionStore(backend, w, r, cookieKey, cookiePrefix, secureOnlyCookie)
-	return &AuthStore{backend, sessionStore, mailer, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
+	return &authStore{backend, sessionStore, mailer, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
 }
 
-func (s *AuthStore) GetSession() (*UserLoginSession, error) {
+func (s *authStore) GetSession() (*UserLoginSession, error) {
 	return s.sessionStore.GetSession()
 }
 
-func (s *AuthStore) GetBasicAuth() (*UserLoginSession, error) {
+func (s *authStore) GetBasicAuth() (*UserLoginSession, error) {
 	session, err := s.GetSession()
 	if err != nil {
 		if email, password, ok := s.r.BasicAuth(); ok {
 			session, err = s.login(email, password, false)
 			if err != nil {
-				return nil, NewLoggedError("Unable to login with provided credentials", err)
+				return nil, newLoggedError("Unable to login with provided credentials", err)
 			}
 		} else {
-			return nil, NewAuthError("Problem decoding credentials from basic auth", nil)
+			return nil, newAuthError("Problem decoding credentials from basic auth", nil)
 		}
 	}
 	return session, nil
 }
 
-func (s *AuthStore) Login() error {
+func (s *authStore) Login() error {
 	credentials, err := getCredentials(s.r)
 	if err != nil {
-		return NewAuthError("Unable to get credentials", err)
+		return newAuthError("Unable to get credentials", err)
 	}
 	_, err = s.login(credentials.Email, credentials.Password, credentials.RememberMe)
 	return err
 }
 
-func (s *AuthStore) login(email, password string, rememberMe bool) (*UserLoginSession, error) {
+func (s *authStore) login(email, password string, rememberMe bool) (*UserLoginSession, error) {
 	if !isValidEmail(email) {
-		return nil, NewAuthError("Please enter a valid email address.", nil)
+		return nil, newAuthError("Please enter a valid email address.", nil)
 	}
 	if !isValidPassword(password) {
-		return nil, NewAuthError(passwordValidationMessage, nil)
+		return nil, newAuthError(passwordValidationMessage, nil)
 	}
 
-	login, err := s.backend.GetUserLogin(email, LoginProviderDefaultName)
+	login, err := s.backend.GetLogin(email, loginProviderDefaultName)
 	if err != nil {
-		return nil, NewLoggedError("Invalid username or password", err)
+		return nil, newLoggedError("Invalid username or password", err)
 	}
 
 	decoded, _ := decodeFromString(login.ProviderKey)
 	if !hashEquals([]byte(password), decoded) {
-		return nil, NewLoggedError("Invalid username or password", nil)
+		return nil, newLoggedError("Invalid username or password", nil)
 	}
 
-	return s.sessionStore.CreateSession(login.LoginId, login.UserId, rememberMe)
+	return s.sessionStore.CreateSession(login.LoginID, login.UserID, rememberMe)
 }
 
-type SendVerifyParams struct {
+type sendVerifyParams struct {
 	VerificationCode string
 	Email            string
-	RefererBaseUrl   string
+	RefererBaseURL   string
 }
 
-func (s *AuthStore) Register() error {
+func (s *authStore) Register() error {
 	registration, err := getRegistration(s.r)
 	if err != nil {
-		return NewAuthError("Unable to get email", err)
+		return newAuthError("Unable to get email", err)
 	}
 	return s.register(registration.Email)
 }
 
-func (s *AuthStore) register(email string) error {
+func (s *authStore) register(email string) error {
 	if !isValidEmail(email) {
-		return NewAuthError("Invalid email", nil)
+		return newAuthError("Invalid email", nil)
 	}
 
 	emailConfirmCode, err := s.addUser(email)
 	if err != nil {
-		return NewLoggedError("Unable to save user", err)
+		return newLoggedError("Unable to save user", err)
 	}
 
 	code := emailConfirmCode[:len(emailConfirmCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
-	if err := s.mailer.SendVerify(email, &SendVerifyParams{code, email, getBaseUrl(s.r.Referer())}); err != nil {
-		return NewLoggedError("Unable to send verification email", err)
+	if err := s.mailer.SendVerify(email, &sendVerifyParams{code, email, getBaseURL(s.r.Referer())}); err != nil {
+		return newLoggedError("Unable to send verification email", err)
 	}
 
 	return nil
 }
 
-func getBaseUrl(url string) string {
+func getBaseURL(url string) string {
 	protoIndex := strings.Index(url, "://")
 	if protoIndex == -1 { // must be relative URL, return default
 		return "https://endfirst.com"
@@ -140,45 +140,45 @@ func getBaseUrl(url string) string {
 	return url[:protoIndex+3+firstSlash]
 }
 
-func (s *AuthStore) addUser(email string) (string, error) {
+func (s *authStore) addUser(email string) (string, error) {
 	emailConfirmCode, emailConfimHash, err := generateStringAndHash()
 	if err != nil {
-		return "", NewLoggedError("Problem generating email confirmation code", err)
+		return "", newLoggedError("Problem generating email confirmation code", err)
 	}
 
 	err = s.backend.AddUser(email, emailConfimHash)
 	if err != nil {
-		return "", NewLoggedError("Problem adding user to database", err)
+		return "", newLoggedError("Problem adding user to database", err)
 	}
 	return emailConfirmCode, nil
 }
 
-func (s *AuthStore) CreateProfile() error {
+func (s *authStore) CreateProfile() error {
 	profile, err := getProfile(s.r)
 	if err != nil {
-		return NewAuthError("Unable to get profile information from form", err)
+		return newAuthError("Unable to get profile information from form", err)
 	}
 	return s.createProfile(profile.FullName, profile.Organization, profile.Password, profile.PicturePath)
 }
 
-func (s *AuthStore) createProfile(fullName, organization, password, picturePath string) error {
+func (s *authStore) createProfile(fullName, organization, password, picturePath string) error {
 	emailCookie, err := s.getEmailCookie()
 	if err != nil || emailCookie.EmailVerificationCode == "" {
-		return NewLoggedError("Unable to get email verification cookie", err)
+		return newLoggedError("Unable to get email verification cookie", err)
 	}
 
 	emailVerifyHash, err := decodeStringToHash(emailCookie.EmailVerificationCode) // base64 decode and hash
 	if err != nil {
-		return NewLoggedError("Invalid email verification cookie", err)
+		return newLoggedError("Invalid email verification cookie", err)
 	}
 
 	passwordHash := encodeToString(hash([]byte(password)))
 	login, err := s.backend.CreateLogin(emailVerifyHash, passwordHash, fullName, organization, picturePath)
 	if err != nil {
-		return NewLoggedError("Unable to create profile", err)
+		return newLoggedError("Unable to create profile", err)
 	}
 
-	_, err = s.sessionStore.CreateSession(login.LoginId, login.UserId, false)
+	_, err = s.sessionStore.CreateSession(login.LoginID, login.UserID, false)
 	if err != nil {
 		return err
 	}
@@ -187,93 +187,93 @@ func (s *AuthStore) createProfile(fullName, organization, password, picturePath 
 	return nil
 }
 
-func (s *AuthStore) VerifyEmail() error {
+func (s *authStore) VerifyEmail() error {
 	verify, err := getVerificationCode(s.r)
 	if err != nil {
-		return NewAuthError("Unable to get verification email from JSON", err)
+		return newAuthError("Unable to get verification email from JSON", err)
 	}
 	return s.verifyEmail(verify.EmailVerificationCode)
 }
 
-func (s *AuthStore) verifyEmail(emailVerificationCode string) error {
+func (s *authStore) verifyEmail(emailVerificationCode string) error {
 	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
 		emailVerificationCode = emailVerificationCode + "="
 	}
 	emailVerifyHash, err := decodeStringToHash(emailVerificationCode)
 	if err != nil {
-		return NewLoggedError("Invalid verification code", err)
+		return newLoggedError("Invalid verification code", err)
 	}
 
 	email, err := s.backend.VerifyEmail(emailVerifyHash)
 	if err != nil {
-		return NewLoggedError("Failed to verify email", err)
+		return newLoggedError("Failed to verify email", err)
 	}
 
 	err = s.saveEmailCookie(emailVerificationCode, time.Now().UTC().Add(emailExpireDuration))
 	if err != nil {
-		return NewLoggedError("Failed to save email cookie", err)
+		return newLoggedError("Failed to save email cookie", err)
 	}
 
 	err = s.mailer.SendWelcome(email, nil)
 	if err != nil {
-		return NewLoggedError("Failed to send welcome email", err)
+		return newLoggedError("Failed to send welcome email", err)
 	}
 	return nil
 }
 
-func (s *AuthStore) UpdateEmail() error { return nil }
+func (s *authStore) UpdateEmail() error { return nil }
 
-func (s *AuthStore) UpdatePassword() error {
+func (s *authStore) UpdatePassword() error {
 	return nil
 }
 
-func (s *AuthStore) getEmailCookie() (*EmailCookie, error) {
-	email := &EmailCookie{}
+func (s *authStore) getEmailCookie() (*emailCookie, error) {
+	email := &emailCookie{}
 	return email, s.cookieStore.Get(emailCookieName, email)
 }
 
-func (s *AuthStore) deleteEmailCookie() {
+func (s *authStore) deleteEmailCookie() {
 	s.cookieStore.Delete(emailCookieName)
 }
 
-func (s *AuthStore) saveEmailCookie(emailVerificationCode string, expireTimeUTC time.Time) error {
-	cookie := EmailCookie{EmailVerificationCode: emailVerificationCode, ExpireTimeUTC: expireTimeUTC}
+func (s *authStore) saveEmailCookie(emailVerificationCode string, expireTimeUTC time.Time) error {
+	cookie := emailCookie{EmailVerificationCode: emailVerificationCode, ExpireTimeUTC: expireTimeUTC}
 	return s.cookieStore.PutWithExpire(emailCookieName, emailExpireMins, &cookie)
 }
 
-type Registration struct {
+type registration struct {
 	Email string
 }
 
-func getRegistration(r *http.Request) (*Registration, error) {
-	register := &Registration{}
-	return register, getJson(r, register)
+func getRegistration(r *http.Request) (*registration, error) {
+	register := &registration{}
+	return register, getJSON(r, register)
 }
 
-type EmailVerificationCode struct {
+type emailVerificationCode struct {
 	EmailVerificationCode string
 }
 
-func getVerificationCode(r *http.Request) (*EmailVerificationCode, error) {
-	verificationCode := &EmailVerificationCode{}
-	return verificationCode, getJson(r, verificationCode)
+func getVerificationCode(r *http.Request) (*emailVerificationCode, error) {
+	verificationCode := &emailVerificationCode{}
+	return verificationCode, getJSON(r, verificationCode)
 }
 
-type Credentials struct {
+type credentials struct {
 	Email      string
 	Password   string
 	RememberMe bool
 }
 
-func getCredentials(r *http.Request) (*Credentials, error) {
-	credentials := &Credentials{}
-	return credentials, getJson(r, credentials)
+func getCredentials(r *http.Request) (*credentials, error) {
+	credentials := &credentials{}
+	return credentials, getJSON(r, credentials)
 }
 
 func generateThumbnail(filename string) (string, error) {
 	newName, err := generateRandomString()
 	if err != nil {
-		return "", NewLoggedError("Unable to create new filename", err)
+		return "", newLoggedError("Unable to create new filename", err)
 	}
 	var args = []string{
 		"-s", "150",
@@ -286,20 +286,20 @@ func generateThumbnail(filename string) (string, error) {
 	cmd = exec.Command(path, args...)
 	err = cmd.Run()
 	if err != nil {
-		return "", NewLoggedError("Error running vipsthumbnail", err)
+		return "", newLoggedError("Error running vipsthumbnail", err)
 	}
 	return newName, nil
 }
 
-type Profile struct {
+type profile struct {
 	FullName     string
 	Organization string
 	Password     string
 	PicturePath  string
 }
 
-func getProfile(r *http.Request) (*Profile, error) {
-	profile := &Profile{}
+func getProfile(r *http.Request) (*profile, error) {
+	profile := &profile{}
 	r.ParseMultipartForm(32 << 20) // 32 MB file
 	file, handler, err := r.FormFile("file")
 	if err != nil {
@@ -322,7 +322,7 @@ func getProfile(r *http.Request) (*Profile, error) {
 	return profile, nil
 }
 
-func getJson(r *http.Request, result interface{}) error {
+func getJSON(r *http.Request, result interface{}) error {
 	defer r.Body.Close()
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -361,11 +361,11 @@ func generateSelectorTokenAndHash() (string, string, string, error) {
 	var selector, token, tokenHash string
 	selector, err := generateRandomString()
 	if err != nil {
-		return "", "", "", NewLoggedError("Unable to generate rememberMe selector", err)
+		return "", "", "", newLoggedError("Unable to generate rememberMe selector", err)
 	}
 	token, tokenHash, err = generateStringAndHash()
 	if err != nil {
-		return "", "", "", NewLoggedError("Unable to generate rememberMe token", err)
+		return "", "", "", newLoggedError("Unable to generate rememberMe token", err)
 	}
 	return selector, token, tokenHash, nil
 }

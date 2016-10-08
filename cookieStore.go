@@ -9,7 +9,7 @@ import (
 	"github.com/gorilla/securecookie"
 )
 
-var cookieStore *securecookie.SecureCookie
+var cookieStoreInstance *securecookie.SecureCookie
 
 type CookieStorer interface {
 	Get(key string, result interface{}) error
@@ -18,28 +18,28 @@ type CookieStorer interface {
 	Delete(key string)
 }
 
-type CookieStore struct {
+type cookieStore struct {
 	w          http.ResponseWriter
 	r          *http.Request
 	secureOnly bool
 }
 
-func NewCookieStore(w http.ResponseWriter, r *http.Request, cookieKey []byte, secureOnly bool) *CookieStore {
-	if cookieStore == nil {
-		cookieStore = securecookie.New(cookieKey, nil)
+func NewCookieStore(w http.ResponseWriter, r *http.Request, cookieKey []byte, secureOnly bool) CookieStorer {
+	if cookieStoreInstance == nil {
+		cookieStoreInstance = securecookie.New(cookieKey, nil)
 	}
-	return &CookieStore{w, r, secureOnly}
+	return &cookieStore{w, r, secureOnly}
 }
 
-func (s *CookieStore) Encode(key string, value interface{}) (string, error) {
-	return cookieStore.Encode(key, value)
+func (s *cookieStore) Encode(key string, value interface{}) (string, error) {
+	return cookieStoreInstance.Encode(key, value)
 }
 
-func (s *CookieStore) Decode(key string, value string, result interface{}) error {
-	return cookieStore.Decode(key, value, result)
+func (s *cookieStore) Decode(key string, value string, result interface{}) error {
+	return cookieStoreInstance.Decode(key, value, result)
 }
 
-func (s *CookieStore) Get(key string, result interface{}) error {
+func (s *cookieStore) Get(key string, result interface{}) error {
 	cookie, err := s.r.Cookie(key)
 	if err != nil {
 		return err
@@ -53,11 +53,11 @@ func (s *CookieStore) Get(key string, result interface{}) error {
 	return nil
 }
 
-func (s *CookieStore) Put(key string, value interface{}) error {
+func (s *cookieStore) Put(key string, value interface{}) error {
 	return s.PutWithExpire(key, 60*24*30, value) // default to 30 day expiration
 }
 
-func (s *CookieStore) PutWithExpire(key string, expireMins int, value interface{}) error {
+func (s *cookieStore) PutWithExpire(key string, expireMins int, value interface{}) error {
 	encoded, err := s.Encode(key, value)
 	if err != nil {
 		return err
@@ -67,7 +67,7 @@ func (s *CookieStore) PutWithExpire(key string, expireMins int, value interface{
 	return nil
 }
 
-func (s *CookieStore) Delete(key string) {
+func (s *cookieStore) Delete(key string) {
 	cookie := &http.Cookie{
 		MaxAge: -1,
 		Name:   key,
