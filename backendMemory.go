@@ -35,7 +35,7 @@ func (m *BackendMemory) GetUserLogin(email, loginProvider string) (*UserLogin, e
 	return login, nil
 }
 
-func (m *BackendMemory) NewLoginSession(loginId int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
+func (m *BackendMemory) NewLoginSession(loginId, userId int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
 	login := m.getLoginByLoginId(loginId)
 	if login == nil {
 		return nil, nil, ErrLoginNotFound
@@ -142,7 +142,7 @@ func (m *BackendMemory) CreateLogin(emailVerifyHash, passwordHash string, fullNa
 	m.Logins = append(m.Logins, &login)
 
 	// don't set remember me
-	session, _, err := m.NewLoginSession(login.LoginId, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC, false, "", "", time.Time{}, time.Time{})
+	session, _, err := m.NewLoginSession(login.LoginId, login.UserId, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC, false, "", "", time.Time{}, time.Time{})
 	return session, err
 }
 

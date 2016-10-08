@@ -159,7 +159,7 @@ func fileLoggerHandler(h http.Handler) http.Handler {
 	return handlers.CombinedLoggingHandler(logFile, h)
 }
 
-func (s *nginxauth) method(name string, handler func(sessionStore SessionStorer, w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
+func (s *nginxauth) method(name string, handler func(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != name {
 			http.Error(w, "Unsupported method", http.StatusInternalServerError)

@@ -11,7 +11,7 @@ type loginData struct {
 	Password string
 }
 
-func auth(sessionStore SessionStorer, w http.ResponseWriter, r *http.Request) {
+func auth(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
 	session, err := sessionStore.GetSession()
 	if err != nil {
 		http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
@@ -23,7 +23,7 @@ func auth(sessionStore SessionStorer, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func authBasic(sessionStore SessionStorer, w http.ResponseWriter, r *http.Request) {
+func authBasic(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
 	session, err := sessionStore.GetBasicAuth()
 	if err != nil {
 		w.Header().Set("WWW-Authenticate", "Basic realm='Endfirst.com'")
@@ -33,27 +33,27 @@ func authBasic(sessionStore SessionStorer, w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func login(sessionStore SessionStorer, w http.ResponseWriter, r *http.Request) {
+func login(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
 	run(sessionStore.Login, w)
 }
 
-func register(sessionStore SessionStorer, w http.ResponseWriter, r *http.Request) {
+func register(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
 	run(sessionStore.Register, w)
 }
 
-func createProfile(sessionStore SessionStorer, w http.ResponseWriter, r *http.Request) {
+func createProfile(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
 	run(sessionStore.CreateProfile, w)
 }
 
-func updateEmail(sessionStore SessionStorer, w http.ResponseWriter, r *http.Request) {
+func updateEmail(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
 	run(sessionStore.UpdateEmail, w)
 }
 
-func updatePassword(sessionStore SessionStorer, w http.ResponseWriter, r *http.Request) {
+func updatePassword(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
 	run(sessionStore.UpdatePassword, w)
 }
 
-func verifyEmail(sessionStore SessionStorer, w http.ResponseWriter, r *http.Request) {
+func verifyEmail(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
 	run(sessionStore.VerifyEmail, w)
 }
 

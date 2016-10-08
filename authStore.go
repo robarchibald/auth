@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-type SessionStorer interface {
+type AuthStorer interface {
 	GetSession() (*UserLoginSession, error)
 	GetBasicAuth() (*UserLoginSession, error)
 	Login() error
@@ -203,10 +203,10 @@ func (s *SessionStore) login(email, password string, rememberMe bool) (*UserLogi
 		return nil, NewLoggedError("Invalid username or password", nil)
 	}
 
-	return s.createSession(login.LoginId, rememberMe)
+	return s.createSession(login.LoginId, login.UserId, rememberMe)
 }
 
-func (s *SessionStore) createSession(loginId int, rememberMe bool) (*UserLoginSession, error) {
+func (s *SessionStore) createSession(loginId, userId int, rememberMe bool) (*UserLoginSession, error) {
 	var err error
 	var selector, token, tokenHash string
 	if rememberMe {
@@ -220,7 +220,7 @@ func (s *SessionStore) createSession(loginId int, rememberMe bool) (*UserLoginSe
 		return nil, NewLoggedError("Problem generating sessionId", nil)
 	}
 
-	session, remember, err := s.backend.NewLoginSession(loginId, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
+	session, remember, err := s.backend.NewLoginSession(loginId, userId, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
 	if err != nil {
 		return nil, NewLoggedError("Unable to create new session", err)
 	}

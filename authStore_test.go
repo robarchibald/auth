@@ -424,7 +424,7 @@ func TestCreateSession(t *testing.T) {
 	for i, test := range createSessionTests {
 		backend := &MockBackend{NewSessionReturn: test.NewSessionReturn}
 		store := getStore(nil, test.SessionCookie, test.RememberMeCookie, test.HasCookieGetError, test.HasCookiePutError, backend)
-		val, err := store.createSession(1, test.RememberMe)
+		val, err := store.createSession(1, 1, test.RememberMe)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {

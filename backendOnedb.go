@@ -12,6 +12,8 @@ type BackendOnedb struct {
 
 	GetUserLoginQuery                        string
 	GetSessionQuery                          string
+	NewLoginSessionQuery                     string
+	NewRememberMeQuery                       string
 	RenewSessionQuery                        string
 	GetRememberMeQuery                       string
 	RenewRememberMeQuery                     string
@@ -31,6 +33,20 @@ func (b *BackendOnedb) GetUserLogin(email, loginProvider string) (*UserLogin, er
 func (b *BackendOnedb) GetSession(sessionHash string) (*UserLoginSession, error) {
 	var session *UserLoginSession
 	return session, b.Db.QueryStructRow(onedb.NewSqlQuery(b.GetSessionQuery, sessionHash), session)
+}
+
+func (m *BackendOnedb) NewLoginSession(loginId, userId int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
+	var session *UserLoginSession
+	var remember *UserLoginRememberMe
+	err := m.Db.QueryStructRow(onedb.NewSqlQuery(m.NewLoginSessionQuery, loginId, userId, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC), session)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = m.Db.QueryStructRow(onedb.NewSqlQuery(m.NewRememberMeQuery, loginId, userId, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC), rememberMe)
+	if err != nil {
+		return nil, nil, err
+	}
+	return session, remember, nil
 }
 
 func (b *BackendOnedb) RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error) {

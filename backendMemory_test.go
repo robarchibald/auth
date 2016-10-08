@@ -26,38 +26,38 @@ func TestBackendGetUserLogin(t *testing.T) {
 
 func TestBackendNewLoginSession(t *testing.T) {
 	backend := NewBackendMemory()
-	if _, _, err := backend.NewLoginSession(1, "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); err != ErrLoginNotFound {
+	if _, _, err := backend.NewLoginSession(1, 1, "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); err != ErrLoginNotFound {
 		t.Error("expected error since login doesn't exist")
 	}
 	backend.Logins = append(backend.Logins, &UserLogin{UserId: 1, LoginId: 1})
-	if session, _, _ := backend.NewLoginSession(1, "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginId != 1 || session.UserId != 1 {
+	if session, _, _ := backend.NewLoginSession(1, 1, "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginId != 1 || session.UserId != 1 {
 		t.Error("expected matching session", session)
 	}
 	// create again, shouldn't create new Session, just update
-	if session, _, _ := backend.NewLoginSession(1, "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginId != 1 || session.UserId != 1 || len(backend.Sessions) != 1 {
+	if session, _, _ := backend.NewLoginSession(1, 1, "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginId != 1 || session.UserId != 1 || len(backend.Sessions) != 1 {
 		t.Error("expected matching session", session)
 	}
 	// new session ID since it was generated when no cookie was found
-	if session, _, _ := backend.NewLoginSession(1, "newSessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "newSessionHash" || len(backend.Sessions) != 2 {
+	if session, _, _ := backend.NewLoginSession(1, 1, "newSessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "newSessionHash" || len(backend.Sessions) != 2 {
 		t.Error("expected matching session", session)
 	}
 
 	// existing remember already exists
 	backend.RememberMes = append(backend.RememberMes, &UserLoginRememberMe{LoginId: 1, Selector: "selector"})
-	if session, rememberMe, err := backend.NewLoginSession(1, "sessionHash", in5Minutes, in1Hour, true, "selector", "hash", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginId != 1 || session.UserId != 1 ||
+	if session, rememberMe, err := backend.NewLoginSession(1, 1, "sessionHash", in5Minutes, in1Hour, true, "selector", "hash", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginId != 1 || session.UserId != 1 ||
 		rememberMe.LoginId != 1 || rememberMe.Selector != "selector" || rememberMe.TokenHash != "hash" {
 		t.Error("expected RememberMe to be created", session, rememberMe, err)
 	}
 
 	// create new rememberMe
-	if session, rememberMe, err := backend.NewLoginSession(1, "sessionHash", in5Minutes, in1Hour, true, "newselector", "hash", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginId != 1 || session.UserId != 1 ||
+	if session, rememberMe, err := backend.NewLoginSession(1, 1, "sessionHash", in5Minutes, in1Hour, true, "newselector", "hash", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginId != 1 || session.UserId != 1 ||
 		rememberMe.LoginId != 1 || rememberMe.Selector != "newselector" || rememberMe.TokenHash != "hash" {
 		t.Error("expected RememberMe to be created", session, rememberMe, err)
 	}
 
 	// existing remember is for different login... error
 	backend.RememberMes = append(backend.RememberMes, &UserLoginRememberMe{LoginId: 2, Selector: "otherselector"})
-	if _, _, err := backend.NewLoginSession(1, "sessionHash", in5Minutes, in1Hour, true, "otherselector", "hash", time.Time{}, time.Time{}); err != ErrRememberMeSelectorExists {
+	if _, _, err := backend.NewLoginSession(1, 1, "sessionHash", in5Minutes, in1Hour, true, "otherselector", "hash", time.Time{}, time.Time{}); err != ErrRememberMeSelectorExists {
 		t.Error("expected error", err)
 	}
 }

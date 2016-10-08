@@ -68,7 +68,7 @@ func (b *MockBackend) GetSession(sessionHash string) (*UserLoginSession, error) 
 	b.MethodsCalled = append(b.MethodsCalled, "GetSession")
 	return b.GetSessionReturn.Session, b.GetSessionReturn.Err
 }
-func (b *MockBackend) NewLoginSession(loginId int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
+func (b *MockBackend) NewLoginSession(loginId, userId int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "NewSession")
 	return b.NewSessionReturn.Session, b.NewSessionReturn.RememberMe, b.NewSessionReturn.Err
 }

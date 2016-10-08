@@ -7,7 +7,7 @@ import (
 
 type BackendQuerier interface {
 	GetUserLogin(email, loginProvider string) (*UserLogin, error)
-	NewLoginSession(loginId int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
+	NewLoginSession(loginId, userId int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
 	GetSession(sessionHash string) (*UserLoginSession, error)
 	RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error)
 	GetRememberMe(selector string) (*UserLoginRememberMe, error)
