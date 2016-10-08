@@ -45,7 +45,7 @@ type RememberMeCookie struct {
 	ExpireTimeUTC time.Time
 }
 
-type SessionStore struct {
+type AuthStore struct {
 	backend     BackendQuerier
 	mailer      Mailer
 	cookieStore CookieStorer
@@ -54,11 +54,11 @@ type SessionStore struct {
 
 var emailRegex = regexp.MustCompile(`^(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$`)
 
-func NewSessionStore(backend BackendQuerier, mailer Mailer, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) *SessionStore {
+func NewAuthStore(backend BackendQuerier, mailer Mailer, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) *AuthStore {
 	emailCookieName = cookiePrefix + "Email"
 	sessionCookieName = cookiePrefix + "Session"
 	rememberMeCookieName = cookiePrefix + "RememberMe"
-	return &SessionStore{backend, mailer, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
+	return &AuthStore{backend, mailer, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
 }
 
 var emailCookieName = "Email"
@@ -72,7 +72,7 @@ const sessionExpireDuration time.Duration = time.Hour
 const rememberMeRenewDuration time.Duration = time.Hour
 const rememberMeExpireDuration time.Duration = time.Hour * 24 * 30 // 30 days
 
-func (s *SessionStore) GetSession() (*UserLoginSession, error) {
+func (s *AuthStore) GetSession() (*UserLoginSession, error) {
 	cookie, err := s.getSessionCookie()
 	if err != nil || cookie.SessionId == "" { // impossible to get the session if there is no cookie
 		return nil, NewAuthError("Session cookie not found", err)
@@ -96,7 +96,7 @@ func (s *SessionStore) GetSession() (*UserLoginSession, error) {
 	return session, nil
 }
 
-func (s *SessionStore) GetBasicAuth() (*UserLoginSession, error) {
+func (s *AuthStore) GetBasicAuth() (*UserLoginSession, error) {
 	session, err := s.GetSession()
 	if err != nil {
 		if email, password, ok := s.r.BasicAuth(); ok {
@@ -111,7 +111,7 @@ func (s *SessionStore) GetBasicAuth() (*UserLoginSession, error) {
 	return session, nil
 }
 
-func (s *SessionStore) getRememberMe() (*UserLoginRememberMe, error) {
+func (s *AuthStore) getRememberMe() (*UserLoginRememberMe, error) {
 	cookie, err := s.getRememberMeCookie()
 	if err != nil || cookie.Selector == "" { // impossible to get the remember Me if there is no cookie
 		return nil, NewAuthError("RememberMe cookie not found", err)
@@ -144,7 +144,7 @@ func (s *SessionStore) getRememberMe() (*UserLoginRememberMe, error) {
 	return rememberMe, nil
 }
 
-func (s *SessionStore) renewSession(sessionID, sessionHash string, renewTimeUTC, expireTimeUTC *time.Time) (*UserLoginSession, error) {
+func (s *AuthStore) renewSession(sessionID, sessionHash string, renewTimeUTC, expireTimeUTC *time.Time) (*UserLoginSession, error) {
 	if renewTimeUTC.Before(time.Now().UTC()) && expireTimeUTC.After(time.Now().UTC()) {
 		session, err := s.backend.RenewSession(sessionHash, time.Now().UTC().Add(sessionRenewDuration))
 		if err != nil {
@@ -176,7 +176,7 @@ func (s *SessionStore) renewSession(sessionID, sessionHash string, renewTimeUTC,
 	return session, nil
 }
 
-func (s *SessionStore) Login() error {
+func (s *AuthStore) Login() error {
 	credentials, err := getCredentials(s.r)
 	if err != nil {
 		return NewAuthError("Unable to get credentials", err)
@@ -185,7 +185,7 @@ func (s *SessionStore) Login() error {
 	return err
 }
 
-func (s *SessionStore) login(email, password string, rememberMe bool) (*UserLoginSession, error) {
+func (s *AuthStore) login(email, password string, rememberMe bool) (*UserLoginSession, error) {
 	if !isValidEmail(email) {
 		return nil, NewAuthError("Please enter a valid email address.", nil)
 	}
@@ -206,7 +206,7 @@ func (s *SessionStore) login(email, password string, rememberMe bool) (*UserLogi
 	return s.createSession(login.LoginId, login.UserId, rememberMe)
 }
 
-func (s *SessionStore) createSession(loginId, userId int, rememberMe bool) (*UserLoginSession, error) {
+func (s *AuthStore) createSession(loginId, userId int, rememberMe bool) (*UserLoginSession, error) {
 	var err error
 	var selector, token, tokenHash string
 	if rememberMe {
@@ -258,7 +258,7 @@ type SendVerifyParams struct {
 	RefererBaseUrl   string
 }
 
-func (s *SessionStore) Register() error {
+func (s *AuthStore) Register() error {
 	registration, err := getRegistration(s.r)
 	if err != nil {
 		return NewAuthError("Unable to get email", err)
@@ -266,7 +266,7 @@ func (s *SessionStore) Register() error {
 	return s.register(registration.Email)
 }
 
-func (s *SessionStore) register(email string) error {
+func (s *AuthStore) register(email string) error {
 	if !isValidEmail(email) {
 		return NewAuthError("Invalid email", nil)
 	}
@@ -296,7 +296,7 @@ func getBaseUrl(url string) string {
 	return url[:protoIndex+3+firstSlash]
 }
 
-func (s *SessionStore) addUser(email string) (string, error) {
+func (s *AuthStore) addUser(email string) (string, error) {
 	emailConfirmCode, emailConfimHash, err := generateStringAndHash()
 	if err != nil {
 		return "", NewLoggedError("Problem generating email confirmation code", err)
@@ -309,7 +309,7 @@ func (s *SessionStore) addUser(email string) (string, error) {
 	return emailConfirmCode, nil
 }
 
-func (s *SessionStore) CreateProfile() error {
+func (s *AuthStore) CreateProfile() error {
 	profile, err := getProfile(s.r)
 	if err != nil {
 		return NewAuthError("Unable to get profile information from form", err)
@@ -317,7 +317,7 @@ func (s *SessionStore) CreateProfile() error {
 	return s.createProfile(profile.FullName, profile.Organization, profile.Password, profile.PicturePath)
 }
 
-func (s *SessionStore) createProfile(fullName, organization, password, picturePath string) error {
+func (s *AuthStore) createProfile(fullName, organization, password, picturePath string) error {
 	emailCookie, err := s.getEmailCookie()
 	if err != nil || emailCookie.EmailVerificationCode == "" {
 		return NewLoggedError("Unable to get email verification cookie", err)
@@ -348,7 +348,7 @@ func (s *SessionStore) createProfile(fullName, organization, password, picturePa
 	return nil
 }
 
-func (s *SessionStore) VerifyEmail() error {
+func (s *AuthStore) VerifyEmail() error {
 	verify, err := getVerificationCode(s.r)
 	if err != nil {
 		return NewAuthError("Unable to get verification email from JSON", err)
@@ -356,7 +356,7 @@ func (s *SessionStore) VerifyEmail() error {
 	return s.verifyEmail(verify.EmailVerificationCode)
 }
 
-func (s *SessionStore) verifyEmail(emailVerificationCode string) error {
+func (s *AuthStore) verifyEmail(emailVerificationCode string) error {
 	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
 		emailVerificationCode = emailVerificationCode + "="
 	}
@@ -382,45 +382,45 @@ func (s *SessionStore) verifyEmail(emailVerificationCode string) error {
 	return nil
 }
 
-func (s *SessionStore) UpdateEmail() error { return nil }
+func (s *AuthStore) UpdateEmail() error { return nil }
 
-func (s *SessionStore) UpdatePassword() error {
+func (s *AuthStore) UpdatePassword() error {
 	return nil
 }
 
-func (s *SessionStore) getEmailCookie() (*EmailCookie, error) {
+func (s *AuthStore) getEmailCookie() (*EmailCookie, error) {
 	email := &EmailCookie{}
 	return email, s.cookieStore.Get(emailCookieName, email)
 }
 
-func (s *SessionStore) getSessionCookie() (*SessionCookie, error) {
+func (s *AuthStore) getSessionCookie() (*SessionCookie, error) {
 	session := &SessionCookie{}
 	return session, s.cookieStore.Get(sessionCookieName, session)
 }
 
-func (s *SessionStore) getRememberMeCookie() (*RememberMeCookie, error) {
+func (s *AuthStore) getRememberMeCookie() (*RememberMeCookie, error) {
 	rememberMe := &RememberMeCookie{}
 	return rememberMe, s.cookieStore.Get(rememberMeCookieName, rememberMe)
 }
 
-func (s *SessionStore) deleteEmailCookie() {
+func (s *AuthStore) deleteEmailCookie() {
 	s.cookieStore.Delete(emailCookieName)
 }
 
-func (s *SessionStore) deleteSessionCookie() {
+func (s *AuthStore) deleteSessionCookie() {
 	s.cookieStore.Delete(sessionCookieName)
 }
 
-func (s *SessionStore) deleteRememberMeCookie() {
+func (s *AuthStore) deleteRememberMeCookie() {
 	s.cookieStore.Delete(rememberMeCookieName)
 }
 
-func (s *SessionStore) saveEmailCookie(emailVerificationCode string, expireTimeUTC time.Time) error {
+func (s *AuthStore) saveEmailCookie(emailVerificationCode string, expireTimeUTC time.Time) error {
 	cookie := EmailCookie{EmailVerificationCode: emailVerificationCode, ExpireTimeUTC: expireTimeUTC}
 	return s.cookieStore.PutWithExpire(emailCookieName, emailExpireMins, &cookie)
 }
 
-func (s *SessionStore) saveSessionCookie(sessionId string, renewTimeUTC, expireTimeUTC time.Time) error {
+func (s *AuthStore) saveSessionCookie(sessionId string, renewTimeUTC, expireTimeUTC time.Time) error {
 	cookie := SessionCookie{SessionId: sessionId, RenewTimeUTC: renewTimeUTC, ExpireTimeUTC: expireTimeUTC}
 	err := s.cookieStore.Put(sessionCookieName, &cookie)
 	if err != nil {
@@ -429,7 +429,7 @@ func (s *SessionStore) saveSessionCookie(sessionId string, renewTimeUTC, expireT
 	return nil
 }
 
-func (s *SessionStore) saveRememberMeCookie(selector, token string, renewTimeUTC, expireTimeUTC time.Time) error {
+func (s *AuthStore) saveRememberMeCookie(selector, token string, renewTimeUTC, expireTimeUTC time.Time) error {
 	cookie := RememberMeCookie{Selector: selector, Token: token, RenewTimeUTC: renewTimeUTC, ExpireTimeUTC: expireTimeUTC}
 	return s.cookieStore.Put(rememberMeCookieName, &cookie)
 }

@@ -159,14 +159,14 @@ func fileLoggerHandler(h http.Handler) http.Handler {
 	return handlers.CombinedLoggingHandler(logFile, h)
 }
 
-func (s *nginxauth) method(name string, handler func(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
+func (s *nginxauth) method(name string, handler func(authStore AuthStorer, w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != name {
 			http.Error(w, "Unsupported method", http.StatusInternalServerError)
 			return
 		}
 		secureOnly := strings.HasPrefix(r.Referer(), "https") // proxy to back-end so if referer is secure connection, we can use secureOnly cookies
-		sessionStore := NewSessionStore(s.backend, s.mailer, w, r, s.cookieKey, "ef", secureOnly)
-		handler(sessionStore, w, r)
+		authStore := NewAuthStore(s.backend, s.mailer, w, r, s.cookieKey, "ef", secureOnly)
+		handler(authStore, w, r)
 	}
 }

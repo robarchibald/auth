@@ -11,8 +11,8 @@ type loginData struct {
 	Password string
 }
 
-func auth(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
-	session, err := sessionStore.GetSession()
+func auth(authStore AuthStorer, w http.ResponseWriter, r *http.Request) {
+	session, err := authStore.GetSession()
 	if err != nil {
 		http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
 		if a, ok := err.(*AuthError); ok {
@@ -23,8 +23,8 @@ func auth(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func authBasic(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
-	session, err := sessionStore.GetBasicAuth()
+func authBasic(authStore AuthStorer, w http.ResponseWriter, r *http.Request) {
+	session, err := authStore.GetBasicAuth()
 	if err != nil {
 		w.Header().Set("WWW-Authenticate", "Basic realm='Endfirst.com'")
 		http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
@@ -33,28 +33,28 @@ func authBasic(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func login(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run(sessionStore.Login, w)
+func login(authStore AuthStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.Login, w)
 }
 
-func register(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run(sessionStore.Register, w)
+func register(authStore AuthStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.Register, w)
 }
 
-func createProfile(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run(sessionStore.CreateProfile, w)
+func createProfile(authStore AuthStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.CreateProfile, w)
 }
 
-func updateEmail(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run(sessionStore.UpdateEmail, w)
+func updateEmail(authStore AuthStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.UpdateEmail, w)
 }
 
-func updatePassword(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run(sessionStore.UpdatePassword, w)
+func updatePassword(authStore AuthStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.UpdatePassword, w)
 }
 
-func verifyEmail(sessionStore AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run(sessionStore.VerifyEmail, w)
+func verifyEmail(authStore AuthStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.VerifyEmail, w)
 }
 
 func run(method func() error, w http.ResponseWriter) {

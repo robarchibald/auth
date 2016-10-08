@@ -17,28 +17,28 @@ import (
 var futureTime time.Time = time.Now().Add(5 * time.Minute)
 var pastTime time.Time = time.Now().Add(-5 * time.Minute)
 
-func getStore(emailCookieToReturn *EmailCookie, sessionCookieToReturn *SessionCookie, rememberMeCookieToReturn *RememberMeCookie, hasCookieGetError, hasCookiePutError bool, backend *MockBackend) *SessionStore {
+func getStore(emailCookieToReturn *EmailCookie, sessionCookieToReturn *SessionCookie, rememberMeCookieToReturn *RememberMeCookie, hasCookieGetError, hasCookiePutError bool, backend *MockBackend) *AuthStore {
 	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookieToReturn, sessionCookieName: sessionCookieToReturn, rememberMeCookieName: rememberMeCookieToReturn}, hasCookieGetError, hasCookiePutError)
-	return &SessionStore{backend, &TextMailer{}, cookieStore, &http.Request{}}
+	return &AuthStore{backend, &TextMailer{}, cookieStore, &http.Request{}}
 }
 
-func TestNewSessionStore(t *testing.T) {
+func TestNewAuthStore(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := &http.Request{}
 	b := &MockBackend{}
 	m := &TextMailer{}
-	actual := NewSessionStore(b, m, w, r, cookieKey, "prefix", false)
+	actual := NewAuthStore(b, m, w, r, cookieKey, "prefix", false)
 	if actual.backend != b || actual.cookieStore.(*CookieStore).w != w || actual.cookieStore.(*CookieStore).r != r {
 		t.Fatal("expected correct init")
 	}
 }
 
-func TestSessionStoreEndToEnd(t *testing.T) {
+func TestAuthStoreEndToEnd(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := &http.Request{Header: http.Header{}}
 	b := NewBackendMemory()
 	m := &TextMailer{}
-	s := NewSessionStore(b, m, w, r, cookieKey, "prefix", false)
+	s := NewAuthStore(b, m, w, r, cookieKey, "prefix", false)
 
 	// register new user
 	// adds to users, logins and sessions
@@ -735,19 +735,19 @@ func collectionEqual(expected, actual []string) bool {
 }
 
 /****************************************************************************/
-type MockSessionStore struct {
+type MockAuthStore struct {
 }
 
-func NewMockSessionStore() *MockSessionStore {
-	return &MockSessionStore{}
+func NewMockAuthStore() *MockAuthStore {
+	return &MockAuthStore{}
 }
 
-func (s *MockSessionStore) Get() (*UserLoginSession, error) {
+func (s *MockAuthStore) Get() (*UserLoginSession, error) {
 	return nil, nil
 }
-func (s *MockSessionStore) GetRememberMe() (*UserLoginRememberMe, error) {
+func (s *MockAuthStore) GetRememberMe() (*UserLoginRememberMe, error) {
 	return nil, nil
 }
-func (s *MockSessionStore) Login(email, password, returnUrl string) (*UserLoginSession, error) {
+func (s *MockAuthStore) Login(email, password, returnUrl string) (*UserLoginSession, error) {
 	return nil, nil
 }
