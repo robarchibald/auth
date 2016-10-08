@@ -129,7 +129,7 @@ func TestBackendRenewRememberMe(t *testing.T) {
 func TestBackendAddUser(t *testing.T) {
 	backend := NewBackendMemory()
 	if err := backend.AddUser("email", "emailVerifyHash"); err != nil || len(backend.Users) != 1 {
-		t.Error("expected valid session", session)
+		t.Error("expected valid session", err, backend.Users)
 	}
 
 	if err := backend.AddUser("email", "emailVerifyHash"); err != ErrUserAlreadyExists {
@@ -160,16 +160,14 @@ func TestBackendUpdateUser(t *testing.T) {
 }
 
 func TestBackendCreateLogin(t *testing.T) {
-	renews := time.Now().UTC()
-	expires := time.Now().UTC().Add(time.Hour)
 	backend := NewBackendMemory()
-	if _, err := backend.CreateLogin("emailVerifyHash", "passwordHash", "fullName", "company", "pictureUrl", "sessionHash", expires, renews); err != ErrUserNotFound {
+	if _, err := backend.CreateLogin("emailVerifyHash", "passwordHash", "fullName", "company", "pictureUrl"); err != ErrUserNotFound {
 		t.Error("expected login not found err", err)
 	}
 
 	backend.Users = append(backend.Users, &User{EmailVerifyHash: "emailVerifyHash", UserId: 1, PrimaryEmail: "email"})
-	if session, err := backend.CreateLogin("emailVerifyHash", "passwordHash", "fullName", "company", "pictureUrl", "sessionHash", expires, renews); err != nil || session.SessionHash != "sessionHash" || session.ExpireTimeUTC != expires || session.RenewTimeUTC != renews || session.LoginId != 1 || session.UserId != 1 {
-		t.Error("expected valid session", session)
+	if login, err := backend.CreateLogin("emailVerifyHash", "passwordHash", "fullName", "company", "pictureUrl"); err != nil || login.LoginId != 1 || login.UserId != 1 {
+		t.Error("expected valid login", login)
 	}
 }
 

@@ -20,6 +20,11 @@ func TestAuthError(t *testing.T) {
 
 /***********************************************************************/
 
+type LoginReturn struct {
+	Login *UserLogin
+	Err   error
+}
+
 type SessionReturn struct {
 	Session *UserLoginSession
 	Err     error
@@ -43,14 +48,14 @@ type VerifyEmailReturn struct {
 
 type MockBackend struct {
 	BackendQuerier
-	LoginReturn                               *UserLogin
+	GetUserLoginReturn                        *LoginReturn
 	ExpirationReturn                          *time.Time
 	GetSessionReturn                          *SessionReturn
-	NewSessionReturn                          *SessionRememberReturn
+	NewLoginSessionReturn                     *SessionRememberReturn
 	RenewSessionReturn                        *SessionReturn
 	AddUserReturn                             error
 	VerifyEmailReturn                         *VerifyEmailReturn
-	CreateLoginReturn                         *SessionReturn
+	CreateLoginReturn                         *LoginReturn
 	UpdateEmailAndInvalidateSessionsReturn    *SessionReturn
 	UpdatePasswordAndInvalidateSessionsReturn *SessionReturn
 	GetRememberMeReturn                       *RememberMeReturn
@@ -62,15 +67,15 @@ type MockBackend struct {
 
 func (b *MockBackend) GetUserLogin(email, loginProvider string) (*UserLogin, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetUserLogin")
-	return b.LoginReturn, b.ErrReturn
+	return b.GetUserLoginReturn.Login, b.GetUserLoginReturn.Err
 }
 func (b *MockBackend) GetSession(sessionHash string) (*UserLoginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetSession")
 	return b.GetSessionReturn.Session, b.GetSessionReturn.Err
 }
 func (b *MockBackend) NewLoginSession(loginId, userId int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
-	b.MethodsCalled = append(b.MethodsCalled, "NewSession")
-	return b.NewSessionReturn.Session, b.NewSessionReturn.RememberMe, b.NewSessionReturn.Err
+	b.MethodsCalled = append(b.MethodsCalled, "NewLoginSession")
+	return b.NewLoginSessionReturn.Session, b.NewLoginSessionReturn.RememberMe, b.NewLoginSessionReturn.Err
 }
 func (b *MockBackend) RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "RenewSession")
@@ -99,9 +104,9 @@ func (b *MockBackend) UpdateUser(session *UserLoginSession, fullname string, com
 	return b.ErrReturn
 }
 
-func (b *MockBackend) CreateLogin(email string, passwordHash string, fullName string, company string, pictureUrl string, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*UserLoginSession, error) {
+func (b *MockBackend) CreateLogin(email string, passwordHash string, fullName string, company string, pictureUrl string) (*UserLogin, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateLogin")
-	return b.CreateLoginReturn.Session, b.CreateLoginReturn.Err
+	return b.CreateLoginReturn.Login, b.CreateLoginReturn.Err
 }
 
 func (b *MockBackend) UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error) {
@@ -124,7 +129,15 @@ func (b *MockBackend) InvalidateRememberMe(selector string) error {
 	return b.ErrReturn
 }
 
-func session(renewTimeUTC, expireTimeUTC time.Time) *SessionReturn {
+func loginSuccess() *LoginReturn {
+	return &LoginReturn{&UserLogin{LoginId: 1, ProviderKey: "zVNfmBbTwQZwyMsAizV1Guh_j7kcFbyG7-LRJeeJfXc="}, nil} // hash of "correctPassword"
+}
+
+func loginErr() *LoginReturn {
+	return &LoginReturn{nil, errors.New("failed")}
+}
+
+func sessionSuccess(renewTimeUTC, expireTimeUTC time.Time) *SessionReturn {
 	return &SessionReturn{&UserLoginSession{1, "sessionHash", 2, renewTimeUTC, expireTimeUTC}, nil}
 }
 

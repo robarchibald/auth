@@ -129,7 +129,7 @@ func (m *BackendMemory) UpdateUser(session *UserLoginSession, fullname string, c
 }
 
 // This function isn't right yet. Not creating company. Not sure if anything else is missing
-func (m *BackendMemory) CreateLogin(emailVerifyHash, passwordHash string, fullName string, company string, pictureUrl string, sessionHash string, sessionExpireTimeUTC, sessionRenewTimeUTC time.Time) (*UserLoginSession, error) {
+func (m *BackendMemory) CreateLogin(emailVerifyHash, passwordHash string, fullName string, company string, pictureUrl string) (*UserLogin, error) {
 	user := m.getUserByEmailVerifyHash(emailVerifyHash)
 	if user == nil {
 		return nil, ErrUserNotFound
@@ -141,9 +141,7 @@ func (m *BackendMemory) CreateLogin(emailVerifyHash, passwordHash string, fullNa
 	login := UserLogin{m.LastLoginId, user.UserId, 1, passwordHash}
 	m.Logins = append(m.Logins, &login)
 
-	// don't set remember me
-	session, _, err := m.NewLoginSession(login.LoginId, login.UserId, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC, false, "", "", time.Time{}, time.Time{})
-	return session, err
+	return &login, nil
 }
 
 func (m *BackendMemory) UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error) {
