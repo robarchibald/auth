@@ -17,11 +17,11 @@ import (
 var futureTime = time.Now().Add(5 * time.Minute)
 var pastTime = time.Now().Add(-5 * time.Minute)
 
-func getAuthStore(createSessionReturn *SessionReturn, emailCookieToReturn *emailCookie, hasCookieGetError, hasCookiePutError bool, backend *MockBackend) *authStore {
+func getAuthStore(createSessionReturn *SessionReturn, emailCookieToReturn *emailCookie, hasCookieGetError, hasCookiePutError bool, mailErr error, backend *MockBackend) *authStore {
 	r := &http.Request{}
 	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookieToReturn}, hasCookieGetError, hasCookiePutError)
 	sessionStore := MockSessionStore{CreateSessionReturn: createSessionReturn}
-	return &authStore{backend, &sessionStore, &TextMailer{}, cookieStore, r}
+	return &authStore{backend, &sessionStore, &TextMailer{Err: mailErr}, cookieStore, r}
 }
 
 func TestNewAuthStore(t *testing.T) {
@@ -149,7 +149,7 @@ var loginTests = []struct {
 func TestAuthLogin(t *testing.T) {
 	for i, test := range loginTests {
 		backend := &MockBackend{GetUserLoginReturn: test.GetUserLoginReturn, ErrReturn: test.ErrReturn}
-		store := getAuthStore(test.CreateSessionReturn, nil, true, false, backend) // cookie get error so we don't try to invalidate old session or rememberme
+		store := getAuthStore(test.CreateSessionReturn, nil, true, false, nil, backend) // cookie get error so we don't try to invalidate old session or rememberme
 		val, err := store.login(test.Email, test.Password, test.RememberMe)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
@@ -188,7 +188,7 @@ var registerTests = []struct {
 func TestAuthRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &MockBackend{AddUserReturn: test.AddUserReturn}
-		store := getAuthStore(nil, nil, false, false, backend)
+		store := getAuthStore(nil, nil, false, false, nil, backend)
 		err := store.register(test.Email)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
@@ -246,7 +246,7 @@ var createProfileTests = []struct {
 func TestAuthCreateProfile(t *testing.T) {
 	for i, test := range createProfileTests {
 		backend := &MockBackend{CreateLoginReturn: test.CreateLoginReturn}
-		store := getAuthStore(test.CreateSessionReturn, test.EmailCookie, test.HasCookieGetError, test.HasCookiePutError, backend)
+		store := getAuthStore(test.CreateSessionReturn, test.EmailCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
 		err := store.createProfile("name", "organization", "password", "path")
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
@@ -259,7 +259,9 @@ func TestAuthCreateProfile(t *testing.T) {
 var verifyEmailTests = []struct {
 	Scenario              string
 	EmailVerificationCode string
+	HasCookiePutError     bool
 	VerifyEmailReturn     *VerifyEmailReturn
+	MailErr               error
 	MethodsCalled         []string
 	ExpectedErr           string
 }{
@@ -277,6 +279,22 @@ var verifyEmailTests = []struct {
 		ExpectedErr:           "Failed to verify email",
 	},
 	{
+		Scenario:              "Cookie Save Error",
+		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
+		VerifyEmailReturn:     verifyEmailSuccess(),
+		HasCookiePutError:     true,
+		MethodsCalled:         []string{"VerifyEmail"},
+		ExpectedErr:           "Failed to save email cookie",
+	},
+	{
+		Scenario:              "Mail Error",
+		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
+		VerifyEmailReturn:     verifyEmailSuccess(),
+		MethodsCalled:         []string{"VerifyEmail"},
+		MailErr:               errors.New("test"),
+		ExpectedErr:           "Failed to send welcome email",
+	},
+	{
 		Scenario:              "Email sent",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		VerifyEmailReturn:     verifyEmailSuccess(),
@@ -287,7 +305,7 @@ var verifyEmailTests = []struct {
 func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &MockBackend{VerifyEmailReturn: test.VerifyEmailReturn}
-		store := getAuthStore(nil, nil, false, false, backend)
+		store := getAuthStore(nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
 		err := store.verifyEmail(test.EmailVerificationCode)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
@@ -312,7 +330,7 @@ func TestRegisterPub(t *testing.T) {
 	buf.WriteString(`{"Email":"bogus"}`)
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &MockBackend{}
-	store := getAuthStore(nil, nil, true, false, backend)
+	store := getAuthStore(nil, nil, true, false, nil, backend)
 	store.r = r
 	err := store.Register()
 	if err == nil || err.Error() != "Invalid email" {
@@ -341,7 +359,7 @@ func TestVerifyEmailPub(t *testing.T) {
 	buf.WriteString(`{"EmailVerificationCode":"nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0"}`) // random valid base64 encoded data
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &MockBackend{VerifyEmailReturn: verifyEmailErr()}
-	store := getAuthStore(nil, nil, true, false, backend)
+	store := getAuthStore(nil, nil, true, false, nil, backend)
 	store.r = r
 	err := store.VerifyEmail()
 	if err == nil || err.Error() != "Failed to verify email" {
@@ -370,7 +388,7 @@ func TestLoginJson(t *testing.T) {
 	buf.WriteString(`{"Email":"email", "Password":"password", "RememberMe":true}`)
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &MockBackend{}
-	store := getAuthStore(nil, nil, true, false, backend)
+	store := getAuthStore(nil, nil, true, false, nil, backend)
 	store.r = r
 	err := store.Login()
 	if err == nil || err.Error() != "Please enter a valid email address." {
@@ -419,7 +437,7 @@ func TestCreateProfilePub(t *testing.T) {
 	r, _ := http.NewRequest("PUT", "url", &buf)
 	r.Header.Add("Content-Type", w.FormDataContentType())
 	backend := &MockBackend{}
-	store := getAuthStore(nil, nil, true, false, backend)
+	store := getAuthStore(nil, nil, true, false, nil, backend)
 	store.r = r
 	err := store.CreateProfile()
 	if err == nil || err.Error() != "Unable to get email verification cookie" {

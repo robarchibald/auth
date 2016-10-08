@@ -86,6 +86,7 @@ func (s *NilSender) Send(to, subject, body string) error {
 }
 
 type TextMailer struct {
+	Err error
 	Mailer
 	MessageTo   string
 	MessageData interface{}
@@ -118,5 +119,5 @@ func (t *TextMailer) SendPasswordChanged(to string, data interface{}) error {
 func (t *TextMailer) send(to string, data interface{}) error {
 	t.MessageTo = to
 	t.MessageData = data
-	return nil
+	return t.Err
 }
