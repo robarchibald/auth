@@ -17,10 +17,10 @@ import (
 var futureTime = time.Now().Add(5 * time.Minute)
 var pastTime = time.Now().Add(-5 * time.Minute)
 
-func getAuthStore(createSessionReturn *SessionReturn, loginReturn *LoginReturn, emailCookieToReturn *emailCookie, hasCookieGetError, hasCookiePutError bool, mailErr error, backend *MockBackend) *authStore {
+func getAuthStore(sessionReturn *SessionReturn, loginReturn *LoginReturn, emailCookieToReturn *emailCookie, hasCookieGetError, hasCookiePutError bool, mailErr error, backend *MockBackend) *authStore {
 	r := &http.Request{}
 	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookieToReturn}, hasCookieGetError, hasCookiePutError)
-	sessionStore := MockSessionStore{CreateSessionReturn: createSessionReturn}
+	sessionStore := MockSessionStore{SessionReturn: sessionReturn}
 	loginStore := MockLoginStore{LoginReturn: loginReturn}
 	return &authStore{backend, &sessionStore, &loginStore, &TextMailer{Err: mailErr}, cookieStore, r}
 }
@@ -33,6 +33,33 @@ func TestNewAuthStore(t *testing.T) {
 	actual := NewAuthStore(b, m, w, r, cookieKey, "prefix", false).(*authStore)
 	if actual.backend != b || actual.cookieStore.(*cookieStore).w != w || actual.cookieStore.(*cookieStore).r != r {
 		t.Fatal("expected correct init")
+	}
+}
+
+func TestAuthGetSession(t *testing.T) {
+	store := getAuthStore(sessionErr(), nil, nil, false, false, nil, &MockBackend{})
+	if _, err := store.GetSession(); err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestAuthGetBasicAuth(t *testing.T) {
+	// loginStore.LoginBasic error
+	store := getAuthStore(sessionErr(), loginErr(), nil, false, false, nil, &MockBackend{})
+	if _, err := store.GetBasicAuth(); err == nil {
+		t.Error("expected error")
+	}
+
+	// createSession error
+	store = getAuthStore(sessionErr(), loginSuccess(), nil, false, false, nil, &MockBackend{})
+	if _, err := store.GetBasicAuth(); err == nil {
+		t.Error("expected error")
+	}
+
+	// found session
+	store = getAuthStore(sessionSuccess(futureTime, futureTime), nil, nil, false, false, nil, &MockBackend{})
+	if _, err := store.GetBasicAuth(); err != nil {
+		t.Error("expected success")
 	}
 }
 

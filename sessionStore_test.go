@@ -289,14 +289,13 @@ func TestCreateSession(t *testing.T) {
 
 /*************************************************************************************/
 type MockSessionStore struct {
-	GetSessionReturn    *SessionReturn
-	CreateSessionReturn *SessionReturn
+	SessionReturn *SessionReturn
 }
 
 func (m *MockSessionStore) GetSession() (*UserLoginSession, error) {
-	return m.GetSessionReturn.Session, m.GetSessionReturn.Err
+	return m.SessionReturn.Session, m.SessionReturn.Err
 }
 
 func (m *MockSessionStore) CreateSession(loginID, userID int, rememberMe bool) (*UserLoginSession, error) {
-	return m.CreateSessionReturn.Session, m.CreateSessionReturn.Err
+	return m.SessionReturn.Session, m.SessionReturn.Err
 }
