@@ -17,11 +17,12 @@ import (
 var futureTime = time.Now().Add(5 * time.Minute)
 var pastTime = time.Now().Add(-5 * time.Minute)
 
-func getAuthStore(createSessionReturn *SessionReturn, emailCookieToReturn *emailCookie, hasCookieGetError, hasCookiePutError bool, mailErr error, backend *MockBackend) *authStore {
+func getAuthStore(createSessionReturn *SessionReturn, loginReturn *LoginReturn, emailCookieToReturn *emailCookie, hasCookieGetError, hasCookiePutError bool, mailErr error, backend *MockBackend) *authStore {
 	r := &http.Request{}
 	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookieToReturn}, hasCookieGetError, hasCookiePutError)
 	sessionStore := MockSessionStore{CreateSessionReturn: createSessionReturn}
-	return &authStore{backend, &sessionStore, &TextMailer{Err: mailErr}, cookieStore, r}
+	loginStore := MockLoginStore{LoginReturn: loginReturn}
+	return &authStore{backend, &sessionStore, &loginStore, &TextMailer{Err: mailErr}, cookieStore, r}
 }
 
 func TestNewAuthStore(t *testing.T) {
@@ -69,6 +70,10 @@ func TestAuthStoreEndToEnd(t *testing.T) {
 
 	// create profile
 	err = s.createProfile("fullName", "company", "password", "picturePath")
+	expectedPassword := encodeToString(hash([]byte("password")))
+	if err != nil || len(b.Users) != 1 || len(b.Sessions) != 1 || len(b.Logins) != 1 || b.Logins[0].LoginID != 1 || b.Logins[0].UserID != 1 || b.Logins[0].ProviderKey != expectedPassword {
+		t.Fatal("expected valid user, login and session", b.Logins[0], expectedPassword, b.Logins[0].ProviderKey)
+	}
 
 	// decode session cookie
 	value = substring.Between(w.HeaderMap["Set-Cookie"][1], "prefixSession=", ";")
@@ -87,76 +92,14 @@ func TestAuthStoreEndToEnd(t *testing.T) {
 	// login on same browser with same existing session
 	session, err := s.login("test@test.com", "password", true)
 	if err != nil || len(b.Logins) != 1 || len(b.Sessions) != 1 || len(b.Users) != 1 || session.SessionHash != b.Sessions[0].SessionHash || session.UserID != 1 {
-		t.Fatal("expected to login to existing session", len(b.Logins), len(b.Sessions), len(b.Users), session, b.Sessions[0].SessionHash)
+		t.Fatal("expected to login to existing session", err, len(b.Logins), len(b.Sessions), len(b.Users), session, b.Sessions[0].SessionHash)
 	}
 
 	// now login with different browser with new session ID. Create new session
-	/*	session, rememberMe, err = b.NewLoginSession(login.LoginId, "newSessionHash", time.Now().UTC().AddDate(0, 0, 1), time.Now().UTC().AddDate(0, 0, 5), false, "", "", time.Time{}, time.Time{})
-		if err != nil || login == nil || rememberMe != nil || len(b.Sessions) != 2 {
-			t.Fatal("expected new User Login to be created")
-		}*/
-}
-
-var loginTests = []struct {
-	Scenario            string
-	Email               string
-	Password            string
-	RememberMe          bool
-	CreateSessionReturn *SessionReturn
-	GetUserLoginReturn  *LoginReturn
-	ErrReturn           error
-	MethodsCalled       []string
-	ExpectedResult      *UserLoginRememberMe
-	ExpectedErr         string
-}{
-	{
-		Scenario:    "Invalid email",
-		Email:       "invalid@bogus",
-		ExpectedErr: "Please enter a valid email address.",
-	},
-	{
-		Scenario:    "Invalid password",
-		Email:       "email@example.com",
-		Password:    "short",
-		ExpectedErr: passwordValidationMessage,
-	},
-	{
-		Scenario:           "Can't get login",
-		Email:              "email@example.com",
-		Password:           "validPassword",
-		GetUserLoginReturn: loginErr(),
-		MethodsCalled:      []string{"GetUserLogin"},
-		ExpectedErr:        "Invalid username or password",
-	},
-	{
-		Scenario:           "Incorrect password",
-		Email:              "email@example.com",
-		Password:           "wrongPassword",
-		GetUserLoginReturn: &LoginReturn{Login: &UserLogin{LoginID: 1, UserID: 1, ProviderKey: "1234"}},
-		MethodsCalled:      []string{"GetUserLogin"},
-		ExpectedErr:        "Invalid username or password",
-	},
-	{
-		Scenario:            "Got session",
-		Email:               "email@example.com",
-		Password:            "correctPassword",
-		GetUserLoginReturn:  loginSuccess(),
-		CreateSessionReturn: sessionSuccess(futureTime, futureTime),
-		MethodsCalled:       []string{"GetUserLogin"},
-	},
-}
-
-func TestAuthLogin(t *testing.T) {
-	for i, test := range loginTests {
-		backend := &MockBackend{GetUserLoginReturn: test.GetUserLoginReturn, ErrReturn: test.ErrReturn}
-		store := getAuthStore(test.CreateSessionReturn, nil, true, false, nil, backend) // cookie get error so we don't try to invalidate old session or rememberme
-		val, err := store.login(test.Email, test.Password, test.RememberMe)
-		methods := store.backend.(*MockBackend).MethodsCalled
-		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
-			!collectionEqual(test.MethodsCalled, methods) {
-			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
-		}
-	}
+	//session, rememberMe, err = b.NewLoginSession(login.LoginId, "newSessionHash", time.Now().UTC().AddDate(0, 0, 1), time.Now().UTC().AddDate(0, 0, 5), false, "", "", time.Time{}, time.Time{})
+	//if err != nil || login == nil || rememberMe != nil || len(b.Sessions) != 2 {
+	//	t.Fatal("expected new User Login to be created")
+	//}
 }
 
 var registerTests = []struct {
@@ -188,7 +131,7 @@ var registerTests = []struct {
 func TestAuthRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &MockBackend{AddUserReturn: test.AddUserReturn}
-		store := getAuthStore(nil, nil, false, false, nil, backend)
+		store := getAuthStore(nil, nil, nil, false, false, nil, backend)
 		err := store.register(test.Email)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
@@ -203,7 +146,8 @@ var createProfileTests = []struct {
 	HasCookieGetError   bool
 	HasCookiePutError   bool
 	EmailCookie         *emailCookie
-	CreateLoginReturn   *LoginReturn
+	LoginReturn         *LoginReturn
+	UpdateUserReturn    error
 	CreateSessionReturn *SessionReturn
 	MethodsCalled       []string
 	ExpectedErr         string
@@ -219,34 +163,41 @@ var createProfileTests = []struct {
 		ExpectedErr: "Invalid email verification cookie",
 	},
 	{
-		Scenario:          "Error Creating profile",
-		EmailCookie:       &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
-		CreateLoginReturn: loginErr(),
-		MethodsCalled:     []string{"CreateLogin"},
-		ExpectedErr:       "Unable to create profile",
+		Scenario:         "Error Updating user",
+		EmailCookie:      &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
+		UpdateUserReturn: errors.New("failed"),
+		LoginReturn:      loginErr(),
+		MethodsCalled:    []string{"UpdateUser"},
+		ExpectedErr:      "Unable to update user",
 	},
 	{
-		Scenario:            "Error getting session",
+		Scenario:      "Error Creating login",
+		EmailCookie:   &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
+		LoginReturn:   loginErr(),
+		MethodsCalled: []string{"UpdateUser"},
+		ExpectedErr:   "Unable to create login",
+	},
+	{
+		Scenario:            "Error creating session",
 		EmailCookie:         &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
-		HasCookiePutError:   true,
-		CreateLoginReturn:   loginSuccess(),
+		LoginReturn:         loginSuccess(),
 		CreateSessionReturn: sessionErr(),
-		MethodsCalled:       []string{"CreateLogin"},
+		MethodsCalled:       []string{"UpdateUser"},
 		ExpectedErr:         "failed",
 	},
 	{
 		Scenario:            "Success",
 		EmailCookie:         &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
-		CreateLoginReturn:   loginSuccess(),
+		LoginReturn:         loginSuccess(),
 		CreateSessionReturn: sessionSuccess(futureTime, futureTime),
-		MethodsCalled:       []string{"CreateLogin"},
+		MethodsCalled:       []string{"UpdateUser"},
 	},
 }
 
 func TestAuthCreateProfile(t *testing.T) {
 	for i, test := range createProfileTests {
-		backend := &MockBackend{CreateLoginReturn: test.CreateLoginReturn}
-		store := getAuthStore(test.CreateSessionReturn, test.EmailCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
+		backend := &MockBackend{ErrReturn: test.UpdateUserReturn}
+		store := getAuthStore(test.CreateSessionReturn, test.LoginReturn, test.EmailCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
 		err := store.createProfile("name", "organization", "password", "path")
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
@@ -305,7 +256,7 @@ var verifyEmailTests = []struct {
 func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &MockBackend{VerifyEmailReturn: test.VerifyEmailReturn}
-		store := getAuthStore(nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
+		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
 		err := store.verifyEmail(test.EmailVerificationCode)
 		methods := store.backend.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
@@ -330,7 +281,7 @@ func TestRegisterPub(t *testing.T) {
 	buf.WriteString(`{"Email":"bogus"}`)
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &MockBackend{}
-	store := getAuthStore(nil, nil, true, false, nil, backend)
+	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
 	store.r = r
 	err := store.Register()
 	if err == nil || err.Error() != "Invalid email" {
@@ -359,7 +310,7 @@ func TestVerifyEmailPub(t *testing.T) {
 	buf.WriteString(`{"EmailVerificationCode":"nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0"}`) // random valid base64 encoded data
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &MockBackend{VerifyEmailReturn: verifyEmailErr()}
-	store := getAuthStore(nil, nil, true, false, nil, backend)
+	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
 	store.r = r
 	err := store.VerifyEmail()
 	if err == nil || err.Error() != "Failed to verify email" {
@@ -388,10 +339,10 @@ func TestLoginJson(t *testing.T) {
 	buf.WriteString(`{"Email":"email", "Password":"password", "RememberMe":true}`)
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &MockBackend{}
-	store := getAuthStore(nil, nil, true, false, nil, backend)
+	store := getAuthStore(nil, loginErr(), nil, true, false, nil, backend)
 	store.r = r
 	err := store.Login()
-	if err == nil || err.Error() != "Please enter a valid email address." {
+	if err == nil || err.Error() != "failed" {
 		t.Error("expected error from login method", err)
 	}
 
@@ -437,7 +388,7 @@ func TestCreateProfilePub(t *testing.T) {
 	r, _ := http.NewRequest("PUT", "url", &buf)
 	r.Header.Add("Content-Type", w.FormDataContentType())
 	backend := &MockBackend{}
-	store := getAuthStore(nil, nil, true, false, nil, backend)
+	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
 	store.r = r
 	err := store.CreateProfile()
 	if err == nil || err.Error() != "Unable to get email verification cookie" {

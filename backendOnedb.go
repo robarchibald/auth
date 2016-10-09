@@ -1,9 +1,9 @@
 package main
 
 import (
-	"errors"
+	//	"errors"
 	"github.com/robarchibald/onedb"
-	"time"
+	//	"time"
 )
 
 type BackendOnedb struct {
@@ -26,6 +26,7 @@ type BackendOnedb struct {
 	InvalidateUserSessionsQuery              string
 }
 
+/*
 func (b *BackendOnedb) GetUserLogin(email, loginProvider string) (*UserLogin, error) {
 	var login *UserLogin
 	return login, b.Db.QueryStruct(onedb.NewSqlQuery(b.GetUserLoginQuery, email, loginProvider), login)
@@ -81,7 +82,7 @@ func (b *BackendOnedb) UpdateUser(session *UserLoginSession, fullname string, co
 	return nil
 }
 
-func (b *BackendOnedb) CreateLogin(email, passwordHash string, fullName string, company string, pictureUrl string, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*UserLoginSession, error) {
+func (b *BackendOnedb) CreateLogin(email, passwordHash string, fullName string, company string, pictureUrl string) (*UserLogin, error) {
 	return nil, nil
 }
 
@@ -100,3 +101,4 @@ func (b *BackendOnedb) InvalidateSession(sessionHash string) error {
 func (b *BackendOnedb) Close() error {
 	return b.Db.Close()
 }
+*/

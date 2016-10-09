@@ -66,6 +66,7 @@ func (m *backendMemory) CreateSession(loginID, userID int, sessionHash string, s
 	}
 	return session, rememberItem, nil
 }
+
 func (m *backendMemory) GetSession(sessionHash string) (*UserLoginSession, error) {
 	session := m.getSessionByHash(sessionHash)
 	if session == nil {
@@ -73,6 +74,7 @@ func (m *backendMemory) GetSession(sessionHash string) (*UserLoginSession, error
 	}
 	return session, nil
 }
+
 func (m *backendMemory) RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error) {
 	session := m.getSessionByHash(sessionHash)
 	if session == nil {
@@ -81,6 +83,7 @@ func (m *backendMemory) RenewSession(sessionHash string, renewTimeUTC time.Time)
 	session.RenewTimeUTC = renewTimeUTC
 	return session, nil
 }
+
 func (m *backendMemory) GetRememberMe(selector string) (*UserLoginRememberMe, error) {
 	rememberMe := m.getRememberMe(selector)
 	if rememberMe == nil {
@@ -88,6 +91,7 @@ func (m *backendMemory) GetRememberMe(selector string) (*UserLoginRememberMe, er
 	}
 	return rememberMe, nil
 }
+
 func (m *backendMemory) RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error) {
 	rememberMe := m.getRememberMe(selector)
 	if rememberMe == nil {
@@ -100,6 +104,7 @@ func (m *backendMemory) RenewRememberMe(selector string, renewTimeUTC time.Time)
 	rememberMe.RenewTimeUTC = renewTimeUTC
 	return rememberMe, nil
 }
+
 func (m *backendMemory) AddUser(email, emailVerifyHash string) error {
 	if m.getUserByEmail(email) != nil {
 		return errUserAlreadyExists
@@ -124,18 +129,23 @@ func (m *backendMemory) VerifyEmail(emailVerifyHash string) (string, error) {
 	return user.PrimaryEmail, nil
 }
 
-func (m *backendMemory) UpdateUser(session *UserLoginSession, fullname string, company string, pictureURL string) error {
-	return nil
+func (m *backendMemory) UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error) {
+	user := m.getUserByEmailVerifyHash(emailVerifyHash)
+	if user == nil {
+		return "", errUserNotFound
+	}
+	user.FullName = fullname
+	// need to be able to create company and set pictureURL
+	return user.PrimaryEmail, nil
 }
 
-// This function isn't right yet. Not creating company. Not sure if anything else is missing
-func (m *backendMemory) CreateLogin(emailVerifyHash, passwordHash string, fullName string, company string, pictureURL string) (*UserLogin, error) {
-	user := m.getUserByEmailVerifyHash(emailVerifyHash)
+// This method needs to be fixed to work with the new data model using LDAP
+func (m *backendMemory) CreateLogin(email, passwordHash string, fullName string) (*UserLogin, error) {
+	user := m.getUserByEmail(email)
 	if user == nil {
 		return nil, errUserNotFound
 	}
 	user.FullName = fullName
-	//user.CompanyId = ???
 
 	m.LastLoginID = m.LastLoginID + 1
 	login := UserLogin{m.LastLoginID, user.UserID, 1, passwordHash}
@@ -147,13 +157,16 @@ func (m *backendMemory) CreateLogin(emailVerifyHash, passwordHash string, fullNa
 func (m *backendMemory) UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error) {
 	return nil, nil
 }
+
 func (m *backendMemory) UpdatePasswordAndInvalidateSessions(email string, oldPassword string, newPassword string) (*UserLoginSession, error) {
 	return nil, nil
 }
+
 func (m *backendMemory) InvalidateSession(sessionHash string) error {
 	m.removeSession(sessionHash)
 	return nil
 }
+
 func (m *backendMemory) InvalidateRememberMe(selector string) error {
 	m.removeRememberMe(selector)
 	return nil

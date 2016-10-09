@@ -8,11 +8,11 @@ import (
 type BackendQuerier interface {
 	AddUser(email, emailVerifyHash string) error
 	VerifyEmail(emailVerifyHash string) (string, error)
-	UpdateUser(session *UserLoginSession, fullname string, company string, pictureURL string) error
+	UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error)
 	UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error)
 	UpdatePasswordAndInvalidateSessions(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
 
-	CreateLogin(emailVerifyHash, passwordHash string, fullName string, company string, pictureURL string) (*UserLogin, error)
+	CreateLogin(email, passwordHash, fullName string) (*UserLogin, error)
 	GetLogin(email, loginProvider string) (*UserLogin, error)
 
 	CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)

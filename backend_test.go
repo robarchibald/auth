@@ -69,14 +69,17 @@ func (b *MockBackend) GetLogin(email, loginProvider string) (*UserLogin, error) 
 	b.MethodsCalled = append(b.MethodsCalled, "GetUserLogin")
 	return b.GetUserLoginReturn.Login, b.GetUserLoginReturn.Err
 }
+
 func (b *MockBackend) GetSession(sessionHash string) (*UserLoginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetSession")
 	return b.GetSessionReturn.Session, b.GetSessionReturn.Err
 }
+
 func (b *MockBackend) CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "NewLoginSession")
 	return b.NewLoginSessionReturn.Session, b.NewLoginSessionReturn.RememberMe, b.NewLoginSessionReturn.Err
 }
+
 func (b *MockBackend) RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "RenewSession")
 	return b.RenewSessionReturn.Session, b.RenewSessionReturn.Err
@@ -99,12 +102,12 @@ func (b *MockBackend) VerifyEmail(emailVerifyHash string) (string, error) {
 	return b.VerifyEmailReturn.Email, b.VerifyEmailReturn.Err
 }
 
-func (b *MockBackend) UpdateUser(session *UserLoginSession, fullname string, company string, pictureURL string) error {
+func (b *MockBackend) UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdateUser")
-	return b.ErrReturn
+	return "test@test.com", b.ErrReturn
 }
 
-func (b *MockBackend) CreateLogin(email string, passwordHash string, fullName string, company string, pictureURL string) (*UserLogin, error) {
+func (b *MockBackend) CreateLogin(email, passwordHash, fullName string) (*UserLogin, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateLogin")
 	return b.CreateLoginReturn.Login, b.CreateLoginReturn.Err
 }

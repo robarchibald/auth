@@ -1,10 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/base64"
 	"encoding/json"
 	"io"
 	"io/ioutil"
@@ -35,6 +31,7 @@ type emailCookie struct {
 type authStore struct {
 	backend      BackendQuerier
 	sessionStore SessionStorer
+	loginStore   LoginStorer
 	mailer       Mailer
 	cookieStore  CookieStorer
 	r            *http.Request
@@ -44,7 +41,8 @@ var emailRegex = regexp.MustCompile(`^(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$
 
 func NewAuthStore(backend BackendQuerier, mailer Mailer, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) AuthStorer {
 	sessionStore := NewSessionStore(backend, w, r, cookieKey, cookiePrefix, secureOnlyCookie)
-	return &authStore{backend, sessionStore, mailer, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
+	loginStore := NewLoginStore(backend, mailer, r)
+	return &authStore{backend, sessionStore, loginStore, mailer, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
 }
 
 func (s *authStore) GetSession() (*UserLoginSession, error) {
@@ -54,14 +52,11 @@ func (s *authStore) GetSession() (*UserLoginSession, error) {
 func (s *authStore) GetBasicAuth() (*UserLoginSession, error) {
 	session, err := s.GetSession()
 	if err != nil {
-		if email, password, ok := s.r.BasicAuth(); ok {
-			session, err = s.login(email, password, false)
-			if err != nil {
-				return nil, newLoggedError("Unable to login with provided credentials", err)
-			}
-		} else {
-			return nil, newAuthError("Problem decoding credentials from basic auth", nil)
+		login, err := s.loginStore.LoginBasic()
+		if err != nil {
+			return nil, err
 		}
+		return s.sessionStore.CreateSession(login.LoginID, login.UserID, false)
 	}
 	return session, nil
 }
@@ -76,23 +71,10 @@ func (s *authStore) Login() error {
 }
 
 func (s *authStore) login(email, password string, rememberMe bool) (*UserLoginSession, error) {
-	if !isValidEmail(email) {
-		return nil, newAuthError("Please enter a valid email address.", nil)
-	}
-	if !isValidPassword(password) {
-		return nil, newAuthError(passwordValidationMessage, nil)
-	}
-
-	login, err := s.backend.GetLogin(email, loginProviderDefaultName)
+	login, err := s.loginStore.Login(email, password, rememberMe)
 	if err != nil {
-		return nil, newLoggedError("Invalid username or password", err)
+		return nil, err
 	}
-
-	decoded, _ := decodeFromString(login.ProviderKey)
-	if !hashEquals([]byte(password), decoded) {
-		return nil, newLoggedError("Invalid username or password", nil)
-	}
-
 	return s.sessionStore.CreateSession(login.LoginID, login.UserID, rememberMe)
 }
 
@@ -172,10 +154,14 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 		return newLoggedError("Invalid email verification cookie", err)
 	}
 
-	passwordHash := encodeToString(hash([]byte(password)))
-	login, err := s.backend.CreateLogin(emailVerifyHash, passwordHash, fullName, organization, picturePath)
+	email, err := s.backend.UpdateUser(emailVerifyHash, fullName, organization, picturePath)
 	if err != nil {
-		return newLoggedError("Unable to create profile", err)
+		return newLoggedError("Unable to update user", err)
+	}
+
+	login, err := s.loginStore.CreateLogin(email, fullName, password)
+	if err != nil {
+		return newLoggedError("Unable to create login", err)
 	}
 
 	_, err = s.sessionStore.CreateSession(login.LoginID, login.UserID, false)
@@ -333,77 +319,6 @@ func getJSON(r *http.Request, result interface{}) error {
 
 const passwordValidationMessage string = "Password must be between 7 and 20 characters"
 
-func isValidPassword(password string) bool {
-	return len(password) >= 7 && len(password) <= 20
-}
-
 func isValidEmail(email string) bool {
 	return len(email) <= 254 && len(email) >= 6 && emailRegex.MatchString(email) == true
-}
-
-func decodeStringToHash(token string) (string, error) {
-	data, err := decodeFromString(token)
-	if err != nil {
-		return "", err
-	}
-	return encodeToString(hash(data)), nil
-}
-
-func decodeFromString(token string) ([]byte, error) {
-	return base64.URLEncoding.DecodeString(token)
-}
-
-func encodeToString(bytes []byte) string {
-	return base64.URLEncoding.EncodeToString(bytes)
-}
-
-func generateSelectorTokenAndHash() (string, string, string, error) {
-	var selector, token, tokenHash string
-	selector, err := generateRandomString()
-	if err != nil {
-		return "", "", "", newLoggedError("Unable to generate rememberMe selector", err)
-	}
-	token, tokenHash, err = generateStringAndHash()
-	if err != nil {
-		return "", "", "", newLoggedError("Unable to generate rememberMe token", err)
-	}
-	return selector, token, tokenHash, nil
-}
-
-func generateStringAndHash() (string, string, error) {
-	b, err := generateRandomBytes(32)
-	if err != nil {
-		return "", "", err
-	}
-	return encodeToString(b), encodeToString(hash(b)), nil
-}
-
-func hash(bytes []byte) []byte {
-	h := sha256.Sum256(bytes)
-	return h[:]
-}
-
-// Url decode both the token and the hash and then compare
-func encodedHashEquals(token, tokenHash string) bool {
-	tokenBytes, _ := decodeFromString(token)
-	hashBytes, _ := decodeFromString(tokenHash)
-	return hashEquals(tokenBytes, hashBytes)
-}
-
-func hashEquals(token, tokenHash []byte) bool {
-	return subtle.ConstantTimeCompare(hash(token), tokenHash) == 1
-}
-
-func generateRandomString() (string, error) {
-	bytes, err := generateRandomBytes(32)
-	return encodeToString(bytes), err
-}
-
-func generateRandomBytes(n int) ([]byte, error) {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
 }
