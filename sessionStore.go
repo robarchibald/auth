@@ -24,12 +24,12 @@ type rememberMeCookie struct {
 }
 
 type sessionStore struct {
-	backend     BackendQuerier
+	backend     SessionBackender
 	cookieStore CookieStorer
 	r           *http.Request
 }
 
-func NewSessionStore(backend BackendQuerier, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) SessionStorer {
+func NewSessionStore(backend Backender, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) SessionStorer {
 	emailCookieName = cookiePrefix + "Email"
 	sessionCookieName = cookiePrefix + "Session"
 	rememberMeCookieName = cookiePrefix + "RememberMe"

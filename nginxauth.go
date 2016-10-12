@@ -55,7 +55,7 @@ type authConf struct {
 }
 
 type nginxauth struct {
-	backend   BackendQuerier
+	backend   Backender
 	mailer    Mailer
 	cookieKey []byte
 	conf      authConf
@@ -93,7 +93,7 @@ func newNginxAuth() (*nginxauth, error) {
 	return &nginxauth{backend, mailer, cookieKey, config}, nil
 }
 
-func (n *authConf) newOnedbBackend() (BackendQuerier, error) {
+func (n *authConf) newOnedbBackend() (Backender, error) {
 	db, err := onedb.NewPgx(n.BackendServer, uint16(n.BackendPort), n.BackendUser, n.BackendPassword, n.BackendDatabase)
 	if err != nil {
 		return nil, err

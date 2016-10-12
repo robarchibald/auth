@@ -7,7 +7,7 @@ import (
 )
 
 type BackendOnedb struct {
-	BackendQuerier
+	Backender
 	Db onedb.DBer
 
 	GetUserLoginQuery                        string

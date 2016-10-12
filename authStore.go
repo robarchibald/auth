@@ -29,7 +29,7 @@ type emailCookie struct {
 }
 
 type authStore struct {
-	backend      BackendQuerier
+	backend      Backender
 	sessionStore SessionStorer
 	loginStore   LoginStorer
 	mailer       Mailer
@@ -39,7 +39,7 @@ type authStore struct {
 
 var emailRegex = regexp.MustCompile(`^(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$`)
 
-func NewAuthStore(backend BackendQuerier, mailer Mailer, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) AuthStorer {
+func NewAuthStore(backend Backender, mailer Mailer, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) AuthStorer {
 	sessionStore := NewSessionStore(backend, w, r, cookieKey, cookiePrefix, secureOnlyCookie)
 	loginStore := NewLoginStore(backend, mailer, r)
 	return &authStore{backend, sessionStore, loginStore, mailer, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}

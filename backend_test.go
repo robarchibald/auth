@@ -47,7 +47,7 @@ type VerifyEmailReturn struct {
 }
 
 type MockBackend struct {
-	BackendQuerier
+	Backender
 	GetUserLoginReturn                        *LoginReturn
 	ExpirationReturn                          *time.Time
 	GetSessionReturn                          *SessionReturn

@@ -7,7 +7,7 @@ import (
 )
 
 type backendMemory struct {
-	BackendQuerier
+	Backender
 	Users          []*User
 	Logins         []*UserLogin
 	Sessions       []*UserLoginSession
@@ -19,7 +19,7 @@ type backendMemory struct {
 
 const loginProviderDefaultName string = "Default"
 
-func NewBackendMemory() BackendQuerier {
+func NewBackendMemory() Backender {
 	return &backendMemory{LoginProviders: []*UserLoginProvider{&UserLoginProvider{LoginProviderID: 1, Name: loginProviderDefaultName}}}
 }
 

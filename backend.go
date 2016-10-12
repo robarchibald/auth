@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type BackendQuerier interface {
+type Backender interface {
 	AddUser(email, emailVerifyHash string) error
 	VerifyEmail(emailVerifyHash string) (string, error)
 	UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error)

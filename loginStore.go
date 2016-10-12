@@ -14,12 +14,12 @@ type LoginStorer interface {
 }
 
 type loginStore struct {
-	backend BackendQuerier
+	backend Backender
 	mailer  Mailer
 	r       *http.Request
 }
 
-func NewLoginStore(backend BackendQuerier, mailer Mailer, r *http.Request) LoginStorer {
+func NewLoginStore(backend Backender, mailer Mailer, r *http.Request) LoginStorer {
 	return &loginStore{backend, mailer, r}
 }
 
