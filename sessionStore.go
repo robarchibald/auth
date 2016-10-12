@@ -24,16 +24,16 @@ type rememberMeCookie struct {
 }
 
 type sessionStore struct {
-	backend     SessionBackender
+	b           SessionBackender
 	cookieStore CookieStorer
 	r           *http.Request
 }
 
-func NewSessionStore(backend Backender, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) SessionStorer {
+func NewSessionStore(b SessionBackender, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) SessionStorer {
 	emailCookieName = cookiePrefix + "Email"
 	sessionCookieName = cookiePrefix + "Session"
 	rememberMeCookieName = cookiePrefix + "RememberMe"
-	return &sessionStore{backend, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
+	return &sessionStore{b, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
 }
 
 var emailCookieName = "Email"
@@ -61,7 +61,7 @@ func (s *sessionStore) GetSession() (*UserLoginSession, error) {
 		return s.renewSession(cookie.SessionID, sessionHash, &cookie.RenewTimeUTC, &cookie.ExpireTimeUTC)
 	}
 
-	session, err := s.backend.GetSession(sessionHash)
+	session, err := s.b.GetSession(sessionHash)
 	if err != nil {
 		if err == errSessionNotFound {
 			s.deleteSessionCookie()
@@ -81,7 +81,7 @@ func (s *sessionStore) getRememberMe() (*UserLoginRememberMe, error) {
 		return nil, newAuthError("RememberMe cookie has expired", nil)
 	}
 
-	rememberMe, err := s.backend.GetRememberMe(cookie.Selector)
+	rememberMe, err := s.b.GetRememberMe(cookie.Selector)
 	if err != nil {
 		if err == errRememberMeNotFound {
 			s.deleteRememberMeCookie()
@@ -93,7 +93,7 @@ func (s *sessionStore) getRememberMe() (*UserLoginRememberMe, error) {
 		return nil, newLoggedError("RememberMe cookie doesn't match backend token", nil)
 	}
 	if rememberMe.RenewTimeUTC.Before(time.Now().UTC()) {
-		rememberMe, err = s.backend.RenewRememberMe(cookie.Selector, time.Now().UTC().Add(rememberMeRenewDuration))
+		rememberMe, err = s.b.RenewRememberMe(cookie.Selector, time.Now().UTC().Add(rememberMeRenewDuration))
 		if err != nil {
 			if err == errRememberMeNotFound {
 				s.deleteRememberMeCookie()
@@ -106,7 +106,7 @@ func (s *sessionStore) getRememberMe() (*UserLoginRememberMe, error) {
 
 func (s *sessionStore) renewSession(sessionID, sessionHash string, renewTimeUTC, expireTimeUTC *time.Time) (*UserLoginSession, error) {
 	if renewTimeUTC.Before(time.Now().UTC()) && expireTimeUTC.After(time.Now().UTC()) {
-		session, err := s.backend.RenewSession(sessionHash, time.Now().UTC().Add(sessionRenewDuration))
+		session, err := s.b.RenewSession(sessionHash, time.Now().UTC().Add(sessionRenewDuration))
 		if err != nil {
 			return nil, newLoggedError("Unable to renew session", err)
 		}
@@ -122,7 +122,7 @@ func (s *sessionStore) renewSession(sessionID, sessionHash string, renewTimeUTC,
 		return nil, newAuthError("Unable to renew session", err)
 	}
 
-	session, err := s.backend.RenewSession(sessionHash, time.Now().UTC().Add(sessionRenewDuration))
+	session, err := s.b.RenewSession(sessionHash, time.Now().UTC().Add(sessionRenewDuration))
 	if err != nil {
 		if err == errSessionNotFound {
 			s.deleteSessionCookie()
@@ -150,7 +150,7 @@ func (s *sessionStore) CreateSession(loginID, userID int, rememberMe bool) (*Use
 		return nil, newLoggedError("Problem generating sessionId", nil)
 	}
 
-	session, remember, err := s.backend.CreateSession(loginID, userID, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
+	session, remember, err := s.b.CreateSession(loginID, userID, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
 	if err != nil {
 		return nil, newLoggedError("Unable to create new session", err)
 	}
@@ -159,13 +159,13 @@ func (s *sessionStore) CreateSession(loginID, userID int, rememberMe bool) (*Use
 	if err == nil {
 		oldSessionHash, err := decodeStringToHash(sessionCookie.SessionID)
 		if err == nil {
-			s.backend.InvalidateSession(oldSessionHash)
+			s.b.InvalidateSession(oldSessionHash)
 		}
 	}
 
 	rememberCookie, err := s.getRememberMeCookie()
 	if err == nil {
-		s.backend.InvalidateRememberMe(rememberCookie.Selector)
+		s.b.InvalidateRememberMe(rememberCookie.Selector)
 		s.deleteRememberMeCookie()
 	}
 

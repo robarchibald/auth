@@ -33,6 +33,13 @@ type authConf struct {
 	UpdatePasswordAndInvalidateSessionsQuery string
 	InvalidateUserSessionsQuery              string
 
+	RedisServer         string
+	RedisPort           int
+	RedisPassword       string
+	RedisMaxIdle        int
+	RedisMaxConnections int
+	ConcurrentDownloads int
+
 	CookieBase64Key string
 
 	SMTPServer              string
@@ -56,6 +63,7 @@ type authConf struct {
 
 type nginxauth struct {
 	backend   Backender
+	sb        SessionBackender
 	mailer    Mailer
 	cookieKey []byte
 	conf      authConf
@@ -78,7 +86,8 @@ func newNginxAuth() (*nginxauth, error) {
 		log.Fatal(err)
 	}
 
-	backend := NewBackendMemory() //temporarily using the in-memory DB for testing
+	b := NewBackendMemory() //temporarily using the in-memory DB for testing
+	sb := NewRedisSessionBackend(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections)
 
 	mailer, err := config.NewEmailer()
 	if err != nil {
@@ -90,7 +99,7 @@ func newNginxAuth() (*nginxauth, error) {
 		return nil, err
 	}
 
-	return &nginxauth{backend, mailer, cookieKey, config}, nil
+	return &nginxauth{b, sb, mailer, cookieKey, config}, nil
 }
 
 func (n *authConf) newOnedbBackend() (Backender, error) {
@@ -166,7 +175,7 @@ func (s *nginxauth) method(name string, handler func(authStore AuthStorer, w htt
 			return
 		}
 		secureOnly := strings.HasPrefix(r.Referer(), "https") // proxy to back-end so if referer is secure connection, we can use secureOnly cookies
-		authStore := NewAuthStore(s.backend, s.mailer, w, r, s.cookieKey, "ef", secureOnly)
+		authStore := NewAuthStore(s.backend, s.sb, s.mailer, w, r, s.cookieKey, "ef", secureOnly)
 		handler(authStore, w, r)
 	}
 }

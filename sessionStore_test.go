@@ -60,7 +60,7 @@ func TestGetSession(t *testing.T) {
 		backend := &MockBackend{GetSessionReturn: test.GetSessionReturn, RenewSessionReturn: test.RenewSessionReturn}
 		store := getSessionStore(nil, test.SessionCookie, nil, test.HasCookieGetError, test.HasCookiePutError, backend)
 		val, err := store.GetSession()
-		methods := store.backend.(*MockBackend).MethodsCalled
+		methods := store.b.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
@@ -143,7 +143,7 @@ func TestRenewSession(t *testing.T) {
 		backend := &MockBackend{RenewSessionReturn: test.RenewSessionReturn, GetRememberMeReturn: test.GetRememberMeReturn}
 		store := getSessionStore(nil, nil, test.RememberCookie, test.HasCookieGetError, test.HasCookiePutError, backend)
 		val, err := store.renewSession("sessionId", "sessionHash", &test.RenewTimeUTC, &test.ExpireTimeUTC)
-		methods := store.backend.(*MockBackend).MethodsCalled
+		methods := store.b.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
@@ -209,7 +209,7 @@ func TestRememberMe(t *testing.T) {
 		backend := &MockBackend{GetRememberMeReturn: test.GetRememberMeReturn, RenewRememberMeReturn: test.RenewRememberMeReturn}
 		store := getSessionStore(nil, nil, test.RememberCookie, test.HasCookieGetError, test.HasCookiePutError, backend)
 		val, err := store.getRememberMe()
-		methods := store.backend.(*MockBackend).MethodsCalled
+		methods := store.b.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
@@ -279,7 +279,7 @@ func TestCreateSession(t *testing.T) {
 		backend := &MockBackend{NewLoginSessionReturn: test.NewLoginSessionReturn}
 		store := getSessionStore(nil, test.SessionCookie, test.RememberMeCookie, test.HasCookieGetError, test.HasCookiePutError, backend)
 		val, err := store.CreateSession(1, 1, test.RememberMe)
-		methods := store.backend.(*MockBackend).MethodsCalled
+		methods := store.b.(*MockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)

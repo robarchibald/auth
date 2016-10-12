@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+var redisCreate redisCreator = &redisRealCreator{}
+
+type redisCreator interface {
+	newConnPool(server string, port int, password string, maxIdle, maxConnections int) redisBackender
+}
+
+type redisRealCreator struct{}
+
+func (c *redisRealCreator) newConnPool(server string, port int, password string, maxIdle, maxConnections int) redisBackender {
+	return &redis.Pool{
+		MaxIdle:   maxIdle,
+		MaxActive: maxConnections,
+		Dial: func() (redis.Conn, error) {
+			if password != "" {
+				return redis.Dial("tcp", fmt.Sprintf("%s:%d", server, port), redis.DialPassword(password))
+			}
+			return redis.Dial("tcp", fmt.Sprintf("%s:%d", server, port))
+		},
+	}
+}
+
+type redisBackender interface {
+	Close() error
+	Get() redis.Conn
+}
+
 type SessionBackender interface {
 	CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
 	GetSession(sessionHash string) (*UserLoginSession, error)
@@ -21,20 +47,16 @@ type SessionBackender interface {
 }
 
 type RedisSessionBackend struct {
-	pool *redis.Pool
+	pool redisBackender
 }
 
-func newPool(server string, port int, password string, maxIdle, maxConnections int) *redis.Pool {
-	return &redis.Pool{
-		MaxIdle:   maxIdle,
-		MaxActive: maxConnections,
-		Dial: func() (redis.Conn, error) {
-			if password != "" {
-				return redis.Dial("tcp", fmt.Sprintf("%s:%d", server, port), redis.DialPassword(password))
-			}
-			return redis.Dial("tcp", fmt.Sprintf("%s:%d", server, port))
-		},
-	}
+func NewRedis(server string, port int, password string, maxIdle, maxConnections int) redisBackender {
+	return redisCreate.newConnPool(server, port, password, maxIdle, maxConnections)
+}
+
+func NewRedisSessionBackend(server string, port int, password string, maxIdle, maxConnections int) SessionBackender {
+	r := NewRedis(server, port, password, maxIdle, maxConnections)
+	return &RedisSessionBackend{pool: r}
 }
 
 func (r *RedisSessionBackend) CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
