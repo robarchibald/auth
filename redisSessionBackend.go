@@ -1,37 +1,9 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"github.com/garyburd/redigo/redis"
+	"github.com/robarchibald/onedb"
 	"time"
 )
-
-var redisCreate redisCreator = &redisRealCreator{}
-
-type redisCreator interface {
-	newConnPool(server string, port int, password string, maxIdle, maxConnections int) redisBackender
-}
-
-type redisRealCreator struct{}
-
-func (c *redisRealCreator) newConnPool(server string, port int, password string, maxIdle, maxConnections int) redisBackender {
-	return &redis.Pool{
-		MaxIdle:   maxIdle,
-		MaxActive: maxConnections,
-		Dial: func() (redis.Conn, error) {
-			if password != "" {
-				return redis.Dial("tcp", fmt.Sprintf("%s:%d", server, port), redis.DialPassword(password))
-			}
-			return redis.Dial("tcp", fmt.Sprintf("%s:%d", server, port))
-		},
-	}
-}
-
-type redisBackender interface {
-	Close() error
-	Get() redis.Conn
-}
 
 type SessionBackender interface {
 	CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
@@ -47,22 +19,18 @@ type SessionBackender interface {
 }
 
 type RedisSessionBackend struct {
-	pool redisBackender
-}
-
-func NewRedis(server string, port int, password string, maxIdle, maxConnections int) redisBackender {
-	return redisCreate.newConnPool(server, port, password, maxIdle, maxConnections)
+	db onedb.DBer
 }
 
 func NewRedisSessionBackend(server string, port int, password string, maxIdle, maxConnections int) SessionBackender {
-	r := NewRedis(server, port, password, maxIdle, maxConnections)
-	return &RedisSessionBackend{pool: r}
+	r := onedb.NewRedis(server, port, password, maxIdle, maxConnections)
+	return &RedisSessionBackend{db: r}
 }
 
 func (r *RedisSessionBackend) CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
 	includeRememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
 	session := UserLoginSession{LoginID: loginID, UserID: userID, SessionHash: sessionHash, RenewTimeUTC: sessionRenewTimeUTC, ExpireTimeUTC: sessionExpireTimeUTC}
-	err := r.save("session/"+sessionHash, &session)
+	err := r.saveSession(&session)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -70,7 +38,7 @@ func (r *RedisSessionBackend) CreateSession(loginID, userID int, sessionHash str
 	var rememberMe UserLoginRememberMe
 	if includeRememberMe {
 		rememberMe = UserLoginRememberMe{LoginID: loginID, Selector: rememberMeSelector, TokenHash: rememberMeTokenHash, RenewTimeUTC: rememberMeRenewTimeUTC, ExpireTimeUTC: rememberMeExpireTimeUTC}
-		err = r.save("rememberMe/"+rememberMeSelector, &rememberMe)
+		err = r.saveRememberMe(&rememberMe)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -81,32 +49,32 @@ func (r *RedisSessionBackend) CreateSession(loginID, userID int, sessionHash str
 
 func (r *RedisSessionBackend) GetSession(sessionHash string) (*UserLoginSession, error) {
 	var session *UserLoginSession
-	return session, r.get("session"+sessionHash, session)
+	return session, r.db.QueryStruct(getSessionUrl(sessionHash), session)
 }
 
 func (r *RedisSessionBackend) RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error) {
 	var session *UserLoginSession
-	key := "session/" + sessionHash
-	err := r.get(key, session)
+	key := getSessionUrl(sessionHash)
+	err := r.db.QueryStruct(key, session)
 	if err != nil {
 		return nil, err
 	}
 	session.RenewTimeUTC = renewTimeUTC
-	return session, r.save(key, session)
+	return session, r.saveSession(session)
 }
 
 func (r *RedisSessionBackend) InvalidateSession(sessionHash string) error {
-	return r.del("session/" + sessionHash)
+	return r.db.Execute(onedb.NewRedisDelCommand(getSessionUrl(sessionHash)))
 }
 
 func (r *RedisSessionBackend) GetRememberMe(selector string) (*UserLoginRememberMe, error) {
 	var rememberMe *UserLoginRememberMe
-	return rememberMe, r.get("rememberMe/"+selector, rememberMe)
+	return rememberMe, r.db.QueryStruct(getRememberMeUrl(selector), rememberMe)
 }
 
 func (r *RedisSessionBackend) RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error) {
 	var rememberMe *UserLoginRememberMe
-	err := r.get("rememberMe/"+selector, rememberMe)
+	err := r.db.QueryStruct(getRememberMeUrl(selector), rememberMe)
 	if err != nil {
 		return nil, errRememberMeNotFound
 	} else if rememberMe.ExpireTimeUTC.Before(time.Now().UTC()) {
@@ -119,45 +87,33 @@ func (r *RedisSessionBackend) RenewRememberMe(selector string, renewTimeUTC time
 }
 
 func (r *RedisSessionBackend) InvalidateRememberMe(selector string) error {
-	return r.del("rememberMe/" + selector)
+	return r.db.Execute(onedb.NewRedisDelCommand(getRememberMeUrl(selector)))
 }
 
 func (r *RedisSessionBackend) Close() error {
-	return r.pool.Close()
+	return r.db.Close()
 }
 
-func (r *RedisSessionBackend) del(key string) error {
-	c := r.pool.Get()
-	defer c.Close()
-
-	if _, err := c.Do("DEL", key); err != nil {
-		return err
-	}
-	return nil
+func (r *RedisSessionBackend) saveSession(session *UserLoginSession) error {
+	return r.save(getSessionUrl(session.SessionHash), session, 100)
 }
 
-func (r *RedisSessionBackend) save(key, value interface{}) error {
-	json, err := json.Marshal(value)
+func (r *RedisSessionBackend) saveRememberMe(rememberMe *UserLoginRememberMe) error {
+	return r.save(getRememberMeUrl(rememberMe.Selector), rememberMe, 100)
+}
+
+func (r *RedisSessionBackend) save(key string, value interface{}, expireSeconds int) error {
+	cmd, err := onedb.NewRedisSetCommand(key, value, expireSeconds)
 	if err != nil {
 		return err
 	}
-
-	c := r.pool.Get()
-	defer c.Close()
-
-	if _, err := c.Do("SET", key, string(json)); err != nil {
-		return err
-	}
-	return nil
+	return r.db.Execute(cmd)
 }
 
-func (r *RedisSessionBackend) get(key string, value interface{}) error {
-	c := r.pool.Get()
-	defer c.Close()
+func getSessionUrl(sessionHash string) string {
+	return "session/" + sessionHash
+}
 
-	data, err := redis.Bytes(c.Do("GET", key))
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(data, value)
+func getRememberMeUrl(selector string) string {
+	return "rememberMe/" + selector
 }
