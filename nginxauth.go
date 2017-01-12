@@ -109,26 +109,6 @@ func newNginxAuth() (*nginxauth, error) {
 	return &nginxauth{b, sb, mailer, cookieKey, config}, nil
 }
 
-func (n *authConf) newOnedbBackend() (Backender, error) {
-	db, err := onedb.NewPgx(n.BackendServer, uint16(n.BackendPort), n.BackendUser, n.BackendPassword, n.BackendDatabase)
-	if err != nil {
-		return nil, err
-	}
-	return &BackendOnedb{Db: db,
-		GetUserLoginQuery:                        n.GetUserLoginQuery,
-		GetSessionQuery:                          n.GetSessionQuery,
-		RenewSessionQuery:                        n.RenewSessionQuery,
-		GetRememberMeQuery:                       n.GetRememberMeQuery,
-		RenewRememberMeQuery:                     n.RenewRememberMeQuery,
-		AddUserQuery:                             n.AddUserQuery,
-		VerifyEmailQuery:                         n.VerifyEmailQuery,
-		UpdateUserQuery:                          n.UpdateUserQuery,
-		CreateLoginQuery:                         n.CreateLoginQuery,
-		UpdateEmailAndInvalidateSessionsQuery:    n.UpdateEmailAndInvalidateSessionsQuery,
-		UpdatePasswordAndInvalidateSessionsQuery: n.UpdatePasswordAndInvalidateSessionsQuery,
-		InvalidateUserSessionsQuery:              n.InvalidateUserSessionsQuery}, nil
-}
-
 func (n *authConf) NewEmailer() (*emailer, error) {
 	sender := &smtpSender{n.SMTPServer, n.SMTPPort, n.SMTPFromEmail, n.SMTPPassword, n.EmailFromDisplayName}
 	templateCache, err := template.ParseFiles(n.VerifyEmailTemplate, n.WelcomeTemplate,
