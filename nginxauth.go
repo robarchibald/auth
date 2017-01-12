@@ -14,12 +14,15 @@ import (
 
 type authConf struct {
 	AuthServerListenPort                     int
+	StoragePrefix                            string
 	BackendType                              string
 	BackendServer                            string
 	BackendPort                              int
 	BackendUser                              string
 	BackendDatabase                          string
 	BackendPassword                          string
+	LdapBaseDn                               string
+	LdapUserFilter                           string
 	GetUserLoginQuery                        string
 	GetSessionQuery                          string
 	RenewSessionQuery                        string
@@ -87,7 +90,11 @@ func newNginxAuth() (*nginxauth, error) {
 	}
 
 	b := NewBackendMemory() //temporarily using the in-memory DB for testing
-	sb := NewRedisSessionBackend(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections)
+	/*l, err := NewLdapLoginStore(config.BackendServer, config.BackendPort, config.BackendUser, config.BackendPassword, config.LdapBaseDn)
+	if err != nil {
+		return nil, err
+	}*/
+	sb := NewRedisSessionBackend(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections, config.StoragePrefix)
 
 	mailer, err := config.NewEmailer()
 	if err != nil {
@@ -175,7 +182,7 @@ func (s *nginxauth) method(name string, handler func(authStore AuthStorer, w htt
 			return
 		}
 		secureOnly := strings.HasPrefix(r.Referer(), "https") // proxy to back-end so if referer is secure connection, we can use secureOnly cookies
-		authStore := NewAuthStore(s.backend, s.sb, s.mailer, w, r, s.cookieKey, "ef", secureOnly)
+		authStore := NewAuthStore(s.backend, s.sb, s.mailer, w, r, s.conf.StoragePrefix, s.cookieKey, secureOnly)
 		handler(authStore, w, r)
 	}
 }

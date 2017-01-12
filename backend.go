@@ -9,12 +9,41 @@ type Backender interface {
 	AddUser(email, emailVerifyHash string) error
 	VerifyEmail(emailVerifyHash string) (string, error)
 	UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error)
-	UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error)
-	UpdatePasswordAndInvalidateSessions(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
 
 	CreateLogin(email, passwordHash, fullName string) (*UserLogin, error)
 	GetLogin(email, loginProvider string) (*UserLogin, error)
 
+	CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
+	GetSession(sessionHash string) (*UserLoginSession, error)
+	RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error)
+	InvalidateSession(sessionHash string) error
+	InvalidateSessions(email string) error
+
+	GetRememberMe(selector string) (*UserLoginRememberMe, error)
+	RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error)
+	InvalidateRememberMe(selector string) error
+
+	Close() error
+}
+
+type UserBackender interface {
+	AddUser(email, emailVerifyHash string) error
+	VerifyEmail(emailVerifyHash string) (string, error)
+	UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error)
+
+	Close()
+}
+
+type LoginBackender interface {
+	CreateLogin(email, passwordHash, fullName string) (*UserLogin, error)
+	GetLogin(email, loginProvider string) (*UserLogin, error)
+	UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error)
+	UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
+
+	Close()
+}
+
+type SessionBackender interface {
 	CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
 	GetSession(sessionHash string) (*UserLoginSession, error)
 	RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error)

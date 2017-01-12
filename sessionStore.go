@@ -29,10 +29,10 @@ type sessionStore struct {
 	r           *http.Request
 }
 
-func NewSessionStore(b SessionBackender, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) SessionStorer {
-	emailCookieName = cookiePrefix + "Email"
-	sessionCookieName = cookiePrefix + "Session"
-	rememberMeCookieName = cookiePrefix + "RememberMe"
+func NewSessionStore(b SessionBackender, w http.ResponseWriter, r *http.Request, customPrefix string, cookieKey []byte, secureOnlyCookie bool) SessionStorer {
+	emailCookieName = customPrefix + "Email"
+	sessionCookieName = customPrefix + "Session"
+	rememberMeCookieName = customPrefix + "RememberMe"
 	return &sessionStore{b, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
 }
 

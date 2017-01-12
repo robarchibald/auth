@@ -154,16 +154,20 @@ func (m *backendMemory) CreateLogin(email, passwordHash string, fullName string)
 	return &login, nil
 }
 
-func (m *backendMemory) UpdateEmailAndInvalidateSessions(email string, password string, newEmail string) (*UserLoginSession, error) {
+func (m *backendMemory) UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error) {
 	return nil, nil
 }
 
-func (m *backendMemory) UpdatePasswordAndInvalidateSessions(email string, oldPassword string, newPassword string) (*UserLoginSession, error) {
+func (m *backendMemory) UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error) {
 	return nil, nil
 }
 
 func (m *backendMemory) InvalidateSession(sessionHash string) error {
 	m.removeSession(sessionHash)
+	return nil
+}
+
+func (m *backendMemory) InvalidateSessions(email string) error {
 	return nil
 }
 
