@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/gorilla/handlers"
 	"github.com/robarchibald/configReader"
-	"github.com/robarchibald/onedb"
 	"html/template"
 	"log"
 	"net/http"
