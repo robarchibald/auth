@@ -1,12 +1,7 @@
 package main
 
-import (
-	"net/http"
-)
-
 type LoginStorer interface {
 	Login(email, password string, rememberMe bool) (*UserLogin, error)
-	LoginBasic() (*UserLogin, error)
 
 	CreateLogin(email, fullName, password string) (*UserLogin, error)
 	UpdateEmail() error
@@ -16,23 +11,10 @@ type LoginStorer interface {
 type loginStore struct {
 	backend Backender
 	mailer  Mailer
-	r       *http.Request
 }
 
-func NewLoginStore(backend Backender, mailer Mailer, r *http.Request) LoginStorer {
-	return &loginStore{backend, mailer, r}
-}
-
-func (s *loginStore) LoginBasic() (*UserLogin, error) {
-	if email, password, ok := s.r.BasicAuth(); ok {
-		login, err := s.Login(email, password, false)
-		if err != nil {
-			return nil, newLoggedError("Unable to login with provided credentials", err)
-		}
-		return login, nil
-	} else {
-		return nil, newAuthError("Problem decoding credentials from basic auth", nil)
-	}
+func NewLoginStore(backend Backender, mailer Mailer) LoginStorer {
+	return &loginStore{backend, mailer}
 }
 
 func (s *loginStore) Login(email, password string, rememberMe bool) (*UserLogin, error) {

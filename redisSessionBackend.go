@@ -48,14 +48,14 @@ func (r *RedisSessionBackend) CreateSession(loginID, userID int, sessionHash str
 }
 
 func (r *RedisSessionBackend) GetSession(sessionHash string) (*UserLoginSession, error) {
-	var session *UserLoginSession
-	return session, r.db.QueryStruct(getSessionUrl(sessionHash), session)
+	session := &UserLoginSession{}
+	return session, r.db.QueryStruct(onedb.NewRedisGetCommand(getSessionUrl(sessionHash)), session)
 }
 
 func (r *RedisSessionBackend) RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error) {
-	var session *UserLoginSession
+	session := &UserLoginSession{}
 	key := getSessionUrl(sessionHash)
-	err := r.db.QueryStruct(key, session)
+	err := r.db.QueryStruct(onedb.NewRedisGetCommand(key), session)
 	if err != nil {
 		return nil, err
 	}
@@ -68,13 +68,13 @@ func (r *RedisSessionBackend) InvalidateSession(sessionHash string) error {
 }
 
 func (r *RedisSessionBackend) GetRememberMe(selector string) (*UserLoginRememberMe, error) {
-	var rememberMe *UserLoginRememberMe
-	return rememberMe, r.db.QueryStruct(getRememberMeUrl(selector), rememberMe)
+	rememberMe := &UserLoginRememberMe{}
+	return rememberMe, r.db.QueryStruct(onedb.NewRedisGetCommand(getRememberMeUrl(selector)), rememberMe)
 }
 
 func (r *RedisSessionBackend) RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error) {
-	var rememberMe *UserLoginRememberMe
-	err := r.db.QueryStruct(getRememberMeUrl(selector), rememberMe)
+	rememberMe := &UserLoginRememberMe{}
+	err := r.db.QueryStruct(onedb.NewRedisGetCommand(getRememberMeUrl(selector)), rememberMe)
 	if err != nil {
 		return nil, errRememberMeNotFound
 	} else if rememberMe.ExpireTimeUTC.Before(time.Now().UTC()) {
@@ -95,11 +95,11 @@ func (r *RedisSessionBackend) Close() error {
 }
 
 func (r *RedisSessionBackend) saveSession(session *UserLoginSession) error {
-	return r.save(getSessionUrl(session.SessionHash), session, 100)
+	return r.save(getSessionUrl(session.SessionHash), session, 300)
 }
 
 func (r *RedisSessionBackend) saveRememberMe(rememberMe *UserLoginRememberMe) error {
-	return r.save(getRememberMeUrl(rememberMe.Selector), rememberMe, 100)
+	return r.save(getRememberMeUrl(rememberMe.Selector), rememberMe, 300)
 }
 
 func (r *RedisSessionBackend) save(key string, value interface{}, expireSeconds int) error {

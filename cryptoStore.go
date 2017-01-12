@@ -5,7 +5,11 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
+	"github.com/kless/osutil/user/crypt/sha512_crypt"
 )
+
+var errHashNotEqual = errors.New("input string does not match the supplied hash")
 
 func decodeStringToHash(token string) (string, error) {
 	data, err := decodeFromString(token)
@@ -72,4 +76,30 @@ func generateRandomBytes(n int) ([]byte, error) {
 		return nil, err
 	}
 	return b, nil
+}
+
+func cryptoHashEquals(in string, hash string) error {
+	hashed, err := cryptoHashWSalt(in, []byte(hash)) // sha512_crypt will strip out salt from hash
+	if err != nil {
+		return err
+	}
+	if subtle.ConstantTimeCompare([]byte(hashed), []byte(hash)) != 1 {
+		return errHashNotEqual
+	}
+	return nil
+}
+
+func cryptoHash(in string) (string, error) {
+	saltGenerator := sha512_crypt.GetSalt()
+	salt := saltGenerator.GenerateWRounds(16, 200000) // 16 character salt, 200k iterations
+	return cryptoHashWSalt(in, salt)
+}
+
+func cryptoHashWSalt(in string, salt []byte) (string, error) {
+	gocrypt := sha512_crypt.New()
+	hash, err := gocrypt.Generate([]byte(in), salt)
+	if err != nil {
+		return "", err
+	}
+	return hash, nil
 }

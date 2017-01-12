@@ -41,7 +41,7 @@ var emailRegex = regexp.MustCompile(`^(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$
 
 func NewAuthStore(b Backender, sb SessionBackender, mailer Mailer, w http.ResponseWriter, r *http.Request, cookieKey []byte, cookiePrefix string, secureOnlyCookie bool) AuthStorer {
 	sessionStore := NewSessionStore(sb, w, r, cookieKey, cookiePrefix, secureOnlyCookie)
-	loginStore := NewLoginStore(b, mailer, r)
+	loginStore := NewLoginStore(b, mailer)
 	return &authStore{b, sessionStore, loginStore, mailer, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
 }
 
@@ -51,14 +51,18 @@ func (s *authStore) GetSession() (*UserLoginSession, error) {
 
 func (s *authStore) GetBasicAuth() (*UserLoginSession, error) {
 	session, err := s.GetSession()
-	if err != nil {
-		login, err := s.loginStore.LoginBasic()
+	if err == nil {
+		return session, nil
+	}
+
+	if email, password, ok := s.r.BasicAuth(); ok {
+		session, err := s.login(email, password, false)
 		if err != nil {
 			return nil, err
 		}
-		return s.sessionStore.CreateSession(login.LoginID, login.UserID, false)
+		return session, nil
 	}
-	return session, nil
+	return nil, newAuthError("Problem decoding credentials from basic auth", nil)
 }
 
 func (s *authStore) Login() error {

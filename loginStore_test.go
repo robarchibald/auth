@@ -1,20 +1,17 @@
 package main
 
 import (
-	"net/http"
 	"testing"
 )
 
 func getLoginStore(mailErr error, backend *MockBackend) LoginStorer {
-	r := &http.Request{}
-	return &loginStore{backend, &TextMailer{Err: mailErr}, r}
+	return &loginStore{backend, &TextMailer{Err: mailErr}}
 }
 
 func TestNewLoginStore(t *testing.T) {
-	r := &http.Request{}
 	b := &MockBackend{}
 	m := &TextMailer{}
-	actual := NewLoginStore(b, m, r).(*loginStore)
+	actual := NewLoginStore(b, m).(*loginStore)
 	if actual.backend != b {
 		t.Fatal("expected correct init")
 	}
