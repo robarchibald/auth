@@ -11,7 +11,7 @@ type backendLDAPLogin struct {
 	baseDn string
 }
 
-func NewBackendLDAP(server string, port int, bindDn, password, baseDn string) (LoginBackender, error) {
+func NewBackendLDAPLogin(server string, port int, bindDn, password, baseDn string) (LoginBackender, error) {
 	db, err := onedb.NewLdap(server, port, bindDn, password)
 	if err != nil {
 		return nil, err

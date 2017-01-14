@@ -65,7 +65,6 @@ type authConf struct {
 
 type nginxauth struct {
 	backend   Backender
-	sb        SessionBackender
 	mailer    Mailer
 	cookieKey []byte
 	conf      authConf
@@ -88,12 +87,16 @@ func newNginxAuth() (*nginxauth, error) {
 		log.Fatal(err)
 	}
 
-	b := NewBackendMemory() //temporarily using the in-memory DB for testing
-	/*l, err := NewLdapLoginStore(config.BackendServer, config.BackendPort, config.BackendUser, config.BackendPassword, config.LdapBaseDn)
+	s := NewBackendRedisSession(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections, config.StoragePrefix)
+	l, err := NewBackendLDAPLogin(config.BackendServer, config.BackendPort, config.BackendUser, config.BackendPassword, config.LdapBaseDn)
 	if err != nil {
 		return nil, err
-	}*/
-	sb := NewBackendRedisSession(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections, config.StoragePrefix)
+	}
+	u, err := NewBackendDbUser()
+	if err != nil {
+		return nil, err
+	}
+	b := &Backend{u: u, l: l, s: s}
 
 	mailer, err := config.NewEmailer()
 	if err != nil {
@@ -105,7 +108,7 @@ func newNginxAuth() (*nginxauth, error) {
 		return nil, err
 	}
 
-	return &nginxauth{b, sb, mailer, cookieKey, config}, nil
+	return &nginxauth{b, mailer, cookieKey, config}, nil
 }
 
 func (n *authConf) NewEmailer() (*emailer, error) {
@@ -161,7 +164,7 @@ func (s *nginxauth) method(name string, handler func(authStore AuthStorer, w htt
 			return
 		}
 		secureOnly := strings.HasPrefix(r.Referer(), "https") // proxy to back-end so if referer is secure connection, we can use secureOnly cookies
-		authStore := NewAuthStore(s.backend, s.sb, s.mailer, w, r, s.conf.StoragePrefix, s.cookieKey, secureOnly)
+		authStore := NewAuthStore(s.backend, s.mailer, w, r, s.conf.StoragePrefix, s.cookieKey, secureOnly)
 		handler(authStore, w, r)
 	}
 }

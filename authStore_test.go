@@ -30,7 +30,7 @@ func TestNewAuthStore(t *testing.T) {
 	r := &http.Request{}
 	b := &MockBackend{}
 	m := &TextMailer{}
-	actual := NewAuthStore(b, b, m, w, r, "prefix", cookieKey, false).(*authStore)
+	actual := NewAuthStore(b, m, w, r, "prefix", cookieKey, false).(*authStore)
 	if actual.backend != b || actual.cookieStore.(*cookieStore).w != w || actual.cookieStore.(*cookieStore).r != r {
 		t.Fatal("expected correct init")
 	}
@@ -68,7 +68,7 @@ func TestAuthStoreEndToEnd(t *testing.T) {
 	r := &http.Request{Header: http.Header{}}
 	b := NewBackendMemory().(*backendMemory)
 	m := &TextMailer{}
-	s := NewAuthStore(b, b, m, w, r, "prefix", cookieKey, false).(*authStore)
+	s := NewAuthStore(b, m, w, r, "prefix", cookieKey, false).(*authStore)
 
 	// register new user
 	// adds to users, logins and sessions
