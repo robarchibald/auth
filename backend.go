@@ -6,10 +6,18 @@ import (
 )
 
 type Backender interface {
-	UserBackender
-	LoginBackender
+	// UserBackender. Write out since it contains duplicate BackendCloser
+	AddUser(email, emailVerifyHash string) error
+	VerifyEmail(emailVerifyHash string) (string, error)
+	UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error)
+
+	// LoginBackender. Write out since it contains duplicate BackendCloser
+	CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error)
+	GetLogin(email, loginProvider string) (*UserLogin, error)
+	UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error)
+	UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
+
 	SessionBackender
-	BackendCloser
 }
 
 type BackendCloser interface {
@@ -20,6 +28,7 @@ type UserBackender interface {
 	AddUser(email, emailVerifyHash string) error
 	VerifyEmail(emailVerifyHash string) (string, error)
 	UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error)
+	BackendCloser
 }
 
 type LoginBackender interface {
@@ -27,6 +36,7 @@ type LoginBackender interface {
 	GetLogin(email, loginProvider string) (*UserLogin, error)
 	UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error)
 	UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
+	BackendCloser
 }
 
 type SessionBackender interface {
@@ -39,6 +49,7 @@ type SessionBackender interface {
 	GetRememberMe(selector string) (*UserLoginRememberMe, error)
 	RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error)
 	InvalidateRememberMe(selector string) error
+	BackendCloser
 }
 
 var errEmailVerifyHashExists = errors.New("DB: Email verify hash already exists")
@@ -102,7 +113,7 @@ type AuthError struct {
 	error
 }
 
-type Backend struct {
+type backend struct {
 	u UserBackender
 	l LoginBackender
 	s SessionBackender
@@ -137,69 +148,75 @@ func (a *AuthError) Trace() string {
 	return trace
 }
 
-func (b *Backend) GetLogin(email, loginProvider string) (*UserLogin, error) {
+func (b *backend) GetLogin(email, loginProvider string) (*UserLogin, error) {
 	return b.l.GetLogin(email, loginProvider)
 }
 
-func (b *Backend) CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
+func (b *backend) CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
 	return b.s.CreateSession(loginID, userID, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC, rememberMe, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC)
 }
 
-func (b *Backend) GetSession(sessionHash string) (*UserLoginSession, error) {
+func (b *backend) GetSession(sessionHash string) (*UserLoginSession, error) {
 	return b.s.GetSession(sessionHash)
 }
 
-func (b *Backend) RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error) {
+func (b *backend) RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error) {
 	return b.s.RenewSession(sessionHash, renewTimeUTC)
 }
 
-func (b *Backend) GetRememberMe(selector string) (*UserLoginRememberMe, error) {
+func (b *backend) GetRememberMe(selector string) (*UserLoginRememberMe, error) {
 	return b.s.GetRememberMe(selector)
 }
 
-func (b *Backend) RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error) {
+func (b *backend) RenewRememberMe(selector string, renewTimeUTC time.Time) (*UserLoginRememberMe, error) {
 	return b.s.RenewRememberMe(selector, renewTimeUTC)
 }
 
-func (b *Backend) AddUser(email, emailVerifyHash string) error {
+func (b *backend) AddUser(email, emailVerifyHash string) error {
 	return b.u.AddUser(email, emailVerifyHash)
 }
 
-func (b *Backend) VerifyEmail(emailVerifyHash string) (string, error) {
+func (b *backend) VerifyEmail(emailVerifyHash string) (string, error) {
 	return b.u.VerifyEmail(emailVerifyHash)
 }
 
-func (b *Backend) UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error) {
+func (b *backend) UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error) {
 	return b.u.UpdateUser(emailVerifyHash, fullname, company, pictureURL)
 }
 
-func (b *Backend) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error) {
+func (b *backend) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error) {
 	return b.l.CreateLogin(email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber)
 }
 
-func (b *Backend) UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error) {
+func (b *backend) UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error) {
 	return b.l.UpdateEmail(email, password, newEmail)
 }
 
-func (b *Backend) UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error) {
+func (b *backend) UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error) {
 	return b.l.UpdatePassword(email, oldPassword, newPassword)
 }
 
-func (b *Backend) InvalidateSession(sessionHash string) error {
+func (b *backend) InvalidateSession(sessionHash string) error {
 	return b.s.InvalidateSession(sessionHash)
 }
 
-func (b *Backend) InvalidateSessions(email string) error {
+func (b *backend) InvalidateSessions(email string) error {
 	return b.s.InvalidateSessions(email)
 }
 
-func (b *Backend) InvalidateRememberMe(selector string) error {
+func (b *backend) InvalidateRememberMe(selector string) error {
 	return b.s.InvalidateRememberMe(selector)
 }
 
-func (b *Backend) Close() error {
+func (b *backend) Close() error {
+	if err := b.s.Close(); err != nil {
+		return err
+	}
+	if err := b.u.Close(); err != nil {
+		return err
+	}
+	if err := b.l.Close(); err != nil {
+		return err
+	}
 	return nil
-	//return b.s.Close()
-	//return b.u.Close()
-	//return b.l.Close()
 }

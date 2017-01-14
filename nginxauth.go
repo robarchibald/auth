@@ -92,11 +92,11 @@ func newNginxAuth() (*nginxauth, error) {
 	if err != nil {
 		return nil, err
 	}
-	u, err := NewBackendDbUser()
+	u, err := newBackendDbUser(config.BackendServer, config.BackendPort, config.BackendUser, config.BackendPassword, config.BackendDatabase, config.GetUserLoginQuery, config.AddUserQuery, config.VerifyEmailQuery, config.UpdateUserQuery)
 	if err != nil {
 		return nil, err
 	}
-	b := &Backend{u: u, l: l, s: s}
+	b := &backend{u: u, l: l, s: s}
 
 	mailer, err := config.NewEmailer()
 	if err != nil {
