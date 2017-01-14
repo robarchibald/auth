@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-type backendLDAP struct {
+type backendLDAPLogin struct {
 	db     onedb.DBer
 	baseDn string
 }
@@ -16,7 +16,7 @@ func NewBackendLDAP(server string, port int, bindDn, password, baseDn string) (L
 	if err != nil {
 		return nil, err
 	}
-	return &backendLDAP{db, baseDn}, nil
+	return &backendLDAPLogin{db, baseDn}, nil
 }
 
 type ldapData struct {
@@ -27,7 +27,7 @@ type ldapData struct {
 	HomeDirectory []string
 }
 
-func (l *backendLDAP) GetLogin(email, loginProvider string) (*UserLogin, error) {
+func (l *backendLDAPLogin) GetLogin(email, loginProvider string) (*UserLogin, error) {
 	req := ldap.NewSearchRequest(l.baseDn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, 0, false, "uid="+email, []string{"uid", "userPassword", "uidNumber", "gidNumber", "homeDirectory"}, nil)
 	data := &ldapData{}
 	err := l.db.QueryStructRow(req, data)
@@ -37,7 +37,7 @@ func (l *backendLDAP) GetLogin(email, loginProvider string) (*UserLogin, error) 
 	return &UserLogin{ProviderKey: data.UserPassword[0]}, nil
 }
 
-func (l *backendLDAP) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error) {
+func (l *backendLDAPLogin) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + ",ou=Users,dc=endfirst,dc=com")
 	req.Attribute("objectClass", []string{"posixAccount", "account"})
 	req.Attribute("uid", []string{email})
@@ -50,14 +50,14 @@ func (l *backendLDAP) CreateLogin(email, passwordHash, fullName, homeDirectory s
 	return &UserLogin{}, err
 }
 
-func (l *backendLDAP) UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error) {
+func (l *backendLDAPLogin) UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error) {
 	return nil, nil
 }
 
-func (l *backendLDAP) UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error) {
+func (l *backendLDAPLogin) UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error) {
 	return nil, nil
 }
 
-func (l *backendLDAP) Close() error {
+func (l *backendLDAPLogin) Close() error {
 	return l.db.Close()
 }
