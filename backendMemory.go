@@ -140,7 +140,7 @@ func (m *backendMemory) UpdateUser(emailVerifyHash, fullname string, company str
 }
 
 // This method needs to be fixed to work with the new data model using LDAP
-func (m *backendMemory) CreateLogin(email, passwordHash string, fullName string) (*UserLogin, error) {
+func (m *backendMemory) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error) {
 	user := m.getUserByEmail(email)
 	if user == nil {
 		return nil, errUserNotFound

@@ -93,7 +93,7 @@ func newNginxAuth() (*nginxauth, error) {
 	if err != nil {
 		return nil, err
 	}*/
-	sb := NewRedisSessionBackend(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections, config.StoragePrefix)
+	sb := NewBackendRedisSession(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections, config.StoragePrefix)
 
 	mailer, err := config.NewEmailer()
 	if err != nil {

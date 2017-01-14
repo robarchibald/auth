@@ -3,67 +3,20 @@ package main
 import (
 	"github.com/robarchibald/onedb"
 	"gopkg.in/ldap.v2"
+	"strconv"
 )
 
-type ldapLoginStore struct {
+type backendLDAP struct {
 	db     onedb.DBer
-	auth   onedb.DBer
 	baseDn string
 }
 
-func NewLdapLoginStore(server string, port int, bindDn, password, baseDn string) (LoginStorer, error) {
+func NewBackendLDAP(server string, port int, bindDn, password, baseDn string) (LoginBackender, error) {
 	db, err := onedb.NewLdap(server, port, bindDn, password)
 	if err != nil {
 		return nil, err
 	}
-	auth, err := onedb.NewLdap(server, port, bindDn, password)
-	if err != nil {
-		return nil, err
-	}
-	return &ldapLoginStore{db, auth, baseDn}, nil
-}
-
-func (l *ldapLoginStore) Login(email, password string, rememberMe bool) (*UserLogin, error) {
-	if !isValidEmail(email) {
-		return nil, newAuthError("Please enter a valid email address.", nil)
-	}
-	if !isValidPassword(password) {
-		return nil, newAuthError(passwordValidationMessage, nil)
-	}
-
-	// add in check for DDOS attack. Slow down or lock out checks for same account
-	// or same IP with multiple failed attempts
-	login, err := l.getUser(email)
-	if err != nil {
-		return nil, newLoggedError("Invalid username or password", err)
-	}
-
-	if err := cryptoHashEquals(password, login.UserPassword[0]); err != nil {
-		return nil, newLoggedError("Invalid username or password", nil)
-	}
-
-	return &UserLogin{}, nil
-}
-
-func (l *ldapLoginStore) CreateLogin(email, fullName, password string) (*UserLogin, error) {
-	passwordHash, err := cryptoHash(password)
-	if err != nil {
-		return nil, newLoggedError("Unable to create login", err)
-	}
-	uidNumber := "0"
-	gidNumber := "0"
-	homeDirectory := "/home"
-	err = l.newUser(email, fullName, passwordHash, uidNumber, gidNumber, homeDirectory)
-	if err != nil {
-		return nil, newLoggedError("Unable to create login", err)
-	}
-	return &UserLogin{}, err
-}
-
-func (l *ldapLoginStore) UpdateEmail() error { return nil }
-
-func (l *ldapLoginStore) UpdatePassword() error {
-	return nil
+	return &backendLDAP{db, baseDn}, nil
 }
 
 type ldapData struct {
@@ -74,24 +27,37 @@ type ldapData struct {
 	HomeDirectory []string
 }
 
-func (l *ldapLoginStore) getUser(email string) (*ldapData, error) {
+func (l *backendLDAP) GetLogin(email, loginProvider string) (*UserLogin, error) {
 	req := ldap.NewSearchRequest(l.baseDn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, 0, false, "uid="+email, []string{"uid", "userPassword", "uidNumber", "gidNumber", "homeDirectory"}, nil)
 	data := &ldapData{}
-	return data, l.db.QueryStructRow(req, data)
+	err := l.db.QueryStructRow(req, data)
+	if err != nil {
+		return nil, err
+	}
+	return &UserLogin{ProviderKey: data.UserPassword[0]}, nil
 }
 
-func (l *ldapLoginStore) newUser(email, fullname, password, uidNumber, gidNumber, homeDirectory string) error {
+func (l *backendLDAP) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + ",ou=Users,dc=endfirst,dc=com")
 	req.Attribute("objectClass", []string{"posixAccount", "account"})
 	req.Attribute("uid", []string{email})
-	req.Attribute("cn", []string{fullname})
-	req.Attribute("userPassword", []string{password})
-	req.Attribute("uidNumber", []string{uidNumber})
-	req.Attribute("gidNumber", []string{gidNumber})
+	req.Attribute("cn", []string{fullName})
+	req.Attribute("userPassword", []string{passwordHash})
+	req.Attribute("uidNumber", []string{strconv.Itoa(uidNumber)})
+	req.Attribute("gidNumber", []string{strconv.Itoa(gidNumber)})
 	req.Attribute("homeDirectory", []string{homeDirectory})
-	return l.db.Execute(req)
+	err := l.db.Execute(req)
+	return &UserLogin{}, err
 }
 
-func (l *ldapLoginStore) authenticate(username, password string) error {
-	return l.auth.Execute(ldap.NewSimpleBindRequest(username, password, nil))
+func (l *backendLDAP) UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error) {
+	return nil, nil
+}
+
+func (l *backendLDAP) UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error) {
+	return nil, nil
+}
+
+func (l *backendLDAP) Close() error {
+	return l.db.Close()
 }

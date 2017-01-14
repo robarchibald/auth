@@ -25,21 +25,29 @@ func (s *loginStore) Login(email, password string, rememberMe bool) (*UserLogin,
 		return nil, newAuthError(passwordValidationMessage, nil)
 	}
 
+	// add in check for DDOS attack. Slow down or lock out checks for same account
+	// or same IP with multiple failed attempts
 	login, err := s.backend.GetLogin(email, loginProviderDefaultName)
 	if err != nil {
 		return nil, newLoggedError("Invalid username or password", err)
 	}
 
-	decoded, _ := decodeFromString(login.ProviderKey)
-	if !hashEquals([]byte(password), decoded) {
-		return nil, newLoggedError("Invalid username or password", nil)
+	if err := cryptoHashEquals(password, login.ProviderKey); err != nil {
+		return nil, newLoggedError("Invalid username or password", err)
 	}
 	return login, nil
 }
 
 func (s *loginStore) CreateLogin(email, fullName, password string) (*UserLogin, error) {
-	passwordHash := encodeToString(hash([]byte(password)))
-	login, err := s.backend.CreateLogin(email, passwordHash, fullName)
+	passwordHash, err := cryptoHash(password)
+	if err != nil {
+		return nil, newLoggedError("Unable to create login", err)
+	}
+
+	uidNumber := 0
+	gidNumber := 0
+	homeDirectory := "/home"
+	login, err := s.backend.CreateLogin(email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}

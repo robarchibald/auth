@@ -107,7 +107,7 @@ func (b *MockBackend) UpdateUser(emailVerifyHash, fullname string, company strin
 	return "test@test.com", b.ErrReturn
 }
 
-func (b *MockBackend) CreateLogin(email, passwordHash, fullName string) (*UserLogin, error) {
+func (b *MockBackend) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateLogin")
 	return b.CreateLoginReturn.Login, b.CreateLoginReturn.Err
 }

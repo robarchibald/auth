@@ -161,12 +161,12 @@ func TestBackendUpdateUser(t *testing.T) {
 
 func TestBackendCreateLogin(t *testing.T) {
 	backend := NewBackendMemory().(*backendMemory)
-	if _, err := backend.CreateLogin("email", "passwordHash", "fullName"); err != errUserNotFound {
+	if _, err := backend.CreateLogin("email", "passwordHash", "fullName", "homeDirectory", 1, 1); err != errUserNotFound {
 		t.Error("expected login not found err", err)
 	}
 
 	backend.Users = append(backend.Users, &User{EmailVerifyHash: "emailVerifyHash", UserID: 1, PrimaryEmail: "email"})
-	if login, err := backend.CreateLogin("email", "passwordHash", "fullName"); err != nil || login.LoginID != 1 || login.UserID != 1 {
+	if login, err := backend.CreateLogin("email", "passwordHash", "fullName", "homeDirectory", 1, 1); err != nil || login.LoginID != 1 || login.UserID != 1 {
 		t.Error("expected valid login", login)
 	}
 }
