@@ -1,22 +1,24 @@
 package main
 
 import (
+	"fmt"
 	"github.com/robarchibald/onedb"
 	"gopkg.in/ldap.v2"
 	"strconv"
 )
 
 type backendLDAPLogin struct {
-	db     onedb.DBer
-	baseDn string
+	db              onedb.DBer
+	baseDn          string
+	userLoginFilter string
 }
 
-func NewBackendLDAPLogin(server string, port int, bindDn, password, baseDn string) (LoginBackender, error) {
+func NewBackendLDAPLogin(server string, port int, bindDn, password, baseDn, userLoginFilter string) (LoginBackender, error) {
 	db, err := onedb.NewLdap(server, port, bindDn, password)
 	if err != nil {
 		return nil, err
 	}
-	return &backendLDAPLogin{db, baseDn}, nil
+	return &backendLDAPLogin{db, baseDn, userLoginFilter}, nil
 }
 
 type ldapData struct {
@@ -28,7 +30,7 @@ type ldapData struct {
 }
 
 func (l *backendLDAPLogin) GetLogin(email, loginProvider string) (*UserLogin, error) {
-	req := ldap.NewSearchRequest(l.baseDn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, 0, false, "uid="+email, []string{"uid", "userPassword", "uidNumber", "gidNumber", "homeDirectory"}, nil)
+	req := ldap.NewSearchRequest(l.baseDn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, 0, false, fmt.Sprintf(l.userLoginFilter, email), []string{"uid", "userPassword", "uidNumber", "gidNumber", "homeDirectory"}, nil)
 	data := &ldapData{}
 	err := l.db.QueryStructRow(req, data)
 	if err != nil {

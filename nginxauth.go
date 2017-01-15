@@ -14,12 +14,16 @@ import (
 type authConf struct {
 	AuthServerListenPort                     int
 	StoragePrefix                            string
-	BackendType                              string
-	BackendServer                            string
-	BackendPort                              int
-	BackendUser                              string
-	BackendDatabase                          string
-	BackendPassword                          string
+	DbType                                   string
+	DbServer                                 string
+	DbPort                                   int
+	DbUser                                   string
+	DbDatabase                               string
+	DbPassword                               string
+	LdapServer                               string
+	LdapPort                                 int
+	LdapBindDn                               string
+	LdapPassword                             string
 	LdapBaseDn                               string
 	LdapUserFilter                           string
 	GetUserLoginQuery                        string
@@ -88,11 +92,11 @@ func newNginxAuth() (*nginxauth, error) {
 	}
 
 	s := NewBackendRedisSession(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections, config.StoragePrefix)
-	l, err := NewBackendLDAPLogin(config.BackendServer, config.BackendPort, config.BackendUser, config.BackendPassword, config.LdapBaseDn)
+	l, err := NewBackendLDAPLogin(config.LdapServer, config.LdapPort, config.LdapBindDn, config.LdapPassword, config.LdapBaseDn, config.LdapUserFilter)
 	if err != nil {
 		return nil, err
 	}
-	u, err := newBackendDbUser(config.BackendServer, config.BackendPort, config.BackendUser, config.BackendPassword, config.BackendDatabase, config.GetUserLoginQuery, config.AddUserQuery, config.VerifyEmailQuery, config.UpdateUserQuery)
+	u, err := newBackendDbUser(config.DbServer, config.DbPort, config.DbUser, config.DbPassword, config.DbDatabase, config.GetUserLoginQuery, config.AddUserQuery, config.VerifyEmailQuery, config.UpdateUserQuery)
 	if err != nil {
 		return nil, err
 	}

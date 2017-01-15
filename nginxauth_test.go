@@ -6,8 +6,8 @@ import (
 
 func TestNewRestServer(t *testing.T) {
 	_, err := newNginxAuth()
-	if err != nil { // will connect to the docker Postgres db specified in auth.conf
-		t.Error("expected success")
+	if err != nil { // will connect to the docker Postgres db and LDAP server specified in auth.conf
+		t.Error("expected success", err)
 	}
 }
 
