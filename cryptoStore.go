@@ -6,7 +6,9 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"github.com/kless/osutil/user/crypt/sha512_crypt"
+	"math/big"
 )
 
 var errHashNotEqual = errors.New("input string does not match the supplied hash")
@@ -78,8 +80,22 @@ func generateRandomBytes(n int) ([]byte, error) {
 	return b, nil
 }
 
+func getRandomSalt(length, iterations int) (string, error) {
+	const letterBytes = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\.`
+	b := make([]byte, length)
+	maxNum := big.NewInt(63)
+	for i := range b {
+		c, err := rand.Int(rand.Reader, maxNum)
+		if err != nil {
+			return "", err
+		}
+		b[i] = letterBytes[int(c.Int64())]
+	}
+	return fmt.Sprintf("$6$rounds=%d$%s", iterations, b), nil
+}
+
 func cryptoHashEquals(in string, hash string) error {
-	hashed, err := cryptoHashWSalt(in, []byte(hash)) // sha512_crypt will strip out salt from hash
+	hashed, err := cryptoHashWSalt(in, hash) // sha512_crypt will strip out salt from hash
 	if err != nil {
 		return err
 	}
@@ -90,14 +106,16 @@ func cryptoHashEquals(in string, hash string) error {
 }
 
 func cryptoHash(in string) (string, error) {
-	saltGenerator := sha512_crypt.GetSalt()
-	salt := saltGenerator.GenerateWRounds(16, 200000) // 16 character salt, 200k iterations
+	salt, err := getRandomSalt(16, 200000)
+	if err != nil {
+		return "", err
+	}
 	return cryptoHashWSalt(in, salt)
 }
 
-func cryptoHashWSalt(in string, salt []byte) (string, error) {
+func cryptoHashWSalt(in, salt string) (string, error) {
 	gocrypt := sha512_crypt.New()
-	hash, err := gocrypt.Generate([]byte(in), salt)
+	hash, err := gocrypt.Generate([]byte(in), []byte(salt))
 	if err != nil {
 		return "", err
 	}

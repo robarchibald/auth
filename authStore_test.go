@@ -97,9 +97,9 @@ func TestAuthStoreEndToEnd(t *testing.T) {
 
 	// create profile
 	err = s.createProfile("fullName", "company", "password", "picturePath")
-	expectedPassword := encodeToString(hash([]byte("password")))
-	if err != nil || len(b.Users) != 1 || len(b.Sessions) != 1 || len(b.Logins) != 1 || b.Logins[0].LoginID != 1 || b.Logins[0].UserID != 1 || b.Logins[0].ProviderKey != expectedPassword {
-		t.Fatal("expected valid user, login and session", b.Logins[0], expectedPassword, b.Logins[0].ProviderKey)
+	hashErr := cryptoHashEquals("password", b.Logins[0].ProviderKey)
+	if err != nil || len(b.Users) != 1 || len(b.Sessions) != 1 || len(b.Logins) != 1 || b.Logins[0].LoginID != 1 || b.Logins[0].UserID != 1 || hashErr != nil {
+		t.Fatal("expected valid user, login and session", b.Logins[0], b.Logins[0].ProviderKey, hashErr)
 	}
 
 	// decode session cookie

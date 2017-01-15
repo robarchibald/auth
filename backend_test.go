@@ -133,7 +133,7 @@ func (b *MockBackend) InvalidateRememberMe(selector string) error {
 }
 
 func loginSuccess() *LoginReturn {
-	return &LoginReturn{&UserLogin{LoginID: 1, ProviderKey: "zVNfmBbTwQZwyMsAizV1Guh_j7kcFbyG7-LRJeeJfXc="}, nil} // hash of "correctPassword"
+	return &LoginReturn{&UserLogin{LoginID: 1, ProviderKey: "$6$rounds=200000$pYt48w3PgDcRoCMx$sxbuADDhNI9nNe35HcrFYW7vpWLLMNiPBKcbqOgaRxTBYE8hePJWvmuN9dp.783JmDZBhDJRG956Wc/fzghhh."}, nil} // cryptoHash of "correctPassword"
 }
 
 func loginErr() *LoginReturn {
