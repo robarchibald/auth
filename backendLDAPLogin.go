@@ -36,7 +36,11 @@ func (l *backendLDAPLogin) GetLogin(email, loginProvider string) (*UserLogin, er
 	if err != nil {
 		return nil, err
 	}
-	return &UserLogin{ProviderKey: data.UserPassword[0]}, nil
+	var password string
+	if len(data.UserPassword) != 0 {
+		password = data.UserPassword[0]
+	}
+	return &UserLogin{ProviderKey: password}, nil
 }
 
 func (l *backendLDAPLogin) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
