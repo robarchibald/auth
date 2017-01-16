@@ -47,7 +47,9 @@ func (s *loginStore) CreateLogin(email, fullName, password string) (*UserLogin, 
 	uidNumber := 0
 	gidNumber := 0
 	homeDirectory := "/home"
-	login, err := s.backend.CreateLogin(email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber)
+	mailQuota := "10 GB"
+	fileQuota := "10 GB"
+	login, err := s.backend.CreateLogin(email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mailQuota, fileQuota)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}

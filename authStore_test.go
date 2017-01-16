@@ -64,6 +64,9 @@ func TestAuthGetBasicAuth(t *testing.T) {
 }
 
 func TestAuthStoreEndToEnd(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
 	w := httptest.NewRecorder()
 	r := &http.Request{Header: http.Header{}}
 	b := NewBackendMemory().(*backendMemory)

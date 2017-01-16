@@ -140,7 +140,7 @@ func (m *backendMemory) UpdateUser(emailVerifyHash, fullname string, company str
 }
 
 // This method needs to be fixed to work with the new data model using LDAP
-func (m *backendMemory) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error) {
+func (m *backendMemory) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
 	user := m.getUserByEmail(email)
 	if user == nil {
 		return nil, errUserNotFound
@@ -217,16 +217,6 @@ func (m *backendMemory) removeSession(sessionHash string) {
 		if session.SessionHash == sessionHash {
 			m.Sessions = append(m.Sessions[:i], m.Sessions[i+1:]...) // remove item
 			break
-		}
-	}
-}
-
-func (m *backendMemory) removeSessions(userID int) {
-	for i := 0; i < len(m.Sessions); i++ {
-		session := m.Sessions[i]
-		if session.UserID == userID {
-			m.Sessions = append(m.Sessions[:i], m.Sessions[i+1:]...) // remove item
-			i--                                                      // removed item, so keep at the same index
 		}
 	}
 }

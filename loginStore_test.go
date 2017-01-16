@@ -67,6 +67,9 @@ var loginTests = []struct {
 }
 
 func TestAuthLogin(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
 	for i, test := range loginTests {
 		backend := &MockBackend{GetUserLoginReturn: test.GetUserLoginReturn, ErrReturn: test.ErrReturn}
 		store := getLoginStore(nil, backend).(*loginStore)

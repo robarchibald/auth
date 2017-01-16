@@ -39,7 +39,7 @@ func (l *backendLDAPLogin) GetLogin(email, loginProvider string) (*UserLogin, er
 	return &UserLogin{ProviderKey: data.UserPassword[0]}, nil
 }
 
-func (l *backendLDAPLogin) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error) {
+func (l *backendLDAPLogin) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + ",ou=Users,dc=endfirst,dc=com")
 	req.Attribute("objectClass", []string{"posixAccount", "account"})
 	req.Attribute("uid", []string{email})
@@ -48,6 +48,8 @@ func (l *backendLDAPLogin) CreateLogin(email, passwordHash, fullName, homeDirect
 	req.Attribute("uidNumber", []string{strconv.Itoa(uidNumber)})
 	req.Attribute("gidNumber", []string{strconv.Itoa(gidNumber)})
 	req.Attribute("homeDirectory", []string{homeDirectory})
+	req.Attribute("quota", []string{mailQuota})
+	req.Attribute("ownCloudQuota", []string{fileQuota})
 	err := l.db.Execute(req)
 	return &UserLogin{}, err
 }

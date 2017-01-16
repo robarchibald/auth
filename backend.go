@@ -12,7 +12,7 @@ type Backender interface {
 	UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error)
 
 	// LoginBackender. Write out since it contains duplicate BackendCloser
-	CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error)
+	CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error)
 	GetLogin(email, loginProvider string) (*UserLogin, error)
 	UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error)
 	UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
@@ -32,7 +32,7 @@ type UserBackender interface {
 }
 
 type LoginBackender interface {
-	CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error)
+	CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error)
 	GetLogin(email, loginProvider string) (*UserLogin, error)
 	UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error)
 	UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error)
@@ -113,13 +113,6 @@ type AuthError struct {
 	error
 }
 
-type backend struct {
-	u UserBackender
-	l LoginBackender
-	s SessionBackender
-	BackendCloser
-}
-
 func newLoggedError(message string, innerError error) *AuthError {
 	return &AuthError{message: message, innerError: innerError, shouldLog: true}
 }
@@ -146,6 +139,13 @@ func (a *AuthError) Trace() string {
 		inner = e.innerError
 	}
 	return trace
+}
+
+type backend struct {
+	u UserBackender
+	l LoginBackender
+	s SessionBackender
+	BackendCloser
 }
 
 func (b *backend) GetLogin(email, loginProvider string) (*UserLogin, error) {
@@ -184,8 +184,8 @@ func (b *backend) UpdateUser(emailVerifyHash, fullname string, company string, p
 	return b.u.UpdateUser(emailVerifyHash, fullname, company, pictureURL)
 }
 
-func (b *backend) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int) (*UserLogin, error) {
-	return b.l.CreateLogin(email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber)
+func (b *backend) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
+	return b.l.CreateLogin(email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mailQuota, fileQuota)
 }
 
 func (b *backend) UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error) {

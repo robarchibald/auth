@@ -218,65 +218,65 @@ func TestRememberMe(t *testing.T) {
 }
 
 var createSessionTests = []struct {
-	Scenario              string
-	RememberMe            bool
-	HasCookieGetError     bool
-	HasCookiePutError     bool
-	SessionCookie         *sessionCookie
-	RememberMeCookie      *rememberMeCookie
-	NewLoginSessionReturn *SessionRememberReturn
-	MethodsCalled         []string
-	ExpectedResult        *UserLoginRememberMe
-	ExpectedErr           string
+	Scenario            string
+	RememberMe          bool
+	HasCookieGetError   bool
+	HasCookiePutError   bool
+	SessionCookie       *sessionCookie
+	RememberMeCookie    *rememberMeCookie
+	CreateSessionReturn *SessionRememberReturn
+	MethodsCalled       []string
+	ExpectedResult      *UserLoginRememberMe
+	ExpectedErr         string
 }{
 	{
-		Scenario:              "New login session error",
-		NewLoginSessionReturn: sessionRememberErr(),
-		MethodsCalled:         []string{"NewLoginSession"},
-		ExpectedErr:           "Unable to create new session",
+		Scenario:            "New login session error",
+		CreateSessionReturn: sessionRememberErr(),
+		MethodsCalled:       []string{"CreateSession"},
+		ExpectedErr:         "Unable to create new session",
 	},
 	{
-		Scenario:              "Got session",
-		NewLoginSessionReturn: sessionRemember(futureTime, futureTime),
-		HasCookieGetError:     true,
-		MethodsCalled:         []string{"NewLoginSession"},
+		Scenario:            "Got session",
+		CreateSessionReturn: sessionRemember(futureTime, futureTime),
+		HasCookieGetError:   true,
+		MethodsCalled:       []string{"CreateSession"},
 	},
 	{
-		Scenario:              "Valid old session and rememberme cookies.  delete in backend",
-		SessionCookie:         sessionCookieGood(futureTime, futureTime),
-		RememberMeCookie:      rememberCookie(futureTime, futureTime),
-		NewLoginSessionReturn: sessionRemember(futureTime, futureTime),
-		MethodsCalled:         []string{"NewLoginSession", "InvalidateSession", "InvalidateRememberMe"},
+		Scenario:            "Valid old session and rememberme cookies.  delete in backend",
+		SessionCookie:       sessionCookieGood(futureTime, futureTime),
+		RememberMeCookie:    rememberCookie(futureTime, futureTime),
+		CreateSessionReturn: sessionRemember(futureTime, futureTime),
+		MethodsCalled:       []string{"CreateSession", "InvalidateSession", "InvalidateRememberMe"},
 	},
 	{
-		Scenario:              "Set RememberMe",
-		RememberMe:            true,
-		HasCookieGetError:     true,
-		NewLoginSessionReturn: sessionRemember(futureTime, futureTime),
-		MethodsCalled:         []string{"NewLoginSession"},
+		Scenario:            "Set RememberMe",
+		RememberMe:          true,
+		HasCookieGetError:   true,
+		CreateSessionReturn: sessionRemember(futureTime, futureTime),
+		MethodsCalled:       []string{"CreateSession"},
 	},
 	{
-		Scenario:              "Session Cookie save failure",
-		HasCookieGetError:     true,
-		HasCookiePutError:     true,
-		NewLoginSessionReturn: sessionRemember(futureTime, futureTime),
-		MethodsCalled:         []string{"NewLoginSession"},
-		ExpectedErr:           "Error saving session cookie",
+		Scenario:            "Session Cookie save failure",
+		HasCookieGetError:   true,
+		HasCookiePutError:   true,
+		CreateSessionReturn: sessionRemember(futureTime, futureTime),
+		MethodsCalled:       []string{"CreateSession"},
+		ExpectedErr:         "Error saving session cookie",
 	},
 	{
-		Scenario:              "RememberMe Cookie save failure",
-		RememberMe:            true,
-		HasCookieGetError:     true,
-		HasCookiePutError:     true,
-		NewLoginSessionReturn: sessionRemember(futureTime, futureTime),
-		MethodsCalled:         []string{"NewLoginSession"},
-		ExpectedErr:           "Unable to save rememberMe cookie",
+		Scenario:            "RememberMe Cookie save failure",
+		RememberMe:          true,
+		HasCookieGetError:   true,
+		HasCookiePutError:   true,
+		CreateSessionReturn: sessionRemember(futureTime, futureTime),
+		MethodsCalled:       []string{"CreateSession"},
+		ExpectedErr:         "Unable to save rememberMe cookie",
 	},
 }
 
 func TestCreateSession(t *testing.T) {
 	for i, test := range createSessionTests {
-		backend := &MockBackend{NewLoginSessionReturn: test.NewLoginSessionReturn}
+		backend := &MockBackend{CreateSessionReturn: test.CreateSessionReturn}
 		store := getSessionStore(nil, test.SessionCookie, test.RememberMeCookie, test.HasCookieGetError, test.HasCookiePutError, backend)
 		val, err := store.CreateSession(1, 1, test.RememberMe)
 		methods := store.b.(*MockBackend).MethodsCalled
