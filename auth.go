@@ -3,14 +3,9 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 )
 
-type loginData struct {
-	Email    string
-	Password string
-}
-
+// move together with nginxauth.go
 func auth(authStore AuthStorer, w http.ResponseWriter, r *http.Request) {
 	session, err := authStore.GetSession()
 	if err != nil {
@@ -72,5 +67,5 @@ func run(method func() error, w http.ResponseWriter) {
 }
 
 func addUserHeader(session *UserLoginSession, w http.ResponseWriter) {
-	w.Header().Add("X-User-Id", strconv.Itoa(session.UserID))
+	w.Header().Add("X-User", session.Email)
 }

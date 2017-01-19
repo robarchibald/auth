@@ -32,21 +32,21 @@ func (u *backendDbUser) GetLogin(email, loginProvider string) (*UserLogin, error
 	return login, u.Db.QueryStruct(onedb.NewSqlQuery(u.GetUserLoginQuery, email, loginProvider), login)
 }
 
-func (u *backendDbUser) AddUser(email, emailVerifyHash string) error {
-	return u.Db.Execute(onedb.NewSqlQuery(u.AddUserQuery, email, emailVerifyHash))
+func (u *backendDbUser) AddUser(email string) error {
+	return u.Db.Execute(onedb.NewSqlQuery(u.AddUserQuery, email))
 }
 
-func (u *backendDbUser) VerifyEmail(emailVerifyHash string) (string, error) {
+func (u *backendDbUser) GetUser(email string) (*User, error) {
 	var user *User
-	err := u.Db.QueryStructRow(onedb.NewSqlQuery(u.VerifyEmailQuery, emailVerifyHash), user)
+	err := u.Db.QueryStructRow(onedb.NewSqlQuery(u.VerifyEmailQuery, email), user)
 	if err != nil || user == nil {
-		return "", errors.New("Unable to verify email: " + err.Error())
+		return nil, errors.New("Unable to get user: " + err.Error())
 	}
-	return user.PrimaryEmail, err
+	return user, err
 }
 
-func (u *backendDbUser) UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error) {
-	return "email", nil
+func (u *backendDbUser) UpdateUser(email, fullname string, company string, pictureURL string) error {
+	return nil
 }
 
 func (u *backendDbUser) Close() error {

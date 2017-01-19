@@ -1,9 +1,13 @@
 package main
 
+import (
+	"fmt"
+)
+
 type LoginStorer interface {
 	Login(email, password string, rememberMe bool) (*UserLogin, error)
 
-	CreateLogin(email, fullName, password string) (*UserLogin, error)
+	CreateLogin(email, fullName, password string, mailQuota, fileQuota int) (*UserLogin, error)
 	UpdateEmail() error
 	UpdatePassword() error
 }
@@ -33,23 +37,24 @@ func (s *loginStore) Login(email, password string, rememberMe bool) (*UserLogin,
 	}
 
 	if err := cryptoHashEquals(password, login.ProviderKey); err != nil {
-		return nil, newLoggedError("Invalid username or password", err)
+		return nil, newLoggedError("Invalid username or password +crypto"+login.ProviderKey, err)
 	}
 	return login, nil
 }
 
-func (s *loginStore) CreateLogin(email, fullName, password string) (*UserLogin, error) {
+/****************  TODO: send 0 for UID and GID numbers and empty quotas if mailQuota and fileQuota are 0 **********************/
+func (s *loginStore) CreateLogin(email, fullName, password string, mailQuota, fileQuota int) (*UserLogin, error) {
 	passwordHash, err := cryptoHash(password)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}
 
-	uidNumber := 0
-	gidNumber := 0
+	uidNumber := 10000 // vmail user
+	gidNumber := 10000 // vmail user
 	homeDirectory := "/home"
-	mailQuota := "10 GB"
-	fileQuota := "10 GB"
-	login, err := s.backend.CreateLogin(email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mailQuota, fileQuota)
+	mQuota := fmt.Sprintf("%dGB", mailQuota)
+	fQuota := fmt.Sprintf("%dGB", fileQuota)
+	login, err := s.backend.CreateLogin(email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}

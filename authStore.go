@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -75,11 +76,11 @@ func (s *authStore) Login() error {
 }
 
 func (s *authStore) login(email, password string, rememberMe bool) (*UserLoginSession, error) {
-	login, err := s.loginStore.Login(email, password, rememberMe)
+	_, err := s.loginStore.Login(email, password, rememberMe)
 	if err != nil {
 		return nil, err
 	}
-	return s.sessionStore.CreateSession(login.LoginID, login.UserID, rememberMe)
+	return s.sessionStore.CreateSession(email, rememberMe)
 }
 
 type sendVerifyParams struct {
@@ -101,12 +102,17 @@ func (s *authStore) register(email string) error {
 		return newAuthError("Invalid email", nil)
 	}
 
-	emailConfirmCode, err := s.addUser(email)
+	user, err := s.backend.GetUser(email)
+	if user != nil {
+		return newAuthError("User already registered", err)
+	}
+
+	verifyCode, err := s.addEmailSession(email)
 	if err != nil {
 		return newLoggedError("Unable to save user", err)
 	}
 
-	code := emailConfirmCode[:len(emailConfirmCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
+	code := verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
 	if err := s.mailer.SendVerify(email, &sendVerifyParams{code, email, getBaseURL(s.r.Referer())}); err != nil {
 		return newLoggedError("Unable to send verification email", err)
 	}
@@ -126,17 +132,18 @@ func getBaseURL(url string) string {
 	return url[:protoIndex+3+firstSlash]
 }
 
-func (s *authStore) addUser(email string) (string, error) {
-	emailConfirmCode, emailConfimHash, err := generateStringAndHash()
+func (s *authStore) addEmailSession(email string) (string, error) {
+	verifyCode, verifyHash, err := generateStringAndHash()
 	if err != nil {
 		return "", newLoggedError("Problem generating email confirmation code", err)
 	}
 
-	err = s.backend.AddUser(email, emailConfimHash)
+	err = s.backend.CreateEmailSession(email, verifyHash)
 	if err != nil {
 		return "", newLoggedError("Problem adding user to database", err)
 	}
-	return emailConfirmCode, nil
+
+	return verifyCode, nil
 }
 
 func (s *authStore) CreateProfile() error {
@@ -144,10 +151,10 @@ func (s *authStore) CreateProfile() error {
 	if err != nil {
 		return newAuthError("Unable to get profile information from form", err)
 	}
-	return s.createProfile(profile.FullName, profile.Organization, profile.Password, profile.PicturePath)
+	return s.createProfile(profile.FullName, profile.Organization, profile.Password, profile.PicturePath, profile.MailQuota, profile.FileQuota)
 }
 
-func (s *authStore) createProfile(fullName, organization, password, picturePath string) error {
+func (s *authStore) createProfile(fullName, organization, password, picturePath string, mailQuota, fileQuota int) error {
 	emailCookie, err := s.getEmailCookie()
 	if err != nil || emailCookie.EmailVerificationCode == "" {
 		return newLoggedError("Unable to get email verification cookie", err)
@@ -158,17 +165,27 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 		return newLoggedError("Invalid email verification cookie", err)
 	}
 
-	email, err := s.backend.UpdateUser(emailVerifyHash, fullName, organization, picturePath)
+	session, err := s.backend.GetEmailSession(emailVerifyHash)
+	if err != nil {
+		return newLoggedError("Invalid email verification", err)
+	}
+
+	err = s.backend.UpdateUser(session.Email, fullName, organization, picturePath)
 	if err != nil {
 		return newLoggedError("Unable to update user", err)
 	}
 
-	login, err := s.loginStore.CreateLogin(email, fullName, password)
+	err = s.backend.DeleteEmailSession(session.EmailVerifyHash)
+	if err != nil {
+		return newLoggedError("Error verifying email", err)
+	}
+
+	_, err = s.loginStore.CreateLogin(session.Email, fullName, password, mailQuota, fileQuota)
 	if err != nil {
 		return newLoggedError("Unable to create login", err)
 	}
 
-	_, err = s.sessionStore.CreateSession(login.LoginID, login.UserID, false)
+	_, err = s.sessionStore.CreateSession(session.Email, false)
 	if err != nil {
 		return err
 	}
@@ -177,6 +194,7 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 	return nil
 }
 
+// move to sessionStore
 func (s *authStore) VerifyEmail() error {
 	verify, err := getVerificationCode(s.r)
 	if err != nil {
@@ -194,9 +212,14 @@ func (s *authStore) verifyEmail(emailVerificationCode string) error {
 		return newLoggedError("Invalid verification code", err)
 	}
 
-	email, err := s.backend.VerifyEmail(emailVerifyHash)
+	session, err := s.backend.GetEmailSession(emailVerifyHash)
 	if err != nil {
 		return newLoggedError("Failed to verify email", err)
+	}
+
+	err = s.backend.AddUser(session.Email)
+	if err != nil {
+		return newLoggedError("Failed to create new user in database", err)
 	}
 
 	err = s.saveEmailCookie(emailVerificationCode, time.Now().UTC().Add(emailExpireDuration))
@@ -204,7 +227,7 @@ func (s *authStore) verifyEmail(emailVerificationCode string) error {
 		return newLoggedError("Failed to save email cookie", err)
 	}
 
-	err = s.mailer.SendWelcome(email, nil)
+	err = s.mailer.SendWelcome(session.Email, nil)
 	if err != nil {
 		return newLoggedError("Failed to send welcome email", err)
 	}
@@ -286,6 +309,8 @@ type profile struct {
 	Organization string
 	Password     string
 	PicturePath  string
+	MailQuota    int
+	FileQuota    int
 }
 
 func getProfile(r *http.Request) (*profile, error) {
@@ -304,10 +329,17 @@ func getProfile(r *http.Request) (*profile, error) {
 	defer f.Close()
 	io.Copy(f, file)
 
+	// **************  TODO: change to generic way to get other parameters *******************
+
+	// get quota. will be zero if not found
+	mailQuota, _ := strconv.Atoi(r.FormValue("mailQuota"))
+	fileQuota, _ := strconv.Atoi(r.FormValue("fileQuota"))
 	profile.FullName = r.FormValue("fullName")
 	profile.Organization = r.FormValue("Organization")
 	profile.Password = r.FormValue("password")
 	profile.PicturePath = handler.Filename
+	profile.MailQuota = mailQuota
+	profile.FileQuota = fileQuota
 
 	return profile, nil
 }

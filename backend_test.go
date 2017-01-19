@@ -30,7 +30,7 @@ func TestGetLogin(t *testing.T) {
 func TestBackendCreateSession(t *testing.T) {
 	m := &MockBackend{CreateSessionReturn: sessionRemember(time.Now(), time.Now())}
 	b := backend{u: m, l: m, s: m}
-	b.CreateSession(1, 1, "hash", time.Now(), time.Now(), false, "", "", time.Now(), time.Now())
+	b.CreateSession("test@test.com", "hash", time.Now(), time.Now(), false, "", "", time.Now(), time.Now())
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "CreateSession" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
@@ -75,17 +75,17 @@ func TestBackendRenewRememberMe(t *testing.T) {
 func TestBackendAddUser(t *testing.T) {
 	m := &MockBackend{AddUserReturn: nil}
 	b := backend{u: m, l: m, s: m}
-	b.AddUser("mail", "hash")
+	b.AddUser("mail")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "AddUser" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
 }
 
-func TestBackendVerifyEmail(t *testing.T) {
-	m := &MockBackend{VerifyEmailReturn: verifyEmailErr()}
+func TestBackendGetEmailSession(t *testing.T) {
+	m := &MockBackend{GetEmailSessionReturn: getEmailSessionErr()}
 	b := backend{u: m, l: m, s: m}
-	b.VerifyEmail("hash")
-	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "VerifyEmail" {
+	b.GetEmailSession("hash")
+	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "GetEmailSession" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
 }
@@ -213,9 +213,14 @@ type RememberMeReturn struct {
 	Err        error
 }
 
-type VerifyEmailReturn struct {
-	Email string
-	Err   error
+type GetUserReturn struct {
+	User *User
+	Err  error
+}
+
+type GetEmailSessionReturn struct {
+	Session *emailSession
+	Err     error
 }
 
 type MockBackend struct {
@@ -226,7 +231,8 @@ type MockBackend struct {
 	CreateSessionReturn   *SessionRememberReturn
 	RenewSessionReturn    *SessionReturn
 	AddUserReturn         error
-	VerifyEmailReturn     *VerifyEmailReturn
+	GetUserReturn         *GetUserReturn
+	GetEmailSessionReturn *GetEmailSessionReturn
 	CreateLoginReturn     *LoginReturn
 	UpdateEmailReturn     *SessionReturn
 	UpdatePasswordReturn  *SessionReturn
@@ -247,7 +253,7 @@ func (b *MockBackend) GetSession(sessionHash string) (*UserLoginSession, error) 
 	return b.GetSessionReturn.Session, b.GetSessionReturn.Err
 }
 
-func (b *MockBackend) CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
+func (b *MockBackend) CreateSession(email, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateSession")
 	return b.CreateSessionReturn.Session, b.CreateSessionReturn.RememberMe, b.CreateSessionReturn.Err
 }
@@ -264,19 +270,34 @@ func (b *MockBackend) RenewRememberMe(selector string, renewTimeUTC time.Time) (
 	b.MethodsCalled = append(b.MethodsCalled, "RenewRememberMe")
 	return b.RenewRememberMeReturn.RememberMe, b.RenewRememberMeReturn.Err
 }
-func (b *MockBackend) AddUser(email, emailVerifyHash string) error {
+func (b *MockBackend) AddUser(email string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "AddUser")
 	return b.AddUserReturn
 }
 
-func (b *MockBackend) VerifyEmail(emailVerifyHash string) (string, error) {
-	b.MethodsCalled = append(b.MethodsCalled, "VerifyEmail")
-	return b.VerifyEmailReturn.Email, b.VerifyEmailReturn.Err
+func (b *MockBackend) CreateEmailSession(email, emailVerifyHash string) error {
+	b.MethodsCalled = append(b.MethodsCalled, "CreateEmailSession")
+	return b.ErrReturn
 }
 
-func (b *MockBackend) UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error) {
+func (b *MockBackend) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
+	b.MethodsCalled = append(b.MethodsCalled, "GetEmailSession")
+	return b.GetEmailSessionReturn.Session, b.GetEmailSessionReturn.Err
+}
+
+func (b *MockBackend) DeleteEmailSession(emailVerifyHash string) error {
+	b.MethodsCalled = append(b.MethodsCalled, "DeleteEmailSession")
+	return b.ErrReturn
+}
+
+func (b *MockBackend) GetUser(email string) (*User, error) {
+	b.MethodsCalled = append(b.MethodsCalled, "GetUser")
+	return b.GetUserReturn.User, b.GetUserReturn.Err
+}
+
+func (b *MockBackend) UpdateUser(email, fullname, company, pictureURL string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdateUser")
-	return "test@test.com", b.ErrReturn
+	return b.ErrReturn
 }
 
 func (b *MockBackend) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
@@ -315,7 +336,7 @@ func (b *MockBackend) Close() error {
 }
 
 func loginSuccess() *LoginReturn {
-	return &LoginReturn{&UserLogin{LoginID: 1, ProviderKey: "$6$rounds=200000$pYt48w3PgDcRoCMx$sxbuADDhNI9nNe35HcrFYW7vpWLLMNiPBKcbqOgaRxTBYE8hePJWvmuN9dp.783JmDZBhDJRG956Wc/fzghhh."}, nil} // cryptoHash of "correctPassword"
+	return &LoginReturn{&UserLogin{Email: "test@test.com", ProviderKey: "$6$rounds=200000$pYt48w3PgDcRoCMx$sxbuADDhNI9nNe35HcrFYW7vpWLLMNiPBKcbqOgaRxTBYE8hePJWvmuN9dp.783JmDZBhDJRG956Wc/fzghhh."}, nil} // cryptoHash of "correctPassword"
 }
 
 func loginErr() *LoginReturn {
@@ -323,7 +344,7 @@ func loginErr() *LoginReturn {
 }
 
 func sessionSuccess(renewTimeUTC, expireTimeUTC time.Time) *SessionReturn {
-	return &SessionReturn{&UserLoginSession{1, "sessionHash", 2, renewTimeUTC, expireTimeUTC}, nil}
+	return &SessionReturn{&UserLoginSession{"test@test.com", "sessionHash", renewTimeUTC, expireTimeUTC}, nil}
 }
 
 func sessionErr() *SessionReturn {
@@ -339,16 +360,24 @@ func rememberErr() *RememberMeReturn {
 }
 
 func sessionRemember(renewTimeUTC, expireTimeUTC time.Time) *SessionRememberReturn {
-	return &SessionRememberReturn{&UserLoginSession{1, "sessionHash", 2, renewTimeUTC, expireTimeUTC}, &UserLoginRememberMe{TokenHash: "PEaenWxYddN6Q_NT1PiOYfz4EsZu7jRXRlpAsNpBU-A=", ExpireTimeUTC: expireTimeUTC, RenewTimeUTC: renewTimeUTC}, nil}
+	return &SessionRememberReturn{&UserLoginSession{"test@test.com", "sessionHash", renewTimeUTC, expireTimeUTC}, &UserLoginRememberMe{TokenHash: "PEaenWxYddN6Q_NT1PiOYfz4EsZu7jRXRlpAsNpBU-A=", ExpireTimeUTC: expireTimeUTC, RenewTimeUTC: renewTimeUTC}, nil}
 }
 
 func sessionRememberErr() *SessionRememberReturn {
 	return &SessionRememberReturn{nil, nil, errors.New("failed")}
 }
 
-func verifyEmailSuccess() *VerifyEmailReturn {
-	return &VerifyEmailReturn{"email", nil}
+func getEmailSessionSuccess() *GetEmailSessionReturn {
+	return &GetEmailSessionReturn{&emailSession{Email: "email", EmailVerifyHash: "hash"}, nil}
 }
-func verifyEmailErr() *VerifyEmailReturn {
-	return &VerifyEmailReturn{"", errors.New("failed")}
+func getEmailSessionErr() *GetEmailSessionReturn {
+	return &GetEmailSessionReturn{nil, errors.New("failed")}
+}
+
+func getUserSuccess() *GetUserReturn {
+	return &GetUserReturn{&User{FullName: "name", PrimaryEmail: "test@test.com"}, nil}
+}
+
+func getUserErr() *GetUserReturn {
+	return &GetUserReturn{nil, errors.New("failed")}
 }

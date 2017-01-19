@@ -7,7 +7,7 @@ import (
 
 type SessionStorer interface {
 	GetSession() (*UserLoginSession, error)
-	CreateSession(loginID, userID int, rememberMe bool) (*UserLoginSession, error)
+	CreateSession(email string, rememberMe bool) (*UserLoginSession, error)
 }
 
 type sessionCookie struct {
@@ -136,7 +136,7 @@ func (s *sessionStore) renewSession(sessionID, sessionHash string, renewTimeUTC,
 	return session, nil
 }
 
-func (s *sessionStore) CreateSession(loginID, userID int, rememberMe bool) (*UserLoginSession, error) {
+func (s *sessionStore) CreateSession(email string, rememberMe bool) (*UserLoginSession, error) {
 	var err error
 	var selector, token, tokenHash string
 	if rememberMe {
@@ -150,7 +150,7 @@ func (s *sessionStore) CreateSession(loginID, userID int, rememberMe bool) (*Use
 		return nil, newLoggedError("Problem generating sessionId", nil)
 	}
 
-	session, remember, err := s.b.CreateSession(loginID, userID, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
+	session, remember, err := s.b.CreateSession(email, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
 	if err != nil {
 		return nil, newLoggedError("Unable to create new session", err)
 	}

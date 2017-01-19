@@ -7,9 +7,9 @@ import (
 
 type Backender interface {
 	// UserBackender. Write out since it contains duplicate BackendCloser
-	AddUser(email, emailVerifyHash string) error
-	VerifyEmail(emailVerifyHash string) (string, error)
-	UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error)
+	AddUser(email string) error
+	GetUser(email string) (*User, error)
+	UpdateUser(email, fullname string, company string, pictureURL string) error
 
 	// LoginBackender. Write out since it contains duplicate BackendCloser
 	CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error)
@@ -25,9 +25,9 @@ type BackendCloser interface {
 }
 
 type UserBackender interface {
-	AddUser(email, emailVerifyHash string) error
-	VerifyEmail(emailVerifyHash string) (string, error)
-	UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error)
+	AddUser(email string) error
+	GetUser(email string) (*User, error)
+	UpdateUser(email, fullname string, company string, pictureURL string) error
 	BackendCloser
 }
 
@@ -40,7 +40,11 @@ type LoginBackender interface {
 }
 
 type SessionBackender interface {
-	CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
+	CreateEmailSession(email, emailVerifyHash string) error
+	GetEmailSession(verifyHash string) (*emailSession, error)
+	DeleteEmailSession(verifyHash string) error
+
+	CreateSession(email string, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error)
 	GetSession(sessionHash string) (*UserLoginSession, error)
 	RenewSession(sessionHash string, renewTimeUTC time.Time) (*UserLoginSession, error)
 	InvalidateSession(sessionHash string) error
@@ -60,38 +64,39 @@ var errRememberMeSelectorExists = errors.New("DB: RememberMe selector already ex
 var errUserNotFound = errors.New("DB: User not found")
 var errLoginNotFound = errors.New("DB: Login not found")
 var errSessionNotFound = errors.New("DB: Session not found")
+var errSessionAlreadyExists = errors.New("DB: Session already exists")
 var errRememberMeNotFound = errors.New("DB: RememberMe not found")
 var errRememberMeNeedsRenew = errors.New("DB: RememberMe needs to be renewed")
 var errRememberMeExpired = errors.New("DB: RememberMe is expired")
 var errUserAlreadyExists = errors.New("DB: User already exists")
 
+type emailSession struct {
+	Email           string
+	EmailVerifyHash string
+}
+
 type User struct {
-	UserID            int
 	FullName          string
 	PrimaryEmail      string
-	EmailVerifyHash   string
-	EmailVerified     bool
 	LockoutEndTimeUTC *time.Time
 	AccessFailedCount int
 }
 
 type UserLogin struct {
-	LoginID         int
-	UserID          int
+	Email           string
 	LoginProviderID int
 	ProviderKey     string
 }
 
 type UserLoginSession struct {
-	LoginID       int
+	Email         string
 	SessionHash   string
-	UserID        int
 	RenewTimeUTC  time.Time
 	ExpireTimeUTC time.Time
 }
 
 type UserLoginRememberMe struct {
-	LoginID       int
+	Email         string
 	Selector      string
 	TokenHash     string
 	RenewTimeUTC  time.Time
@@ -152,8 +157,8 @@ func (b *backend) GetLogin(email, loginProvider string) (*UserLogin, error) {
 	return b.l.GetLogin(email, loginProvider)
 }
 
-func (b *backend) CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
-	return b.s.CreateSession(loginID, userID, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC, rememberMe, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC)
+func (b *backend) CreateSession(email, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
+	return b.s.CreateSession(email, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC, rememberMe, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC)
 }
 
 func (b *backend) GetSession(sessionHash string) (*UserLoginSession, error) {
@@ -172,16 +177,28 @@ func (b *backend) RenewRememberMe(selector string, renewTimeUTC time.Time) (*Use
 	return b.s.RenewRememberMe(selector, renewTimeUTC)
 }
 
-func (b *backend) AddUser(email, emailVerifyHash string) error {
-	return b.u.AddUser(email, emailVerifyHash)
+func (b *backend) CreateEmailSession(email, emailVerifyHash string) error {
+	return b.s.CreateEmailSession(email, emailVerifyHash)
 }
 
-func (b *backend) VerifyEmail(emailVerifyHash string) (string, error) {
-	return b.u.VerifyEmail(emailVerifyHash)
+func (b *backend) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
+	return b.s.GetEmailSession(emailVerifyHash)
 }
 
-func (b *backend) UpdateUser(emailVerifyHash, fullname string, company string, pictureURL string) (string, error) {
-	return b.u.UpdateUser(emailVerifyHash, fullname, company, pictureURL)
+func (b *backend) DeleteEmailSession(emailVerifyHash string) error {
+	return b.s.DeleteEmailSession(emailVerifyHash)
+}
+
+func (b *backend) AddUser(email string) error {
+	return b.u.AddUser(email)
+}
+
+func (b *backend) GetUser(email string) (*User, error) {
+	return b.u.GetUser(email)
+}
+
+func (b *backend) UpdateUser(email, fullname string, company string, pictureURL string) error {
+	return b.u.UpdateUser(email, fullname, company, pictureURL)
 }
 
 func (b *backend) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {

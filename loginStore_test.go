@@ -52,7 +52,7 @@ var loginTests = []struct {
 		Scenario:           "Incorrect password",
 		Email:              "email@example.com",
 		Password:           "wrongPassword",
-		GetUserLoginReturn: &LoginReturn{Login: &UserLogin{LoginID: 1, UserID: 1, ProviderKey: "1234"}},
+		GetUserLoginReturn: &LoginReturn{Login: &UserLogin{Email: "test@test.com", ProviderKey: "1234"}},
 		MethodsCalled:      []string{"GetUserLogin"},
 		ExpectedErr:        "Invalid username or password",
 	},
@@ -99,7 +99,7 @@ func (s *MockLoginStore) LoginBasic() (*UserLogin, error) {
 	return s.LoginReturn.Login, s.LoginReturn.Err
 }
 
-func (s *MockLoginStore) CreateLogin(email, fullName, password string) (*UserLogin, error) {
+func (s *MockLoginStore) CreateLogin(email, fullName, password string, cloudQuota, fileQuota int) (*UserLogin, error) {
 	return s.LoginReturn.Login, s.LoginReturn.Err
 }
 

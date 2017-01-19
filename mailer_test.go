@@ -38,35 +38,35 @@ func TestSends(t *testing.T) {
 	}
 	m.templateCache = template.Must(template.ParseFiles(m.VerifyEmailTemplate, m.WelcomeTemplate,
 		m.NewLoginTemplate, m.LockedOutTemplate, m.EmailChangedTemplate, m.PasswordChangedTemplate))
-	data := &VerifyEmailReturn{Email: "myemail@here.com"}
-	m.SendVerify("to", data)
-	if sender.LastBody != "verifyEmail:myemail@here.com" || sender.LastTo != "to" || sender.LastSubject != "verifyEmailSubject" {
-		t.Error("expected valid values", sender)
+	data := &emailSession{Email: "myemail@here.com"}
+	err := m.SendVerify("to", data)
+	if err != nil || sender.LastBody != "verifyEmail:myemail@here.com" || sender.LastTo != "to" || sender.LastSubject != "verifyEmailSubject" {
+		t.Error("expected valid values", sender, err)
 	}
 
-	m.SendWelcome("to1", data)
-	if sender.LastBody != "welcomeEmail:myemail@here.com" || sender.LastTo != "to1" || sender.LastSubject != "welcomeSubject" {
-		t.Error("expected valid values", sender)
+	err = m.SendWelcome("to1", data)
+	if err != nil || sender.LastBody != "welcomeEmail:myemail@here.com" || sender.LastTo != "to1" || sender.LastSubject != "welcomeSubject" {
+		t.Error("expected valid values", sender, err)
 	}
 
-	m.SendNewLogin("to2", data)
-	if sender.LastBody != "newLogin:myemail@here.com" || sender.LastTo != "to2" || sender.LastSubject != "newLoginSubject" {
-		t.Error("expected valid values", sender)
+	err = m.SendNewLogin("to2", data)
+	if err != nil || sender.LastBody != "newLogin:myemail@here.com" || sender.LastTo != "to2" || sender.LastSubject != "newLoginSubject" {
+		t.Error("expected valid values", sender, err)
 	}
 
-	m.SendLockedOut("to3", data)
-	if sender.LastBody != "lockedOut:myemail@here.com" || sender.LastTo != "to3" || sender.LastSubject != "lockedOutSubject" {
-		t.Error("expected valid values", sender)
+	err = m.SendLockedOut("to3", data)
+	if err != nil || sender.LastBody != "lockedOut:myemail@here.com" || sender.LastTo != "to3" || sender.LastSubject != "lockedOutSubject" {
+		t.Error("expected valid values", sender, err)
 	}
 
-	m.SendEmailChanged("to4", data)
-	if sender.LastBody != "emailChanged:myemail@here.com" || sender.LastTo != "to4" || sender.LastSubject != "emailChangedSubject" {
-		t.Error("expected valid values", sender)
+	err = m.SendEmailChanged("to4", data)
+	if err != nil || sender.LastBody != "emailChanged:myemail@here.com" || sender.LastTo != "to4" || sender.LastSubject != "emailChangedSubject" {
+		t.Error("expected valid values", sender, err)
 	}
 
-	m.SendPasswordChanged("to5", data)
-	if sender.LastBody != "passwordChanged:myemail@here.com" || sender.LastTo != "to5" || sender.LastSubject != "passwordChangedSubject" {
-		t.Error("expected valid values", sender)
+	err = m.SendPasswordChanged("to5", data)
+	if err != nil || sender.LastBody != "passwordChanged:myemail@here.com" || sender.LastTo != "to5" || sender.LastSubject != "passwordChangedSubject" {
+		t.Error("expected valid values", sender, err)
 	}
 }
 

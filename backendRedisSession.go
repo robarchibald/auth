@@ -17,9 +17,23 @@ func NewBackendRedisSession(server string, port int, password string, maxIdle, m
 	return &backendRedisSession{db: r, prefix: keyPrefix}
 }
 
-func (r *backendRedisSession) CreateSession(loginID, userID int, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
+// need to first check that this emailVerifyHash isn't being used, otherwise we'll clobber existing
+func (r *backendRedisSession) CreateEmailSession(email, emailVerifyHash string) error {
+	return r.saveEmailSession(&emailSession{Email: email, EmailVerifyHash: emailVerifyHash})
+}
+
+func (r *backendRedisSession) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
+	session := &emailSession{}
+	return session, r.db.QueryStructRow(onedb.NewRedisGetCommand(r.getEmailSessionUrl(emailVerifyHash)), session)
+}
+
+func (r *backendRedisSession) DeleteEmailSession(emailVerifyHash string) error {
+	return nil
+}
+
+func (r *backendRedisSession) CreateSession(email, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
 	includeRememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*UserLoginSession, *UserLoginRememberMe, error) {
-	session := UserLoginSession{LoginID: loginID, UserID: userID, SessionHash: sessionHash, RenewTimeUTC: sessionRenewTimeUTC, ExpireTimeUTC: sessionExpireTimeUTC}
+	session := UserLoginSession{Email: email, SessionHash: sessionHash, RenewTimeUTC: sessionRenewTimeUTC, ExpireTimeUTC: sessionExpireTimeUTC}
 	err := r.saveSession(&session)
 	if err != nil {
 		return nil, nil, err
@@ -27,7 +41,7 @@ func (r *backendRedisSession) CreateSession(loginID, userID int, sessionHash str
 
 	var rememberMe UserLoginRememberMe
 	if includeRememberMe {
-		rememberMe = UserLoginRememberMe{LoginID: loginID, Selector: rememberMeSelector, TokenHash: rememberMeTokenHash, RenewTimeUTC: rememberMeRenewTimeUTC, ExpireTimeUTC: rememberMeExpireTimeUTC}
+		rememberMe = UserLoginRememberMe{Email: email, Selector: rememberMeSelector, TokenHash: rememberMeTokenHash, RenewTimeUTC: rememberMeRenewTimeUTC, ExpireTimeUTC: rememberMeExpireTimeUTC}
 		err = r.saveRememberMe(&rememberMe)
 		if err != nil {
 			return nil, nil, err
@@ -88,6 +102,10 @@ func (r *backendRedisSession) Close() error {
 	return r.db.Close()
 }
 
+func (r *backendRedisSession) saveEmailSession(session *emailSession) error {
+	return r.save(r.getEmailSessionUrl(session.EmailVerifyHash), session, emailExpireMins*60)
+}
+
 func (r *backendRedisSession) saveSession(session *UserLoginSession) error {
 	if time.Since(session.ExpireTimeUTC).Seconds() >= 0 {
 		return errors.New("Unable to save expired session")
@@ -100,6 +118,10 @@ func (r *backendRedisSession) saveRememberMe(rememberMe *UserLoginRememberMe) er
 		return errors.New("Unable to save expired rememberMe")
 	}
 	return r.save(r.getRememberMeUrl(rememberMe.Selector), rememberMe, round(rememberMeExpireDuration.Seconds()))
+}
+
+func (r *backendRedisSession) getEmailSessionUrl(emailVerifyHash string) string {
+	return r.prefix + "/email/" + emailVerifyHash
 }
 
 func (r *backendRedisSession) getSessionUrl(sessionHash string) string {

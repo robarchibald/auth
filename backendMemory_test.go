@@ -10,14 +10,10 @@ var in1Hour = time.Now().UTC().Add(time.Hour)
 
 func TestMemoryGetLogin(t *testing.T) {
 	backend := NewBackendMemory().(*backendMemory)
-	if _, err := backend.GetLogin("email", loginProviderDefaultName); err != errUserNotFound {
-		t.Error("expected no login since nothing added yet", err)
-	}
-	backend.Users = append(backend.Users, &User{PrimaryEmail: "email", UserID: 1})
 	if _, err := backend.GetLogin("email", loginProviderDefaultName); err != errLoginNotFound {
 		t.Error("expected no login since login not added yet", err)
 	}
-	expected := &UserLogin{UserID: 1, LoginProviderID: 1}
+	expected := &UserLogin{Email: "email", LoginProviderID: 1}
 	backend.Logins = append(backend.Logins, expected)
 	if actual, _ := backend.GetLogin("email", loginProviderDefaultName); expected != actual {
 		t.Error("expected no login since login not added yet")
@@ -26,38 +22,29 @@ func TestMemoryGetLogin(t *testing.T) {
 
 func TestMemoryCreateSession(t *testing.T) {
 	backend := NewBackendMemory().(*backendMemory)
-	if _, _, err := backend.CreateSession(1, 1, "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); err != errLoginNotFound {
-		t.Error("expected error since login doesn't exist")
-	}
-	backend.Logins = append(backend.Logins, &UserLogin{UserID: 1, LoginID: 1})
-	if session, _, _ := backend.CreateSession(1, 1, "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginID != 1 || session.UserID != 1 {
+	if session, _, _ := backend.CreateSession("test@test.com", "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.Email != "test@test.com" {
 		t.Error("expected matching session", session)
 	}
-	// create again, shouldn't create new Session, just update
-	if session, _, _ := backend.CreateSession(1, 1, "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginID != 1 || session.UserID != 1 || len(backend.Sessions) != 1 {
-		t.Error("expected matching session", session)
+	// create again, should error
+	if _, _, err := backend.CreateSession("test@test.com", "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); err == nil {
+		t.Error("expected error since session exists", err)
 	}
-	// new session ID since it was generated when no cookie was found
-	if session, _, _ := backend.CreateSession(1, 1, "newSessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "newSessionHash" || len(backend.Sessions) != 2 {
+	// new session ID since it was generated when no cookie was found (e.g. on another computer or browser)
+	if session, _, _ := backend.CreateSession("test@test.com", "newSessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "newSessionHash" || len(backend.Sessions) != 2 {
 		t.Error("expected matching session", session)
 	}
 
-	// existing remember already exists
-	backend.RememberMes = append(backend.RememberMes, &UserLoginRememberMe{LoginID: 1, Selector: "selector"})
-	if session, rememberMe, err := backend.CreateSession(1, 1, "sessionHash", in5Minutes, in1Hour, true, "selector", "hash", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginID != 1 || session.UserID != 1 ||
-		rememberMe.LoginID != 1 || rememberMe.Selector != "selector" || rememberMe.TokenHash != "hash" {
+	// new rememberMe
+	backend.Sessions = nil
+	backend.RememberMes = nil
+	if session, rememberMe, err := backend.CreateSession("test@test.com", "sessionHash", in5Minutes, in1Hour, true, "selector", "hash", time.Time{}, time.Time{}); session == nil || session.SessionHash != "sessionHash" || session.Email != "test@test.com" ||
+		rememberMe == nil || rememberMe.Selector != "selector" || rememberMe.TokenHash != "hash" {
 		t.Error("expected RememberMe to be created", session, rememberMe, err)
 	}
 
-	// create new rememberMe
-	if session, rememberMe, err := backend.CreateSession(1, 1, "sessionHash", in5Minutes, in1Hour, true, "newselector", "hash", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.LoginID != 1 || session.UserID != 1 ||
-		rememberMe.LoginID != 1 || rememberMe.Selector != "newselector" || rememberMe.TokenHash != "hash" {
-		t.Error("expected RememberMe to be created", session, rememberMe, err)
-	}
-
-	// existing remember is for different login... error
-	backend.RememberMes = append(backend.RememberMes, &UserLoginRememberMe{LoginID: 2, Selector: "otherselector"})
-	if _, _, err := backend.CreateSession(1, 1, "sessionHash", in5Minutes, in1Hour, true, "otherselector", "hash", time.Time{}, time.Time{}); err != errRememberMeSelectorExists {
+	// existing rememberMe. Error
+	backend.Sessions = nil
+	if _, _, err := backend.CreateSession("test@test.com", "sessionHash", in5Minutes, in1Hour, true, "selector", "hash", time.Time{}, time.Time{}); err != errRememberMeSelectorExists {
 		t.Error("expected error", err)
 	}
 }
@@ -128,55 +115,46 @@ func TestMemoryRenewRememberMe(t *testing.T) {
 
 func TestMemoryAddUser(t *testing.T) {
 	backend := NewBackendMemory().(*backendMemory)
-	if err := backend.AddUser("email", "emailVerifyHash"); err != nil || len(backend.Users) != 1 {
+	if err := backend.AddUser("email"); err != nil || len(backend.Users) != 1 {
 		t.Error("expected valid session", err, backend.Users)
 	}
 
-	if err := backend.AddUser("email", "emailVerifyHash"); err != errUserAlreadyExists {
+	if err := backend.AddUser("email"); err != errUserAlreadyExists {
 		t.Error("expected user to already exist", err)
-	}
-
-	if err := backend.AddUser("email1", "emailVerifyHash"); err != errEmailVerifyHashExists {
-		t.Error("expected failure due to existing email verify code", err)
 	}
 }
 
-func TestMemoryVerifyEmail(t *testing.T) {
+func TestMemoryGetEmailSession(t *testing.T) {
 	backend := NewBackendMemory().(*backendMemory)
-	if _, err := backend.VerifyEmail("verifyHash"); err != errInvalidEmailVerifyHash {
+	if _, err := backend.GetEmailSession("verifyHash"); err != errInvalidEmailVerifyHash {
 		t.Error("expected login not found err", err)
 	}
 
 	// success
-	backend.Users = append(backend.Users, &User{EmailVerifyHash: "verifyHash", UserID: 1, PrimaryEmail: "email"})
-	if email, _ := backend.VerifyEmail("verifyHash"); email != "email" {
+	backend.EmailSessions = append(backend.EmailSessions, &emailSession{Email: "email", EmailVerifyHash: "verifyHash"})
+	if email, _ := backend.GetEmailSession("verifyHash"); email.Email != "email" {
 		t.Error("expected valid session", email)
 	}
 }
 
 func TestMemoryUpdateUser(t *testing.T) {
 	backend := NewBackendMemory().(*backendMemory)
-	_, err := backend.UpdateUser("emailHash", "fullname", "company", "pictureUrl")
+	err := backend.UpdateUser("email", "fullname", "company", "pictureUrl")
 	if err != errUserNotFound {
 		t.Error("expected to be unable to update non-existant user")
 	}
 
 	backend = NewBackendMemory().(*backendMemory)
-	backend.Users = append(backend.Users, &User{EmailVerifyHash: "verifyHash", UserID: 1, PrimaryEmail: "email"})
-	email, err := backend.UpdateUser("verifyHash", "fullname", "company", "pictureUrl")
-	if email != "email" || err != nil {
-		t.Error("expected success", email, err)
+	backend.Users = append(backend.Users, &User{PrimaryEmail: "email"})
+	err = backend.UpdateUser("email", "fullname", "company", "pictureUrl")
+	if err != nil {
+		t.Error("expected success", err)
 	}
 }
 
 func TestMemoryCreateLogin(t *testing.T) {
 	backend := NewBackendMemory().(*backendMemory)
-	if _, err := backend.CreateLogin("email", "passwordHash", "fullName", "homeDirectory", 1, 1, "mailQuota", "fileQuota"); err != errUserNotFound {
-		t.Error("expected login not found err", err)
-	}
-
-	backend.Users = append(backend.Users, &User{EmailVerifyHash: "emailVerifyHash", UserID: 1, PrimaryEmail: "email"})
-	if login, err := backend.CreateLogin("email", "passwordHash", "fullName", "homeDirectory", 1, 1, "mailQuota", "fileQuota"); err != nil || login.LoginID != 1 || login.UserID != 1 {
+	if login, err := backend.CreateLogin("email", "passwordHash", "fullName", "homeDirectory", 1, 1, "mailQuota", "fileQuota"); err != nil || login.Email != "email" {
 		t.Error("expected valid login", login)
 	}
 }
@@ -227,7 +205,7 @@ func TestToString(t *testing.T) {
 	backend.RememberMes = append(backend.RememberMes, &UserLoginRememberMe{})
 
 	actual := backend.ToString()
-	expected := "Users:\n     {0    false <nil> 0}\nLogins:\n     {0 0 0 }\nSessions:\n     {0  0 0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {0   0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
+	expected := "Users:\n     {  <nil> 0}\nLogins:\n     { 0 }\nSessions:\n     {  0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {   0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
 	if actual != expected {
 		t.Error("expected different value", actual)
 	}
@@ -242,7 +220,7 @@ func TestGetLoginProvider(t *testing.T) {
 
 func TestGetLoginByUser(t *testing.T) {
 	backend := NewBackendMemory().(*backendMemory)
-	if backend.getLoginByUser(1, "bogus") != nil {
+	if backend.getLoginByUser("email", "bogus") != nil {
 		t.Error("expected no login")
 	}
 }
