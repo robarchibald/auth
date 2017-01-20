@@ -203,9 +203,6 @@ func (s *authStore) login(email, password string, rememberMe bool) (*loginSessio
 	if err := cryptoHashEquals(password, login.ProviderKey); err != nil {
 		return nil, newLoggedError("Invalid username or password", err)
 	}
-	if err != nil {
-		return nil, err
-	}
 	return s.createSession(email, rememberMe)
 }
 
@@ -353,7 +350,7 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 
 	err = s.backend.DeleteEmailSession(session.EmailVerifyHash)
 	if err != nil {
-		return newLoggedError("Error verifying email", err)
+		return newLoggedError("Error while creating profile", err)
 	}
 
 	_, err = s.createLogin(session.Email, fullName, password, mailQuota, fileQuota)

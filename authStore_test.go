@@ -241,6 +241,7 @@ func TestRememberMe(t *testing.T) {
 	}
 }
 
+// Doesn't cover the crypto failures generating hashes
 var createSessionTests = []struct {
 	Scenario            string
 	RememberMe          bool
@@ -260,7 +261,7 @@ var createSessionTests = []struct {
 		ExpectedErr:         "Unable to create new session",
 	},
 	{
-		Scenario:            "Got session",
+		Scenario:            "Couldn't get session cookie",
 		CreateSessionReturn: sessionRemember(futureTime, futureTime),
 		HasCookieGetError:   true,
 		MethodsCalled:       []string{"CreateSession"},
@@ -418,6 +419,7 @@ var registerTests = []struct {
 	Email                    string
 	CreateEmailSessionReturn error
 	GetUserReturn            *GetUserReturn
+	MailErr                  error
 	MethodsCalled            []string
 	ExpectedErr              string
 }{
@@ -442,6 +444,14 @@ var registerTests = []struct {
 		ExpectedErr:              "Unable to save user",
 	},
 	{
+		Scenario:      "Can't send email",
+		GetUserReturn: getUserErr(),
+		Email:         "validemail@test.com",
+		MailErr:       errors.New("fail"),
+		MethodsCalled: []string{"GetUser", "CreateEmailSession"},
+		ExpectedErr:   "Unable to send verification email",
+	},
+	{
 		Scenario:      "Send verify email",
 		GetUserReturn: getUserErr(),
 		Email:         "validemail@test.com",
@@ -452,7 +462,7 @@ var registerTests = []struct {
 func TestAuthRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &mockBackend{ErrReturn: test.CreateEmailSessionReturn, GetUserReturn: test.GetUserReturn}
-		store := getAuthStore(nil, nil, nil, false, false, nil, backend)
+		store := getAuthStore(nil, nil, nil, false, false, test.MailErr, backend)
 		err := store.register(test.Email)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
@@ -463,16 +473,17 @@ func TestAuthRegister(t *testing.T) {
 }
 
 var createProfileTests = []struct {
-	Scenario              string
-	HasCookieGetError     bool
-	HasCookiePutError     bool
-	getEmailSessionReturn *getEmailSessionReturn
-	EmailCookie           *emailCookie
-	LoginReturn           *LoginReturn
-	UpdateUserReturn      error
-	CreateSessionReturn   *SessionRememberReturn
-	MethodsCalled         []string
-	ExpectedErr           string
+	Scenario                 string
+	HasCookieGetError        bool
+	HasCookiePutError        bool
+	getEmailSessionReturn    *getEmailSessionReturn
+	EmailCookie              *emailCookie
+	LoginReturn              *LoginReturn
+	UpdateUserReturn         error
+	DeleteEmailSessionReturn error
+	CreateSessionReturn      *SessionRememberReturn
+	MethodsCalled            []string
+	ExpectedErr              string
 }{
 	{
 		Scenario:          "Error Getting email cookie",
@@ -499,6 +510,15 @@ var createProfileTests = []struct {
 		LoginReturn:           loginErr(),
 		MethodsCalled:         []string{"GetEmailSession", "UpdateUser"},
 		ExpectedErr:           "Unable to update user",
+	},
+	{
+		Scenario:                 "Error Deleting Email Session",
+		EmailCookie:              &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
+		getEmailSessionReturn:    getEmailSessionSuccess(),
+		DeleteEmailSessionReturn: errors.New("failed"),
+		LoginReturn:              loginErr(),
+		MethodsCalled:            []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession"},
+		ExpectedErr:              "Error while creating profile",
 	},
 	{
 		Scenario:              "Error Creating login",
@@ -529,7 +549,7 @@ var createProfileTests = []struct {
 
 func TestAuthCreateProfile(t *testing.T) {
 	for i, test := range createProfileTests {
-		backend := &mockBackend{ErrReturn: test.UpdateUserReturn, getEmailSessionReturn: test.getEmailSessionReturn, CreateLoginReturn: test.LoginReturn, CreateSessionReturn: test.CreateSessionReturn}
+		backend := &mockBackend{ErrReturn: test.UpdateUserReturn, getEmailSessionReturn: test.getEmailSessionReturn, CreateLoginReturn: test.LoginReturn, CreateSessionReturn: test.CreateSessionReturn, DeleteEmailSessionReturn: test.DeleteEmailSessionReturn}
 		store := getAuthStore(test.EmailCookie, nil, nil, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
 		err := store.createProfile("name", "organization", "password", "path", 1, 1)
 		methods := store.backend.(*mockBackend).MethodsCalled

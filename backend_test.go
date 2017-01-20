@@ -225,22 +225,23 @@ type getEmailSessionReturn struct {
 
 type mockBackend struct {
 	backender
-	GetUserLoginReturn    *LoginReturn
-	ExpirationReturn      *time.Time
-	GetSessionReturn      *SessionReturn
-	CreateSessionReturn   *SessionRememberReturn
-	RenewSessionReturn    *SessionReturn
-	AddUserReturn         error
-	GetUserReturn         *GetUserReturn
-	getEmailSessionReturn *getEmailSessionReturn
-	CreateLoginReturn     *LoginReturn
-	UpdateEmailReturn     *SessionReturn
-	UpdatePasswordReturn  *SessionReturn
-	GetRememberMeReturn   *RememberMeReturn
-	RenewRememberMeReturn *RememberMeReturn
-	RememberMeReturn      *RememberMeReturn
-	ErrReturn             error
-	MethodsCalled         []string
+	GetUserLoginReturn       *LoginReturn
+	ExpirationReturn         *time.Time
+	GetSessionReturn         *SessionReturn
+	CreateSessionReturn      *SessionRememberReturn
+	RenewSessionReturn       *SessionReturn
+	AddUserReturn            error
+	DeleteEmailSessionReturn error
+	GetUserReturn            *GetUserReturn
+	getEmailSessionReturn    *getEmailSessionReturn
+	CreateLoginReturn        *LoginReturn
+	UpdateEmailReturn        *SessionReturn
+	UpdatePasswordReturn     *SessionReturn
+	GetRememberMeReturn      *RememberMeReturn
+	RenewRememberMeReturn    *RememberMeReturn
+	RememberMeReturn         *RememberMeReturn
+	ErrReturn                error
+	MethodsCalled            []string
 }
 
 func (b *mockBackend) GetLogin(email, loginProvider string) (*userLogin, error) {
@@ -308,7 +309,7 @@ func (b *mockBackend) GetEmailSession(emailVerifyHash string) (*emailSession, er
 
 func (b *mockBackend) DeleteEmailSession(emailVerifyHash string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "DeleteEmailSession")
-	return b.ErrReturn
+	return b.DeleteEmailSessionReturn
 }
 
 func (b *mockBackend) GetUser(email string) (*user, error) {
