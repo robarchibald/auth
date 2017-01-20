@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -293,9 +294,15 @@ type mockSessionStore struct {
 }
 
 func (m *mockSessionStore) GetSession() (*loginSession, error) {
+	if m.SessionReturn == nil {
+		return nil, errors.New("SessionReturn not initialized")
+	}
 	return m.SessionReturn.Session, m.SessionReturn.Err
 }
 
 func (m *mockSessionStore) CreateSession(email string, rememberMe bool) (*loginSession, error) {
+	if m.SessionReturn == nil {
+		return nil, errors.New("SessionReturn not initialized")
+	}
 	return m.SessionReturn.Session, m.SessionReturn.Err
 }

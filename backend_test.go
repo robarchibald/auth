@@ -245,29 +245,47 @@ type mockBackend struct {
 
 func (b *mockBackend) GetLogin(email, loginProvider string) (*userLogin, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetLogin")
+	if b.GetUserLoginReturn == nil {
+		return nil, errors.New("GetUserLoginReturn not initialized")
+	}
 	return b.GetUserLoginReturn.Login, b.GetUserLoginReturn.Err
 }
 
 func (b *mockBackend) GetSession(sessionHash string) (*loginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetSession")
+	if b.GetSessionReturn == nil {
+		return nil, errors.New("GetSessionReturn not initialized")
+	}
 	return b.GetSessionReturn.Session, b.GetSessionReturn.Err
 }
 
 func (b *mockBackend) CreateSession(email, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateSession")
+	if b.CreateSessionReturn == nil {
+		return nil, nil, errors.New("CreateSessionReturn not initialized")
+	}
 	return b.CreateSessionReturn.Session, b.CreateSessionReturn.RememberMe, b.CreateSessionReturn.Err
 }
 
 func (b *mockBackend) RenewSession(sessionHash string, renewTimeUTC time.Time) (*loginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "RenewSession")
+	if b.RenewSessionReturn == nil {
+		return nil, errors.New("RenewSessionReturn not initialized")
+	}
 	return b.RenewSessionReturn.Session, b.RenewSessionReturn.Err
 }
 func (b *mockBackend) GetRememberMe(selector string) (*rememberMeSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetRememberMe")
+	if b.GetRememberMeReturn == nil {
+		return nil, errors.New("GetRememberMeReturn not initialized")
+	}
 	return b.GetRememberMeReturn.RememberMe, b.GetRememberMeReturn.Err
 }
 func (b *mockBackend) RenewRememberMe(selector string, renewTimeUTC time.Time) (*rememberMeSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "RenewRememberMe")
+	if b.RenewRememberMeReturn == nil {
+		return nil, errors.New("RenewRememberMeReturn not initialized")
+	}
 	return b.RenewRememberMeReturn.RememberMe, b.RenewRememberMeReturn.Err
 }
 func (b *mockBackend) AddUser(email string) error {
@@ -282,6 +300,9 @@ func (b *mockBackend) CreateEmailSession(email, emailVerifyHash string) error {
 
 func (b *mockBackend) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetEmailSession")
+	if b.getEmailSessionReturn == nil {
+		return nil, errors.New("getEmailSessionReturn not initialized")
+	}
 	return b.getEmailSessionReturn.Session, b.getEmailSessionReturn.Err
 }
 
@@ -292,6 +313,9 @@ func (b *mockBackend) DeleteEmailSession(emailVerifyHash string) error {
 
 func (b *mockBackend) GetUser(email string) (*user, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetUser")
+	if b.GetUserReturn == nil {
+		return nil, errors.New("GetUserReturn not initialized")
+	}
 	return b.GetUserReturn.User, b.GetUserReturn.Err
 }
 
@@ -302,16 +326,25 @@ func (b *mockBackend) UpdateUser(email, fullname, company, pictureURL string) er
 
 func (b *mockBackend) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateLogin")
+	if b.CreateLoginReturn == nil {
+		return nil, errors.New("CreateLoginReturn not initialized")
+	}
 	return b.CreateLoginReturn.Login, b.CreateLoginReturn.Err
 }
 
 func (b *mockBackend) UpdateEmail(email string, password string, newEmail string) (*loginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdateEmail")
+	if b.UpdateEmailReturn == nil {
+		return nil, errors.New("UpdateEmailReturn not initialized")
+	}
 	return b.UpdateEmailReturn.Session, b.UpdateEmailReturn.Err
 }
 
 func (b *mockBackend) UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdatePassword")
+	if b.UpdatePasswordReturn == nil {
+		return nil, errors.New("UpdatePasswordReturn not initialized")
+	}
 	return b.UpdatePasswordReturn.Session, b.UpdatePasswordReturn.Err
 }
 

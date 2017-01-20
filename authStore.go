@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -32,7 +33,6 @@ type emailCookie struct {
 type authStore struct {
 	backend      backender
 	sessionStore sessionStorer
-	loginStore   loginStorer
 	mailer       mailer
 	cookieStore  cookieStorer
 	r            *http.Request
@@ -42,8 +42,7 @@ var emailRegex = regexp.MustCompile(`^(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$
 
 func newAuthStore(b backender, mailer mailer, w http.ResponseWriter, r *http.Request, customPrefix string, cookieKey []byte, secureOnlyCookie bool) authStorer {
 	sessionStore := newSessionStore(b, w, r, customPrefix, cookieKey, secureOnlyCookie)
-	loginStore := newLoginStore(b, mailer)
-	return &authStore{b, sessionStore, loginStore, mailer, newCookieStore(w, r, cookieKey, secureOnlyCookie), r}
+	return &authStore{b, sessionStore, mailer, newCookieStore(w, r, cookieKey, secureOnlyCookie), r}
 }
 
 func (s *authStore) GetSession() (*loginSession, error) {
@@ -66,6 +65,7 @@ func (s *authStore) GetBasicAuth() (*loginSession, error) {
 	return nil, newAuthError("Problem decoding credentials from basic auth", nil)
 }
 
+/******************************** Login ***********************************************/
 func (s *authStore) Login() error {
 	credentials, err := getCredentials(s.r)
 	if err != nil {
@@ -76,11 +76,31 @@ func (s *authStore) Login() error {
 }
 
 func (s *authStore) login(email, password string, rememberMe bool) (*loginSession, error) {
-	_, err := s.loginStore.Login(email, password, rememberMe)
+	if !isValidEmail(email) {
+		return nil, newAuthError("Please enter a valid email address.", nil)
+	}
+	if !isValidPassword(password) {
+		return nil, newAuthError(passwordValidationMessage, nil)
+	}
+
+	// add in check for DDOS attack. Slow down or lock out checks for same account
+	// or same IP with multiple failed attempts
+	login, err := s.backend.GetLogin(email, loginProviderDefaultName)
+	if err != nil {
+		return nil, newLoggedError("Invalid username or password", err)
+	}
+
+	if err := cryptoHashEquals(password, login.ProviderKey); err != nil {
+		return nil, newLoggedError("Invalid username or password", err)
+	}
 	if err != nil {
 		return nil, err
 	}
 	return s.sessionStore.CreateSession(email, rememberMe)
+}
+
+func isValidPassword(password string) bool {
+	return len(password) >= 7 && len(password) <= 20
 }
 
 type sendVerifyParams struct {
@@ -180,7 +200,7 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 		return newLoggedError("Error verifying email", err)
 	}
 
-	_, err = s.loginStore.CreateLogin(session.Email, fullName, password, mailQuota, fileQuota)
+	_, err = s.createLogin(session.Email, fullName, password, mailQuota, fileQuota)
 	if err != nil {
 		return newLoggedError("Unable to create login", err)
 	}
@@ -192,6 +212,25 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 
 	s.deleteEmailCookie()
 	return nil
+}
+
+/****************  TODO: send 0 for UID and GID numbers and empty quotas if mailQuota and fileQuota are 0 **********************/
+func (s *authStore) createLogin(email, fullName, password string, mailQuota, fileQuota int) (*userLogin, error) {
+	passwordHash, err := cryptoHash(password)
+	if err != nil {
+		return nil, newLoggedError("Unable to create login", err)
+	}
+
+	uidNumber := 10000 // vmail user
+	gidNumber := 10000 // vmail user
+	homeDirectory := "/home"
+	mQuota := fmt.Sprintf("%dGB", mailQuota)
+	fQuota := fmt.Sprintf("%dGB", fileQuota)
+	login, err := s.backend.CreateLogin(email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
+	if err != nil {
+		return nil, newLoggedError("Unable to create login", err)
+	}
+	return login, err
 }
 
 // move to sessionStore

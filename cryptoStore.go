@@ -95,7 +95,7 @@ func getRandomSalt(length, iterations int) (string, error) {
 }
 
 func cryptoHashEquals(in string, hash string) error {
-	if hash[0:7] == "{CRYPT}" {
+	if len(hash) > 7 && hash[0:7] == "{CRYPT}" {
 		hash = hash[7:]
 	}
 	hashed, err := cryptoHashWSalt(in, hash) // sha512_crypt will strip out salt from hash
