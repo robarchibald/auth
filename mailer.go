@@ -8,7 +8,7 @@ import (
 	"gopkg.in/gomail.v2"
 )
 
-type Mailer interface {
+type mailer interface {
 	SendWelcome(to string, data interface{}) error
 	SendVerify(to string, data interface{}) error
 	SendNewLogin(to string, data interface{}) error
@@ -17,13 +17,13 @@ type Mailer interface {
 	SendPasswordChanged(to string, data interface{}) error
 }
 
-type Sender interface {
+type sender interface {
 	Send(to, subject, body string) error
 }
 
 type emailer struct {
 	templateCache *template.Template
-	sender        Sender
+	sender        sender
 
 	VerifyEmailTemplate     string
 	VerifyEmailSubject      string

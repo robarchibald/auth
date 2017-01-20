@@ -18,7 +18,7 @@ func TestNewBackendLDAPLogin(t *testing.T) {
 		t.Fatal("unable to load config file", err)
 	}
 
-	l, err := NewBackendLDAPLogin(config.LdapServer, config.LdapPort, config.LdapBindDn, config.LdapPassword, config.LdapBaseDn, config.LdapUserFilter)
+	l, err := newBackendLDAPLogin(config.LdapServer, config.LdapPort, config.LdapBindDn, config.LdapPassword, config.LdapBaseDn, config.LdapUserFilter)
 	if err != nil {
 		t.Fatal("unable to login", err)
 	}

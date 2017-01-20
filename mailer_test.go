@@ -87,7 +87,7 @@ func (s *NilSender) Send(to, subject, body string) error {
 
 type TextMailer struct {
 	Err error
-	Mailer
+	mailer
 	MessageTo   string
 	MessageData interface{}
 }

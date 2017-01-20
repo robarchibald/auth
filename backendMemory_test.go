@@ -9,11 +9,11 @@ var in5Minutes = time.Now().UTC().Add(5 * time.Minute)
 var in1Hour = time.Now().UTC().Add(time.Hour)
 
 func TestMemoryGetLogin(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	if _, err := backend.GetLogin("email", loginProviderDefaultName); err != errLoginNotFound {
 		t.Error("expected no login since login not added yet", err)
 	}
-	expected := &UserLogin{Email: "email", LoginProviderID: 1}
+	expected := &userLogin{Email: "email", LoginProviderID: 1}
 	backend.Logins = append(backend.Logins, expected)
 	if actual, _ := backend.GetLogin("email", loginProviderDefaultName); expected != actual {
 		t.Error("expected no login since login not added yet")
@@ -21,7 +21,7 @@ func TestMemoryGetLogin(t *testing.T) {
 }
 
 func TestMemoryCreateSession(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	if session, _, _ := backend.CreateSession("test@test.com", "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.Email != "test@test.com" {
 		t.Error("expected matching session", session)
 	}
@@ -50,58 +50,58 @@ func TestMemoryCreateSession(t *testing.T) {
 }
 
 func TestMemoryGetSession(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	if _, err := backend.GetSession("sessionHash"); err != errSessionNotFound {
 		t.Error("expected err", err)
 	}
 
 	// add session now and try again... should be returned
-	backend.Sessions = append(backend.Sessions, &UserLoginSession{SessionHash: "sessionHash"})
+	backend.Sessions = append(backend.Sessions, &loginSession{SessionHash: "sessionHash"})
 	if session, _ := backend.GetSession("sessionHash"); session.SessionHash != "sessionHash" {
 		t.Error("expected session to be returned", session)
 	}
 }
 
 func TestMemoryRenewSession(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	renews := time.Now()
 	if _, err := backend.RenewSession("sessionHash", renews); err != errSessionNotFound {
 		t.Error("expected err", err)
 	}
 
 	// add session now and try again... should be renewed
-	backend.Sessions = append(backend.Sessions, &UserLoginSession{SessionHash: "sessionHash"})
+	backend.Sessions = append(backend.Sessions, &loginSession{SessionHash: "sessionHash"})
 	if session, _ := backend.RenewSession("sessionHash", renews); session.SessionHash != "sessionHash" || session.RenewTimeUTC != renews {
 		t.Error("expected session to be renewed", session)
 	}
 }
 
 func TestMemoryGetRememberMe(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	if _, err := backend.GetRememberMe("selector"); err != errRememberMeNotFound {
 		t.Error("expected err", err)
 	}
 
 	// add rememberMe now and try again... should be returned
-	backend.RememberMes = append(backend.RememberMes, &UserLoginRememberMe{Selector: "selector"})
+	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{Selector: "selector"})
 	if rememberMe, _ := backend.GetRememberMe("selector"); rememberMe.Selector != "selector" {
 		t.Error("expected rememberMe to be found", rememberMe)
 	}
 }
 
 func TestMemoryRenewRememberMe(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	renews := time.Now().UTC().Add(5 * time.Minute)
 	if _, err := backend.RenewRememberMe("selector", renews); err != errRememberMeNotFound {
 		t.Error("expected err", err)
 	}
 
-	backend.RememberMes = append(backend.RememberMes, &UserLoginRememberMe{Selector: "expired", ExpireTimeUTC: time.Now().UTC().Add(-1 * time.Hour)})
+	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{Selector: "expired", ExpireTimeUTC: time.Now().UTC().Add(-1 * time.Hour)})
 	if _, err := backend.RenewRememberMe("expired", renews); err != errRememberMeExpired {
 		t.Error("expected expired", err)
 	}
 
-	backend.RememberMes = append(backend.RememberMes, &UserLoginRememberMe{Selector: "selector", ExpireTimeUTC: time.Now().UTC().Add(time.Hour)})
+	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{Selector: "selector", ExpireTimeUTC: time.Now().UTC().Add(time.Hour)})
 	if _, err := backend.RenewRememberMe("selector", time.Now().UTC().Add(2*time.Hour)); err != errInvalidRenewTimeUTC {
 		t.Error("expected invalid renew time", err)
 	}
@@ -114,7 +114,7 @@ func TestMemoryRenewRememberMe(t *testing.T) {
 }
 
 func TestMemoryAddUser(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	if err := backend.AddUser("email"); err != nil || len(backend.Users) != 1 {
 		t.Error("expected valid session", err, backend.Users)
 	}
@@ -125,7 +125,7 @@ func TestMemoryAddUser(t *testing.T) {
 }
 
 func TestMemoryGetEmailSession(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	if _, err := backend.GetEmailSession("verifyHash"); err != errInvalidEmailVerifyHash {
 		t.Error("expected login not found err", err)
 	}
@@ -138,14 +138,14 @@ func TestMemoryGetEmailSession(t *testing.T) {
 }
 
 func TestMemoryUpdateUser(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	err := backend.UpdateUser("email", "fullname", "company", "pictureUrl")
 	if err != errUserNotFound {
 		t.Error("expected to be unable to update non-existant user")
 	}
 
-	backend = NewBackendMemory().(*backendMemory)
-	backend.Users = append(backend.Users, &User{PrimaryEmail: "email"})
+	backend = newBackendMemory().(*backendMemory)
+	backend.Users = append(backend.Users, &user{PrimaryEmail: "email"})
 	err = backend.UpdateUser("email", "fullname", "company", "pictureUrl")
 	if err != nil {
 		t.Error("expected success", err)
@@ -153,25 +153,25 @@ func TestMemoryUpdateUser(t *testing.T) {
 }
 
 func TestMemoryCreateLogin(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	if login, err := backend.CreateLogin("email", "passwordHash", "fullName", "homeDirectory", 1, 1, "mailQuota", "fileQuota"); err != nil || login.Email != "email" {
 		t.Error("expected valid login", login)
 	}
 }
 
 func TestMemoryUpdateEmail(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	backend.UpdateEmail("email", "password", "newEmail")
 }
 
 func TestMemoryUpdatePassword(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	backend.UpdatePassword("email", "oldPassword", "newPassword")
 }
 
 func TestMemoryInvalidateSession(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
-	backend.Sessions = append(backend.Sessions, &UserLoginSession{SessionHash: "hash"})
+	backend := newBackendMemory().(*backendMemory)
+	backend.Sessions = append(backend.Sessions, &loginSession{SessionHash: "hash"})
 	backend.InvalidateSession("hash")
 	if len(backend.Sessions) != 0 {
 		t.Error("Expected to remove session")
@@ -179,13 +179,13 @@ func TestMemoryInvalidateSession(t *testing.T) {
 }
 
 func TestMemoryInvalidateSessions(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	backend.InvalidateSessions("email")
 }
 
 func TestMemoryInvalidateRememberMe(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
-	backend.RememberMes = append(backend.RememberMes, &UserLoginRememberMe{Selector: "selector"})
+	backend := newBackendMemory().(*backendMemory)
+	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{Selector: "selector"})
 	backend.InvalidateRememberMe("selector")
 	if len(backend.RememberMes) != 0 {
 		t.Error("Expected to remove remember me")
@@ -193,16 +193,16 @@ func TestMemoryInvalidateRememberMe(t *testing.T) {
 }
 
 func TestMemoryClose(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	backend.Close()
 }
 
 func TestToString(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
-	backend.Users = append(backend.Users, &User{})
-	backend.Logins = append(backend.Logins, &UserLogin{})
-	backend.Sessions = append(backend.Sessions, &UserLoginSession{})
-	backend.RememberMes = append(backend.RememberMes, &UserLoginRememberMe{})
+	backend := newBackendMemory().(*backendMemory)
+	backend.Users = append(backend.Users, &user{})
+	backend.Logins = append(backend.Logins, &userLogin{})
+	backend.Sessions = append(backend.Sessions, &loginSession{})
+	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{})
 
 	actual := backend.ToString()
 	expected := "Users:\n     {  <nil> 0}\nLogins:\n     { 0 }\nSessions:\n     {  0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {   0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
@@ -212,14 +212,14 @@ func TestToString(t *testing.T) {
 }
 
 func TestGetLoginProvider(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	if backend.getLoginProvider("bogus") != nil {
 		t.Error("expected no provider")
 	}
 }
 
 func TestGetLoginByUser(t *testing.T) {
-	backend := NewBackendMemory().(*backendMemory)
+	backend := newBackendMemory().(*backendMemory)
 	if backend.getLoginByUser("email", "bogus") != nil {
 		t.Error("expected no login")
 	}

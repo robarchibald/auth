@@ -13,7 +13,7 @@ type backendLDAPLogin struct {
 	userLoginFilter string
 }
 
-func NewBackendLDAPLogin(server string, port int, bindDn, password, baseDn, userLoginFilter string) (LoginBackender, error) {
+func newBackendLDAPLogin(server string, port int, bindDn, password, baseDn, userLoginFilter string) (loginBackender, error) {
 	db, err := onedb.NewLdap(server, port, bindDn, password)
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ type ldapData struct {
 	HomeDirectory []string
 }
 
-func (l *backendLDAPLogin) GetLogin(email, loginProvider string) (*UserLogin, error) {
+func (l *backendLDAPLogin) GetLogin(email, loginProvider string) (*userLogin, error) {
 	req := ldap.NewSearchRequest(l.baseDn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, 0, false, fmt.Sprintf(l.userLoginFilter, email), []string{"uid", "userPassword", "uidNumber", "gidNumber", "homeDirectory"}, nil)
 	data := &ldapData{}
 	err := l.db.QueryStructRow(req, data)
@@ -40,11 +40,11 @@ func (l *backendLDAPLogin) GetLogin(email, loginProvider string) (*UserLogin, er
 	if len(data.UserPassword) != 0 {
 		password = data.UserPassword[0]
 	}
-	return &UserLogin{ProviderKey: password}, nil
+	return &userLogin{ProviderKey: password}, nil
 }
 
 /****************  TODO: create different type of user if not using file and mail quotas  **********************/
-func (l *backendLDAPLogin) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
+func (l *backendLDAPLogin) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + ",ou=Users,dc=endfirst,dc=com")
 	req.Attribute("objectClass", []string{"posixAccount", "account", "ownCloud", "systemQuotas"})
 	req.Attribute("uid", []string{email})
@@ -56,14 +56,14 @@ func (l *backendLDAPLogin) CreateLogin(email, passwordHash, fullName, homeDirect
 	req.Attribute("quota", []string{mailQuota})
 	req.Attribute("ownCloudQuota", []string{fileQuota})
 	err := l.db.Execute(req)
-	return &UserLogin{}, err
+	return &userLogin{}, err
 }
 
-func (l *backendLDAPLogin) UpdateEmail(email string, password string, newEmail string) (*UserLoginSession, error) {
+func (l *backendLDAPLogin) UpdateEmail(email string, password string, newEmail string) (*loginSession, error) {
 	return nil, nil
 }
 
-func (l *backendLDAPLogin) UpdatePassword(email string, oldPassword string, newPassword string) (*UserLoginSession, error) {
+func (l *backendLDAPLogin) UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error) {
 	return nil, nil
 }
 

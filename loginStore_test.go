@@ -4,14 +4,14 @@ import (
 	"testing"
 )
 
-func getLoginStore(mailErr error, backend *MockBackend) LoginStorer {
+func getLoginStore(mailErr error, backend *mockBackend) loginStorer {
 	return &loginStore{backend, &TextMailer{Err: mailErr}}
 }
 
 func TestNewLoginStore(t *testing.T) {
-	b := &MockBackend{}
+	b := &mockBackend{}
 	m := &TextMailer{}
-	actual := NewLoginStore(b, m).(*loginStore)
+	actual := newLoginStore(b, m).(*loginStore)
 	if actual.backend != b {
 		t.Fatal("expected correct init")
 	}
@@ -26,7 +26,7 @@ var loginTests = []struct {
 	GetUserLoginReturn  *LoginReturn
 	ErrReturn           error
 	MethodsCalled       []string
-	ExpectedResult      *UserLoginRememberMe
+	ExpectedResult      *rememberMeSession
 	ExpectedErr         string
 }{
 	{
@@ -52,7 +52,7 @@ var loginTests = []struct {
 		Scenario:           "Incorrect password",
 		Email:              "email@example.com",
 		Password:           "wrongPassword",
-		GetUserLoginReturn: &LoginReturn{Login: &UserLogin{Email: "test@test.com", ProviderKey: "1234"}},
+		GetUserLoginReturn: &LoginReturn{Login: &userLogin{Email: "test@test.com", ProviderKey: "1234"}},
 		MethodsCalled:      []string{"GetUserLogin"},
 		ExpectedErr:        "Invalid username or password",
 	},
@@ -71,10 +71,10 @@ func TestAuthLogin(t *testing.T) {
 		t.SkipNow()
 	}
 	for i, test := range loginTests {
-		backend := &MockBackend{GetUserLoginReturn: test.GetUserLoginReturn, ErrReturn: test.ErrReturn}
+		backend := &mockBackend{GetUserLoginReturn: test.GetUserLoginReturn, ErrReturn: test.ErrReturn}
 		store := getLoginStore(nil, backend).(*loginStore)
 		val, err := store.Login(test.Email, test.Password, test.RememberMe)
-		methods := store.backend.(*MockBackend).MethodsCalled
+		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
@@ -83,30 +83,30 @@ func TestAuthLogin(t *testing.T) {
 }
 
 /****************************************************************************/
-type MockLoginStore struct {
+type mockLoginStore struct {
 	LoginReturn *LoginReturn
 }
 
-func NewMockLoginStore() LoginStorer {
-	return &MockLoginStore{}
+func newMockLoginStore() loginStorer {
+	return &mockLoginStore{}
 }
 
-func (s *MockLoginStore) Login(email, password string, rememberMe bool) (*UserLogin, error) {
+func (s *mockLoginStore) Login(email, password string, rememberMe bool) (*userLogin, error) {
 	return s.LoginReturn.Login, s.LoginReturn.Err
 }
 
-func (s *MockLoginStore) LoginBasic() (*UserLogin, error) {
+func (s *mockLoginStore) LoginBasic() (*userLogin, error) {
 	return s.LoginReturn.Login, s.LoginReturn.Err
 }
 
-func (s *MockLoginStore) CreateLogin(email, fullName, password string, cloudQuota, fileQuota int) (*UserLogin, error) {
+func (s *mockLoginStore) CreateLogin(email, fullName, password string, cloudQuota, fileQuota int) (*userLogin, error) {
 	return s.LoginReturn.Login, s.LoginReturn.Err
 }
 
-func (s *MockLoginStore) UpdateEmail() error {
+func (s *mockLoginStore) UpdateEmail() error {
 	return s.LoginReturn.Err
 }
 
-func (s *MockLoginStore) UpdatePassword() error {
+func (s *mockLoginStore) UpdatePassword() error {
 	return s.LoginReturn.Err
 }

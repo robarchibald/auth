@@ -11,7 +11,7 @@ import (
 
 var cookieStoreInstance *securecookie.SecureCookie
 
-type CookieStorer interface {
+type cookieStorer interface {
 	Get(key string, result interface{}) error
 	Put(key string, value interface{}) error
 	PutWithExpire(key string, expireMins int, value interface{}) error
@@ -24,7 +24,7 @@ type cookieStore struct {
 	secureOnly bool
 }
 
-func NewCookieStore(w http.ResponseWriter, r *http.Request, cookieKey []byte, secureOnly bool) CookieStorer {
+func newCookieStore(w http.ResponseWriter, r *http.Request, cookieKey []byte, secureOnly bool) cookieStorer {
 	if cookieStoreInstance == nil {
 		cookieStoreInstance = securecookie.New(cookieKey, nil)
 	}

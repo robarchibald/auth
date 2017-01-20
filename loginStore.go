@@ -4,24 +4,24 @@ import (
 	"fmt"
 )
 
-type LoginStorer interface {
-	Login(email, password string, rememberMe bool) (*UserLogin, error)
+type loginStorer interface {
+	Login(email, password string, rememberMe bool) (*userLogin, error)
 
-	CreateLogin(email, fullName, password string, mailQuota, fileQuota int) (*UserLogin, error)
+	CreateLogin(email, fullName, password string, mailQuota, fileQuota int) (*userLogin, error)
 	UpdateEmail() error
 	UpdatePassword() error
 }
 
 type loginStore struct {
-	backend Backender
-	mailer  Mailer
+	backend backender
+	mailer  mailer
 }
 
-func NewLoginStore(backend Backender, mailer Mailer) LoginStorer {
+func newLoginStore(backend backender, mailer mailer) loginStorer {
 	return &loginStore{backend, mailer}
 }
 
-func (s *loginStore) Login(email, password string, rememberMe bool) (*UserLogin, error) {
+func (s *loginStore) Login(email, password string, rememberMe bool) (*userLogin, error) {
 	if !isValidEmail(email) {
 		return nil, newAuthError("Please enter a valid email address.", nil)
 	}
@@ -43,7 +43,7 @@ func (s *loginStore) Login(email, password string, rememberMe bool) (*UserLogin,
 }
 
 /****************  TODO: send 0 for UID and GID numbers and empty quotas if mailQuota and fileQuota are 0 **********************/
-func (s *loginStore) CreateLogin(email, fullName, password string, mailQuota, fileQuota int) (*UserLogin, error) {
+func (s *loginStore) CreateLogin(email, fullName, password string, mailQuota, fileQuota int) (*userLogin, error) {
 	passwordHash, err := cryptoHash(password)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)

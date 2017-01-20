@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-type SessionStorer interface {
-	GetSession() (*UserLoginSession, error)
-	CreateSession(email string, rememberMe bool) (*UserLoginSession, error)
+type sessionStorer interface {
+	GetSession() (*loginSession, error)
+	CreateSession(email string, rememberMe bool) (*loginSession, error)
 }
 
 type sessionCookie struct {
@@ -24,16 +24,16 @@ type rememberMeCookie struct {
 }
 
 type sessionStore struct {
-	b           SessionBackender
-	cookieStore CookieStorer
+	b           sessionBackender
+	cookieStore cookieStorer
 	r           *http.Request
 }
 
-func NewSessionStore(b SessionBackender, w http.ResponseWriter, r *http.Request, customPrefix string, cookieKey []byte, secureOnlyCookie bool) SessionStorer {
+func newSessionStore(b sessionBackender, w http.ResponseWriter, r *http.Request, customPrefix string, cookieKey []byte, secureOnlyCookie bool) sessionStorer {
 	emailCookieName = customPrefix + "Email"
 	sessionCookieName = customPrefix + "Session"
 	rememberMeCookieName = customPrefix + "RememberMe"
-	return &sessionStore{b, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
+	return &sessionStore{b, newCookieStore(w, r, cookieKey, secureOnlyCookie), r}
 }
 
 var emailCookieName = "Email"
@@ -47,7 +47,7 @@ const sessionExpireDuration time.Duration = time.Hour
 const rememberMeRenewDuration time.Duration = time.Hour
 const rememberMeExpireDuration time.Duration = time.Hour * 24 * 30 // 30 days
 
-func (s *sessionStore) GetSession() (*UserLoginSession, error) {
+func (s *sessionStore) GetSession() (*loginSession, error) {
 	cookie, err := s.getSessionCookie()
 	if err != nil || cookie.SessionID == "" { // impossible to get the session if there is no cookie
 		return nil, newAuthError("Session cookie not found", err)
@@ -71,7 +71,7 @@ func (s *sessionStore) GetSession() (*UserLoginSession, error) {
 	return session, nil
 }
 
-func (s *sessionStore) getRememberMe() (*UserLoginRememberMe, error) {
+func (s *sessionStore) getRememberMe() (*rememberMeSession, error) {
 	cookie, err := s.getRememberMeCookie()
 	if err != nil || cookie.Selector == "" { // impossible to get the remember Me if there is no cookie
 		return nil, newAuthError("RememberMe cookie not found", err)
@@ -104,7 +104,7 @@ func (s *sessionStore) getRememberMe() (*UserLoginRememberMe, error) {
 	return rememberMe, nil
 }
 
-func (s *sessionStore) renewSession(sessionID, sessionHash string, renewTimeUTC, expireTimeUTC *time.Time) (*UserLoginSession, error) {
+func (s *sessionStore) renewSession(sessionID, sessionHash string, renewTimeUTC, expireTimeUTC *time.Time) (*loginSession, error) {
 	if renewTimeUTC.Before(time.Now().UTC()) && expireTimeUTC.After(time.Now().UTC()) {
 		session, err := s.b.RenewSession(sessionHash, time.Now().UTC().Add(sessionRenewDuration))
 		if err != nil {
@@ -136,7 +136,7 @@ func (s *sessionStore) renewSession(sessionID, sessionHash string, renewTimeUTC,
 	return session, nil
 }
 
-func (s *sessionStore) CreateSession(email string, rememberMe bool) (*UserLoginSession, error) {
+func (s *sessionStore) CreateSession(email string, rememberMe bool) (*loginSession, error) {
 	var err error
 	var selector, token, tokenHash string
 	if rememberMe {

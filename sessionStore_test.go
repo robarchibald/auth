@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func getSessionStore(emailCookieToReturn *emailCookie, sessionCookieToReturn *sessionCookie, rememberMeCookieToReturn *rememberMeCookie, hasCookieGetError, hasCookiePutError bool, backend *MockBackend) *sessionStore {
+func getSessionStore(emailCookieToReturn *emailCookie, sessionCookieToReturn *sessionCookie, rememberMeCookieToReturn *rememberMeCookie, hasCookieGetError, hasCookiePutError bool, backend *mockBackend) *sessionStore {
 	r := &http.Request{}
 	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookieToReturn, sessionCookieName: sessionCookieToReturn, rememberMeCookieName: rememberMeCookieToReturn}, hasCookieGetError, hasCookiePutError)
 	return &sessionStore{backend, cookieStore, r}
@@ -21,7 +21,7 @@ var getSessionTests = []struct {
 	RenewSessionReturn  *SessionReturn
 	GetRememberMeReturn *RememberMeReturn
 	MethodsCalled       []string
-	ExpectedResult      *UserLoginRememberMe
+	ExpectedResult      *rememberMeSession
 	ExpectedErr         string
 }{
 	{
@@ -43,7 +43,7 @@ var getSessionTests = []struct {
 	{
 		Scenario:         "Get Session Error",
 		SessionCookie:    sessionCookieGood(futureTime, futureTime),
-		GetSessionReturn: &SessionReturn{&UserLoginSession{}, errSessionNotFound},
+		GetSessionReturn: &SessionReturn{&loginSession{}, errSessionNotFound},
 		MethodsCalled:    []string{"GetSession"},
 		ExpectedErr:      "Failed to verify session",
 	},
@@ -57,10 +57,10 @@ var getSessionTests = []struct {
 
 func TestGetSession(t *testing.T) {
 	for i, test := range getSessionTests {
-		backend := &MockBackend{GetSessionReturn: test.GetSessionReturn, RenewSessionReturn: test.RenewSessionReturn}
+		backend := &mockBackend{GetSessionReturn: test.GetSessionReturn, RenewSessionReturn: test.RenewSessionReturn}
 		store := getSessionStore(nil, test.SessionCookie, nil, test.HasCookieGetError, test.HasCookiePutError, backend)
 		val, err := store.GetSession()
-		methods := store.b.(*MockBackend).MethodsCalled
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
@@ -78,7 +78,7 @@ var renewSessionTests = []struct {
 	RenewSessionReturn  *SessionReturn
 	GetRememberMeReturn *RememberMeReturn
 	MethodsCalled       []string
-	ExpectedResult      *UserLoginRememberMe
+	ExpectedResult      *rememberMeSession
 	ExpectedErr         string
 }{
 	{
@@ -140,10 +140,10 @@ var renewSessionTests = []struct {
 // NOTE - can't currently get coverage for the error at approx line 147 for the saveSessionCookie error
 func TestRenewSession(t *testing.T) {
 	for i, test := range renewSessionTests {
-		backend := &MockBackend{RenewSessionReturn: test.RenewSessionReturn, GetRememberMeReturn: test.GetRememberMeReturn}
+		backend := &mockBackend{RenewSessionReturn: test.RenewSessionReturn, GetRememberMeReturn: test.GetRememberMeReturn}
 		store := getSessionStore(nil, nil, test.RememberCookie, test.HasCookieGetError, test.HasCookiePutError, backend)
 		val, err := store.renewSession("sessionId", "sessionHash", &test.RenewTimeUTC, &test.ExpireTimeUTC)
-		methods := store.b.(*MockBackend).MethodsCalled
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
@@ -159,7 +159,7 @@ var rememberMeTests = []struct {
 	GetRememberMeReturn   *RememberMeReturn
 	RenewRememberMeReturn *RememberMeReturn
 	MethodsCalled         []string
-	ExpectedResult        *UserLoginRememberMe
+	ExpectedResult        *rememberMeSession
 	ExpectedErr           string
 }{
 	{
@@ -176,7 +176,7 @@ var rememberMeTests = []struct {
 	{
 		Scenario:            "Get RememberMe Error",
 		RememberCookie:      rememberCookie(futureTime, futureTime),
-		GetRememberMeReturn: &RememberMeReturn{&UserLoginRememberMe{}, errRememberMeNotFound},
+		GetRememberMeReturn: &RememberMeReturn{&rememberMeSession{}, errRememberMeNotFound},
 		MethodsCalled:       []string{"GetRememberMe"},
 		ExpectedErr:         "Unable to find matching RememberMe in DB",
 	},
@@ -191,7 +191,7 @@ var rememberMeTests = []struct {
 		Scenario:              "Renew RememberMe Error",
 		RememberCookie:        rememberCookie(pastTime, futureTime),
 		GetRememberMeReturn:   rememberMe(pastTime, futureTime),
-		RenewRememberMeReturn: &RememberMeReturn{&UserLoginRememberMe{}, errRememberMeNotFound},
+		RenewRememberMeReturn: &RememberMeReturn{&rememberMeSession{}, errRememberMeNotFound},
 		MethodsCalled:         []string{"GetRememberMe", "RenewRememberMe"},
 		ExpectedErr:           "Unable to renew RememberMe",
 	},
@@ -206,10 +206,10 @@ var rememberMeTests = []struct {
 
 func TestRememberMe(t *testing.T) {
 	for i, test := range rememberMeTests {
-		backend := &MockBackend{GetRememberMeReturn: test.GetRememberMeReturn, RenewRememberMeReturn: test.RenewRememberMeReturn}
+		backend := &mockBackend{GetRememberMeReturn: test.GetRememberMeReturn, RenewRememberMeReturn: test.RenewRememberMeReturn}
 		store := getSessionStore(nil, nil, test.RememberCookie, test.HasCookieGetError, test.HasCookiePutError, backend)
 		val, err := store.getRememberMe()
-		methods := store.b.(*MockBackend).MethodsCalled
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
@@ -226,7 +226,7 @@ var createSessionTests = []struct {
 	RememberMeCookie    *rememberMeCookie
 	CreateSessionReturn *SessionRememberReturn
 	MethodsCalled       []string
-	ExpectedResult      *UserLoginRememberMe
+	ExpectedResult      *rememberMeSession
 	ExpectedErr         string
 }{
 	{
@@ -276,10 +276,10 @@ var createSessionTests = []struct {
 
 func TestCreateSession(t *testing.T) {
 	for i, test := range createSessionTests {
-		backend := &MockBackend{CreateSessionReturn: test.CreateSessionReturn}
+		backend := &mockBackend{CreateSessionReturn: test.CreateSessionReturn}
 		store := getSessionStore(nil, test.SessionCookie, test.RememberMeCookie, test.HasCookieGetError, test.HasCookiePutError, backend)
 		val, err := store.CreateSession("test@test.com", test.RememberMe)
-		methods := store.b.(*MockBackend).MethodsCalled
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
@@ -288,14 +288,14 @@ func TestCreateSession(t *testing.T) {
 }
 
 /*************************************************************************************/
-type MockSessionStore struct {
+type mockSessionStore struct {
 	SessionReturn *SessionReturn
 }
 
-func (m *MockSessionStore) GetSession() (*UserLoginSession, error) {
+func (m *mockSessionStore) GetSession() (*loginSession, error) {
 	return m.SessionReturn.Session, m.SessionReturn.Err
 }
 
-func (m *MockSessionStore) CreateSession(email string, rememberMe bool) (*UserLoginSession, error) {
+func (m *mockSessionStore) CreateSession(email string, rememberMe bool) (*loginSession, error) {
 	return m.SessionReturn.Session, m.SessionReturn.Err
 }

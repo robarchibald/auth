@@ -13,9 +13,9 @@ import (
 	"time"
 )
 
-type AuthStorer interface {
-	GetSession() (*UserLoginSession, error)
-	GetBasicAuth() (*UserLoginSession, error)
+type authStorer interface {
+	GetSession() (*loginSession, error)
+	GetBasicAuth() (*loginSession, error)
 	Login() error
 	Register() error
 	CreateProfile() error
@@ -30,27 +30,27 @@ type emailCookie struct {
 }
 
 type authStore struct {
-	backend      Backender
-	sessionStore SessionStorer
-	loginStore   LoginStorer
-	mailer       Mailer
-	cookieStore  CookieStorer
+	backend      backender
+	sessionStore sessionStorer
+	loginStore   loginStorer
+	mailer       mailer
+	cookieStore  cookieStorer
 	r            *http.Request
 }
 
 var emailRegex = regexp.MustCompile(`^(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$`)
 
-func NewAuthStore(b Backender, mailer Mailer, w http.ResponseWriter, r *http.Request, customPrefix string, cookieKey []byte, secureOnlyCookie bool) AuthStorer {
-	sessionStore := NewSessionStore(b, w, r, customPrefix, cookieKey, secureOnlyCookie)
-	loginStore := NewLoginStore(b, mailer)
-	return &authStore{b, sessionStore, loginStore, mailer, NewCookieStore(w, r, cookieKey, secureOnlyCookie), r}
+func newAuthStore(b backender, mailer mailer, w http.ResponseWriter, r *http.Request, customPrefix string, cookieKey []byte, secureOnlyCookie bool) authStorer {
+	sessionStore := newSessionStore(b, w, r, customPrefix, cookieKey, secureOnlyCookie)
+	loginStore := newLoginStore(b, mailer)
+	return &authStore{b, sessionStore, loginStore, mailer, newCookieStore(w, r, cookieKey, secureOnlyCookie), r}
 }
 
-func (s *authStore) GetSession() (*UserLoginSession, error) {
+func (s *authStore) GetSession() (*loginSession, error) {
 	return s.sessionStore.GetSession()
 }
 
-func (s *authStore) GetBasicAuth() (*UserLoginSession, error) {
+func (s *authStore) GetBasicAuth() (*loginSession, error) {
 	session, err := s.GetSession()
 	if err == nil {
 		return session, nil
@@ -75,7 +75,7 @@ func (s *authStore) Login() error {
 	return err
 }
 
-func (s *authStore) login(email, password string, rememberMe bool) (*UserLoginSession, error) {
+func (s *authStore) login(email, password string, rememberMe bool) (*loginSession, error) {
 	_, err := s.loginStore.Login(email, password, rememberMe)
 	if err != nil {
 		return nil, err

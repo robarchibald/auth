@@ -38,7 +38,7 @@ func TestRedisCreateSession(t *testing.T) {
 }
 
 func TestRedisGetSession(t *testing.T) {
-	data := UserLoginSession{Email: "test@test.com", SessionHash: "hash"}
+	data := loginSession{Email: "test@test.com", SessionHash: "hash"}
 	m := onedb.NewMock(nil, nil, data)
 	r := backendRedisSession{db: m, prefix: "test"}
 	s, err := r.GetSession("hash")
@@ -49,7 +49,7 @@ func TestRedisGetSession(t *testing.T) {
 
 func TestRedisRenewSession(t *testing.T) {
 	// success
-	data := UserLoginSession{Email: "test@test.com", SessionHash: "hash", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
+	data := loginSession{Email: "test@test.com", SessionHash: "hash", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
 	m := onedb.NewMock(nil, nil, data)
 	r := backendRedisSession{db: m, prefix: "test"}
 	s, err := r.RenewSession("hash", time.Now().AddDate(1, 0, 0))
@@ -68,7 +68,7 @@ func TestRedisRenewSession(t *testing.T) {
 
 func TestRedisInvalidateSession(t *testing.T) {
 	// success
-	data := UserLoginSession{Email: "test@test.com", SessionHash: "hash", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
+	data := loginSession{Email: "test@test.com", SessionHash: "hash", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
 	m := onedb.NewMock(nil, nil, data)
 	r := backendRedisSession{db: m, prefix: "test"}
 	if err := r.InvalidateSession("hash"); err != nil {
@@ -78,7 +78,7 @@ func TestRedisInvalidateSession(t *testing.T) {
 
 func TestRedisGetRememberMe(t *testing.T) {
 	// success
-	data := UserLoginRememberMe{Selector: "selector"}
+	data := rememberMeSession{Selector: "selector"}
 	m := onedb.NewMock(nil, nil, data)
 	r := backendRedisSession{db: m, prefix: "test"}
 	rememberMe, err := r.GetRememberMe("selector")
@@ -89,7 +89,7 @@ func TestRedisGetRememberMe(t *testing.T) {
 
 func TestRedisRenewRememberMe(t *testing.T) {
 	// success
-	data := UserLoginRememberMe{Selector: "selector", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
+	data := rememberMeSession{Selector: "selector", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
 	m := onedb.NewMock(nil, nil, data)
 	r := backendRedisSession{db: m, prefix: "test"}
 	renew := time.Now().AddDate(0, 1, 0)
@@ -107,7 +107,7 @@ func TestRedisRenewRememberMe(t *testing.T) {
 	}
 
 	// expired
-	data = UserLoginRememberMe{Selector: "selector", ExpireTimeUTC: time.Now().AddDate(0, 0, -1)}
+	data = rememberMeSession{Selector: "selector", ExpireTimeUTC: time.Now().AddDate(0, 0, -1)}
 	m = onedb.NewMock(nil, nil, data)
 	r = backendRedisSession{db: m, prefix: "test"}
 	remember, err = r.RenewRememberMe("selector", time.Now())
@@ -116,7 +116,7 @@ func TestRedisRenewRememberMe(t *testing.T) {
 	}
 
 	// invalid renew time
-	data = UserLoginRememberMe{Selector: "selector", ExpireTimeUTC: time.Now().AddDate(0, 0, 1)}
+	data = rememberMeSession{Selector: "selector", ExpireTimeUTC: time.Now().AddDate(0, 0, 1)}
 	m = onedb.NewMock(nil, nil, data)
 	r = backendRedisSession{db: m, prefix: "test"}
 	remember, err = r.RenewRememberMe("selector", time.Now().AddDate(0, 0, -1))
@@ -126,7 +126,7 @@ func TestRedisRenewRememberMe(t *testing.T) {
 }
 
 func TestRedisInvalidateRememberMe(t *testing.T) {
-	data := UserLoginRememberMe{Selector: "selector", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
+	data := rememberMeSession{Selector: "selector", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
 	m := onedb.NewMock(nil, nil, data)
 	r := backendRedisSession{db: m, prefix: "test"}
 	if err := r.InvalidateRememberMe("selector"); err != nil {

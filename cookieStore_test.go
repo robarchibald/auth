@@ -16,13 +16,13 @@ var cookieKey = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
 
 func getCookieStore() *cookieStore {
 	r, _ := http.NewRequest("GET", "www.google.com", nil)
-	return NewCookieStore(httptest.NewRecorder(), r, cookieKey, false).(*cookieStore)
+	return newCookieStore(httptest.NewRecorder(), r, cookieKey, false).(*cookieStore)
 }
 
 func TestNewCookieStore(t *testing.T) {
 	r := &http.Request{}
 	w := httptest.NewRecorder()
-	actual := NewCookieStore(w, r, cookieKey, false).(*cookieStore)
+	actual := newCookieStore(w, r, cookieKey, false).(*cookieStore)
 	if actual.w != w || actual.r != r {
 		t.Fatal("expected correct init", actual)
 	}
@@ -104,7 +104,7 @@ func substringBetween(source, from, to string) string {
 
 /****************************************************************************/
 type MockCookieStore struct {
-	CookieStorer
+	cookieStorer
 	cookies map[string]interface{}
 	getErr  error
 	putErr  error

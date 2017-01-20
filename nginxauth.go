@@ -68,8 +68,8 @@ type authConf struct {
 }
 
 type nginxauth struct {
-	backend   Backender
-	mailer    Mailer
+	backend   backender
+	mailer    mailer
 	cookieKey []byte
 	conf      authConf
 }
@@ -91,12 +91,12 @@ func newNginxAuth() (*nginxauth, error) {
 		log.Fatal(err)
 	}
 
-	s := NewBackendRedisSession(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections, config.StoragePrefix)
-	l, err := NewBackendLDAPLogin(config.LdapServer, config.LdapPort, config.LdapBindDn, config.LdapPassword, config.LdapBaseDn, config.LdapUserFilter)
+	s := newBackendRedisSession(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections, config.StoragePrefix)
+	l, err := newBackendLDAPLogin(config.LdapServer, config.LdapPort, config.LdapBindDn, config.LdapPassword, config.LdapBaseDn, config.LdapUserFilter)
 	if err != nil {
 		return nil, err
 	}
-	u := NewBackendMemory()
+	u := newBackendMemory()
 	/*u, err := newBackendDbUser(config.DbServer, config.DbPort, config.DbUser, config.DbPassword, config.DbDatabase, config.GetUserLoginQuery, config.AddUserQuery, config.VerifyEmailQuery, config.UpdateUserQuery)
 	if err != nil {
 		return nil, err
@@ -162,14 +162,78 @@ func fileLoggerHandler(h http.Handler) http.Handler {
 	return handlers.CombinedLoggingHandler(logFile, h)
 }
 
-func (s *nginxauth) method(name string, handler func(authStore AuthStorer, w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
+func (s *nginxauth) method(name string, handler func(authStore authStorer, w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != name {
 			http.Error(w, "Unsupported method", http.StatusInternalServerError)
 			return
 		}
 		secureOnly := strings.HasPrefix(r.Referer(), "https") // proxy to back-end so if referer is secure connection, we can use secureOnly cookies
-		authStore := NewAuthStore(s.backend, s.mailer, w, r, s.conf.StoragePrefix, s.cookieKey, secureOnly)
+		authStore := newAuthStore(s.backend, s.mailer, w, r, s.conf.StoragePrefix, s.cookieKey, secureOnly)
 		handler(authStore, w, r)
 	}
+}
+
+func auth(authStore authStorer, w http.ResponseWriter, r *http.Request) {
+	session, err := authStore.GetSession()
+	if err != nil {
+		http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
+		if a, ok := err.(*authError); ok {
+			fmt.Println(a.Trace())
+		}
+	} else {
+		addUserHeader(session, w)
+	}
+}
+
+func authBasic(authStore authStorer, w http.ResponseWriter, r *http.Request) {
+	session, err := authStore.GetBasicAuth()
+	if err != nil {
+		w.Header().Set("WWW-Authenticate", "Basic realm='Endfirst.com'")
+		http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
+	} else {
+		addUserHeader(session, w)
+	}
+}
+
+func login(authStore authStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.Login, w)
+}
+
+func register(authStore authStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.Register, w)
+}
+
+func createProfile(authStore authStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.CreateProfile, w)
+}
+
+func updateEmail(authStore authStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.UpdateEmail, w)
+}
+
+func updatePassword(authStore authStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.UpdatePassword, w)
+}
+
+func verifyEmail(authStore authStorer, w http.ResponseWriter, r *http.Request) {
+	run(authStore.VerifyEmail, w)
+}
+
+func run(method func() error, w http.ResponseWriter) {
+	err := method()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if a, ok := err.(*authError); ok {
+			fmt.Println(a.Trace())
+		}
+	} else {
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+		w.Header().Add("Content-Type", "application/javascript")
+		fmt.Fprint(w, "{ \"result\": \"Success\" }")
+	}
+}
+
+func addUserHeader(session *loginSession, w http.ResponseWriter) {
+	w.Header().Add("X-User", session.Email)
 }
