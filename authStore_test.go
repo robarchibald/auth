@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"github.com/robarchibald/substring"
 	"io/ioutil"
@@ -17,11 +18,10 @@ import (
 var futureTime = time.Now().Add(5 * time.Minute)
 var pastTime = time.Now().Add(-5 * time.Minute)
 
-func getAuthStore(sessionReturn *SessionReturn, loginReturn *LoginReturn, emailCookieToReturn *emailCookie, hasCookieGetError, hasCookiePutError bool, mailErr error, backend *mockBackend) *authStore {
+func getAuthStore(emailCookie *emailCookie, sessionCookie *sessionCookie, rememberCookie *rememberMeCookie, hasCookieGetError, hasCookiePutError bool, mailErr error, backend *mockBackend) *authStore {
 	r := &http.Request{}
-	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookieToReturn}, hasCookieGetError, hasCookiePutError)
-	sessionStore := mockSessionStore{SessionReturn: sessionReturn}
-	return &authStore{backend, &sessionStore, &TextMailer{Err: mailErr}, cookieStore, r}
+	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookie, sessionCookieName: sessionCookie, rememberMeCookieName: rememberCookie}, hasCookieGetError, hasCookiePutError)
+	return &authStore{backend, &TextMailer{Err: mailErr}, cookieStore, r}
 }
 
 func TestNewAuthStore(t *testing.T) {
@@ -35,31 +35,316 @@ func TestNewAuthStore(t *testing.T) {
 	}
 }
 
-func TestAuthGetSession(t *testing.T) {
-	store := getAuthStore(sessionErr(), nil, nil, false, false, nil, &mockBackend{})
-	if _, err := store.GetSession(); err == nil {
-		t.Error("expected error")
+var getSessionTests = []struct {
+	Scenario            string
+	HasCookieGetError   bool
+	HasCookiePutError   bool
+	SessionCookie       *sessionCookie
+	GetSessionReturn    *SessionReturn
+	RenewSessionReturn  *SessionReturn
+	GetRememberMeReturn *RememberMeReturn
+	MethodsCalled       []string
+	ExpectedResult      *rememberMeSession
+	ExpectedErr         string
+}{
+	{
+		Scenario:         "Get Session Valid",
+		SessionCookie:    sessionCookieGood(futureTime, futureTime),
+		GetSessionReturn: sessionSuccess(futureTime, futureTime),
+		MethodsCalled:    []string{"GetSession"},
+	},
+	{
+		Scenario:          "Get Session Cookie Error",
+		HasCookieGetError: true,
+		ExpectedErr:       "Session cookie not found",
+	},
+	{
+		Scenario:      "Get Session Invalid Cookie Error",
+		SessionCookie: sessionCookieBogus(futureTime, futureTime),
+		ExpectedErr:   "Unable to decode session cookie",
+	},
+	{
+		Scenario:         "Get Session Error",
+		SessionCookie:    sessionCookieGood(futureTime, futureTime),
+		GetSessionReturn: &SessionReturn{&loginSession{}, errSessionNotFound},
+		MethodsCalled:    []string{"GetSession"},
+		ExpectedErr:      "Failed to verify session",
+	},
+	{
+		Scenario:           "Get Session Renew",
+		SessionCookie:      sessionCookieGood(pastTime, futureTime),
+		RenewSessionReturn: sessionSuccess(futureTime, futureTime),
+		MethodsCalled:      []string{"RenewSession"},
+	},
+}
+
+func TestGetSession(t *testing.T) {
+	for i, test := range getSessionTests {
+		backend := &mockBackend{GetSessionReturn: test.GetSessionReturn, RenewSessionReturn: test.RenewSessionReturn}
+		store := getAuthStore(nil, test.SessionCookie, nil, false, false, nil, backend)
+		//store := getSessionStore(nil, test.SessionCookie, nil, test.HasCookieGetError, test.HasCookiePutError, backend)
+		val, err := store.GetSession()
+		methods := store.backend.(*mockBackend).MethodsCalled
+		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
+			!collectionEqual(test.MethodsCalled, methods) {
+			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
+		}
+	}
+}
+
+var renewSessionTests = []struct {
+	Scenario            string
+	RenewTimeUTC        time.Time
+	ExpireTimeUTC       time.Time
+	HasCookieGetError   bool
+	HasCookiePutError   bool
+	RememberCookie      *rememberMeCookie
+	RenewSessionReturn  *SessionReturn
+	GetRememberMeReturn *RememberMeReturn
+	MethodsCalled       []string
+	ExpectedResult      *rememberMeSession
+	ExpectedErr         string
+}{
+	{
+		Scenario:           "Renew Error",
+		RenewTimeUTC:       pastTime,
+		ExpireTimeUTC:      futureTime,
+		RenewSessionReturn: sessionErr(),
+		MethodsCalled:      []string{"RenewSession"},
+		ExpectedErr:        "Unable to renew session",
+	},
+	{
+		Scenario:           "Renew Save cookie error",
+		RenewTimeUTC:       pastTime,
+		ExpireTimeUTC:      futureTime,
+		HasCookiePutError:  true,
+		RenewSessionReturn: sessionSuccess(futureTime, futureTime),
+		MethodsCalled:      []string{"RenewSession"},
+		ExpectedErr:        "Error saving session cookie",
+	},
+	{
+		Scenario:          "Error Getting RememberMe",
+		RenewTimeUTC:      pastTime,
+		ExpireTimeUTC:     pastTime,
+		HasCookieGetError: true,
+		ExpectedErr:       "Unable to renew session",
+	},
+	{
+		Scenario:            "Renew With RememberMe",
+		RenewTimeUTC:        pastTime,
+		ExpireTimeUTC:       pastTime,
+		RememberCookie:      rememberCookie(futureTime, futureTime),
+		RenewSessionReturn:  sessionSuccess(futureTime, futureTime),
+		GetRememberMeReturn: rememberMe(futureTime, futureTime),
+		MethodsCalled:       []string{"GetRememberMe", "RenewSession"},
+	},
+	{
+		Scenario:            "Renew With RememberMe Error",
+		RenewTimeUTC:        pastTime,
+		ExpireTimeUTC:       pastTime,
+		RememberCookie:      rememberCookie(futureTime, futureTime),
+		GetRememberMeReturn: rememberMe(futureTime, futureTime),
+		RenewSessionReturn:  &SessionReturn{nil, errSessionNotFound},
+		MethodsCalled:       []string{"GetRememberMe", "RenewSession"},
+		ExpectedErr:         "Problem renewing session",
+	},
+	{
+		Scenario:            "Save cookie error",
+		RenewTimeUTC:        pastTime,
+		ExpireTimeUTC:       pastTime,
+		RememberCookie:      rememberCookie(futureTime, futureTime),
+		GetRememberMeReturn: rememberMe(futureTime, futureTime),
+		RenewSessionReturn:  sessionSuccess(futureTime, futureTime),
+		MethodsCalled:       []string{"GetRememberMe", "RenewSession"},
+		HasCookiePutError:   true,
+		ExpectedErr:         "Error saving session cookie",
+	},
+}
+
+// NOTE - can't currently get coverage for the error at approx line 147 for the saveSessionCookie error
+func TestRenewSession(t *testing.T) {
+	for i, test := range renewSessionTests {
+		backend := &mockBackend{RenewSessionReturn: test.RenewSessionReturn, GetRememberMeReturn: test.GetRememberMeReturn}
+		store := getAuthStore(nil, nil, test.RememberCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
+		val, err := store.renewSession("sessionId", "sessionHash", &test.RenewTimeUTC, &test.ExpireTimeUTC)
+		methods := store.backend.(*mockBackend).MethodsCalled
+		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
+			!collectionEqual(test.MethodsCalled, methods) {
+			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
+		}
+	}
+}
+
+var rememberMeTests = []struct {
+	Scenario              string
+	HasCookieGetError     bool
+	HasCookiePutError     bool
+	RememberCookie        *rememberMeCookie
+	GetRememberMeReturn   *RememberMeReturn
+	RenewRememberMeReturn *RememberMeReturn
+	MethodsCalled         []string
+	ExpectedResult        *rememberMeSession
+	ExpectedErr           string
+}{
+	{
+		Scenario:          "Get RememberMe Cookie err",
+		HasCookieGetError: true,
+		ExpectedErr:       "RememberMe cookie not found",
+	},
+	{
+		Scenario:            "Renew RememberMe Expired",
+		RememberCookie:      rememberCookie(pastTime, pastTime),
+		GetRememberMeReturn: rememberMe(pastTime, pastTime),
+		ExpectedErr:         "RememberMe cookie has expired",
+	},
+	{
+		Scenario:            "Get RememberMe Error",
+		RememberCookie:      rememberCookie(futureTime, futureTime),
+		GetRememberMeReturn: &RememberMeReturn{&rememberMeSession{}, errRememberMeNotFound},
+		MethodsCalled:       []string{"GetRememberMe"},
+		ExpectedErr:         "Unable to find matching RememberMe in DB",
+	},
+	{
+		Scenario:            "Get RememberMe Hash Isn't equal",
+		RememberCookie:      &rememberMeCookie{"selector", "bogusToken", futureTime, futureTime},
+		GetRememberMeReturn: rememberMe(futureTime, futureTime),
+		MethodsCalled:       []string{"GetRememberMe"},
+		ExpectedErr:         "RememberMe cookie doesn't match backend token",
+	},
+	{
+		Scenario:              "Renew RememberMe Error",
+		RememberCookie:        rememberCookie(pastTime, futureTime),
+		GetRememberMeReturn:   rememberMe(pastTime, futureTime),
+		RenewRememberMeReturn: &RememberMeReturn{&rememberMeSession{}, errRememberMeNotFound},
+		MethodsCalled:         []string{"GetRememberMe", "RenewRememberMe"},
+		ExpectedErr:           "Unable to renew RememberMe",
+	},
+	{
+		Scenario:              "Renew RememberMe Success",
+		RememberCookie:        rememberCookie(pastTime, futureTime),
+		GetRememberMeReturn:   rememberMe(pastTime, futureTime),
+		RenewRememberMeReturn: rememberMe(futureTime, futureTime),
+		MethodsCalled:         []string{"GetRememberMe", "RenewRememberMe"},
+	},
+}
+
+func TestRememberMe(t *testing.T) {
+	for i, test := range rememberMeTests {
+		backend := &mockBackend{GetRememberMeReturn: test.GetRememberMeReturn, RenewRememberMeReturn: test.RenewRememberMeReturn}
+		store := getAuthStore(nil, nil, test.RememberCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
+		val, err := store.getRememberMe()
+		methods := store.backend.(*mockBackend).MethodsCalled
+		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
+			!collectionEqual(test.MethodsCalled, methods) {
+			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
+		}
+	}
+}
+
+var createSessionTests = []struct {
+	Scenario            string
+	RememberMe          bool
+	HasCookieGetError   bool
+	HasCookiePutError   bool
+	SessionCookie       *sessionCookie
+	RememberMeCookie    *rememberMeCookie
+	CreateSessionReturn *SessionRememberReturn
+	MethodsCalled       []string
+	ExpectedResult      *rememberMeSession
+	ExpectedErr         string
+}{
+	{
+		Scenario:            "New login session error",
+		CreateSessionReturn: sessionRememberErr(),
+		MethodsCalled:       []string{"CreateSession"},
+		ExpectedErr:         "Unable to create new session",
+	},
+	{
+		Scenario:            "Got session",
+		CreateSessionReturn: sessionRemember(futureTime, futureTime),
+		HasCookieGetError:   true,
+		MethodsCalled:       []string{"CreateSession"},
+	},
+	{
+		Scenario:            "Valid old session and rememberme cookies.  delete in backend",
+		SessionCookie:       sessionCookieGood(futureTime, futureTime),
+		RememberMeCookie:    rememberCookie(futureTime, futureTime),
+		CreateSessionReturn: sessionRemember(futureTime, futureTime),
+		MethodsCalled:       []string{"CreateSession", "InvalidateSession", "InvalidateRememberMe"},
+	},
+	{
+		Scenario:            "Set RememberMe",
+		RememberMe:          true,
+		HasCookieGetError:   true,
+		CreateSessionReturn: sessionRemember(futureTime, futureTime),
+		MethodsCalled:       []string{"CreateSession"},
+	},
+	{
+		Scenario:            "Session Cookie save failure",
+		HasCookieGetError:   true,
+		HasCookiePutError:   true,
+		CreateSessionReturn: sessionRemember(futureTime, futureTime),
+		MethodsCalled:       []string{"CreateSession"},
+		ExpectedErr:         "Error saving session cookie",
+	},
+	{
+		Scenario:            "RememberMe Cookie save failure",
+		RememberMe:          true,
+		HasCookieGetError:   true,
+		HasCookiePutError:   true,
+		CreateSessionReturn: sessionRemember(futureTime, futureTime),
+		MethodsCalled:       []string{"CreateSession"},
+		ExpectedErr:         "Unable to save rememberMe cookie",
+	},
+}
+
+func TestCreateSession(t *testing.T) {
+	for i, test := range createSessionTests {
+		backend := &mockBackend{CreateSessionReturn: test.CreateSessionReturn}
+		store := getAuthStore(nil, test.SessionCookie, test.RememberMeCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
+		val, err := store.createSession("test@test.com", test.RememberMe)
+		methods := store.backend.(*mockBackend).MethodsCalled
+		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
+			!collectionEqual(test.MethodsCalled, methods) {
+			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
+		}
 	}
 }
 
 func TestAuthGetBasicAuth(t *testing.T) {
-	// loginStore.LoginBasic error
-	store := getAuthStore(sessionErr(), loginErr(), nil, false, false, nil, &mockBackend{})
-	if _, err := store.GetBasicAuth(); err == nil {
-		t.Error("expected error")
-	}
-
-	// createSession error
-	store = getAuthStore(sessionErr(), loginSuccess(), nil, false, false, nil, &mockBackend{})
-	if _, err := store.GetBasicAuth(); err == nil {
-		t.Error("expected error")
-	}
-
 	// found session
-	store = getAuthStore(sessionSuccess(futureTime, futureTime), nil, nil, false, false, nil, &mockBackend{})
+	store := getAuthStore(nil, sessionCookieGood(futureTime, futureTime), nil, false, false, nil, &mockBackend{GetSessionReturn: sessionSuccess(futureTime, futureTime)})
+	if _, err := store.GetBasicAuth(); err != nil {
+		t.Error("expected success", err)
+	}
+
+	// Credential error
+	store = getAuthStore(nil, nil, nil, true, false, nil, &mockBackend{GetUserLoginReturn: loginErr()})
+	if _, err := store.GetBasicAuth(); err == nil || err.Error() != "Problem decoding credentials from basic auth" {
+		t.Error("expected error")
+	}
+
+	// login error
+	store = getAuthStore(nil, nil, nil, true, false, nil, &mockBackend{GetUserLoginReturn: loginErr(), GetSessionReturn: sessionSuccess(futureTime, futureTime)})
+	store.r = basicAuthRequest("test@test.com", "password")
+	if _, err := store.GetBasicAuth(); err == nil || err.Error() != "Invalid username or password" {
+		t.Error("expected error", err)
+	}
+
+	// login success
+	store = getAuthStore(nil, nil, nil, true, false, nil, &mockBackend{GetUserLoginReturn: loginSuccess(), GetSessionReturn: sessionSuccess(futureTime, futureTime), CreateSessionReturn: sessionRemember(futureTime, futureTime)})
+	store.r = basicAuthRequest("test@test.com", "correctPassword")
 	if _, err := store.GetBasicAuth(); err != nil {
 		t.Error("expected success")
 	}
+}
+
+func basicAuthRequest(username, password string) *http.Request {
+	r, _ := http.NewRequest("GET", "bogus", nil)
+	auth := username + ":" + password
+	auth = base64.StdEncoding.EncodeToString([]byte(auth))
+	r.Header.Add("Authorization", "Basic "+auth)
+	return r
 }
 
 func TestAuthStoreEndToEnd(t *testing.T) {
@@ -185,7 +470,7 @@ var createProfileTests = []struct {
 	EmailCookie           *emailCookie
 	LoginReturn           *LoginReturn
 	UpdateUserReturn      error
-	CreateSessionReturn   *SessionReturn
+	CreateSessionReturn   *SessionRememberReturn
 	MethodsCalled         []string
 	ExpectedErr           string
 }{
@@ -228,24 +513,24 @@ var createProfileTests = []struct {
 		EmailCookie:           &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		LoginReturn:           loginSuccess(),
-		CreateSessionReturn:   sessionErr(),
-		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateLogin"},
-		ExpectedErr:           "failed",
+		CreateSessionReturn:   sessionRememberErr(),
+		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateLogin", "CreateSession"},
+		ExpectedErr:           "Unable to create new session",
 	},
 	{
 		Scenario:              "Success",
 		EmailCookie:           &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		LoginReturn:           loginSuccess(),
-		CreateSessionReturn:   sessionSuccess(futureTime, futureTime),
-		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateLogin"},
+		CreateSessionReturn:   sessionRemember(futureTime, futureTime),
+		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateLogin", "CreateSession", "InvalidateSession", "InvalidateRememberMe"},
 	},
 }
 
 func TestAuthCreateProfile(t *testing.T) {
 	for i, test := range createProfileTests {
-		backend := &mockBackend{ErrReturn: test.UpdateUserReturn, getEmailSessionReturn: test.getEmailSessionReturn, CreateLoginReturn: test.LoginReturn}
-		store := getAuthStore(test.CreateSessionReturn, test.LoginReturn, test.EmailCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
+		backend := &mockBackend{ErrReturn: test.UpdateUserReturn, getEmailSessionReturn: test.getEmailSessionReturn, CreateLoginReturn: test.LoginReturn, CreateSessionReturn: test.CreateSessionReturn}
+		store := getAuthStore(test.EmailCookie, nil, nil, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
 		err := store.createProfile("name", "organization", "password", "path", 1, 1)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
@@ -319,7 +604,7 @@ var loginTests = []struct {
 	Email               string
 	Password            string
 	RememberMe          bool
-	CreateSessionReturn *SessionReturn
+	CreateSessionReturn *SessionRememberReturn
 	GetUserLoginReturn  *LoginReturn
 	ErrReturn           error
 	MethodsCalled       []string
@@ -358,15 +643,15 @@ var loginTests = []struct {
 		Email:               "email@example.com",
 		Password:            "correctPassword",
 		GetUserLoginReturn:  loginSuccess(),
-		CreateSessionReturn: sessionSuccess(futureTime, futureTime),
-		MethodsCalled:       []string{"GetLogin"},
+		CreateSessionReturn: sessionRemember(futureTime, futureTime),
+		MethodsCalled:       []string{"GetLogin", "CreateSession", "InvalidateSession", "InvalidateRememberMe"},
 	},
 }
 
 func TestAuthLogin(t *testing.T) {
 	for i, test := range loginTests {
-		backend := &mockBackend{GetUserLoginReturn: test.GetUserLoginReturn, ErrReturn: test.ErrReturn}
-		store := getAuthStore(sessionSuccess(futureTime, futureTime), nil, nil, false, false, nil, backend)
+		backend := &mockBackend{GetUserLoginReturn: test.GetUserLoginReturn, ErrReturn: test.ErrReturn, CreateSessionReturn: test.CreateSessionReturn}
+		store := getAuthStore(nil, nil, nil, false, false, nil, backend)
 		val, err := store.login(test.Email, test.Password, test.RememberMe)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
