@@ -22,29 +22,29 @@ func TestMemoryGetLogin(t *testing.T) {
 
 func TestMemoryCreateSession(t *testing.T) {
 	backend := newBackendMemory().(*backendMemory)
-	if session, _, _ := backend.CreateSession("test@test.com", "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.Email != "test@test.com" {
+	if session, _, _ := backend.CreateSession(1, "test@test.com", "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "sessionHash" || session.Email != "test@test.com" {
 		t.Error("expected matching session", session)
 	}
 	// create again, should error
-	if _, _, err := backend.CreateSession("test@test.com", "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); err == nil {
+	if _, _, err := backend.CreateSession(1, "test@test.com", "sessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); err == nil {
 		t.Error("expected error since session exists", err)
 	}
 	// new session ID since it was generated when no cookie was found (e.g. on another computer or browser)
-	if session, _, _ := backend.CreateSession("test@test.com", "newSessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "newSessionHash" || len(backend.Sessions) != 2 {
+	if session, _, _ := backend.CreateSession(1, "test@test.com", "newSessionHash", in5Minutes, in1Hour, false, "", "", time.Time{}, time.Time{}); session.SessionHash != "newSessionHash" || len(backend.Sessions) != 2 {
 		t.Error("expected matching session", session)
 	}
 
 	// new rememberMe
 	backend.Sessions = nil
 	backend.RememberMes = nil
-	if session, rememberMe, err := backend.CreateSession("test@test.com", "sessionHash", in5Minutes, in1Hour, true, "selector", "hash", time.Time{}, time.Time{}); session == nil || session.SessionHash != "sessionHash" || session.Email != "test@test.com" ||
+	if session, rememberMe, err := backend.CreateSession(1, "test@test.com", "sessionHash", in5Minutes, in1Hour, true, "selector", "hash", time.Time{}, time.Time{}); session == nil || session.SessionHash != "sessionHash" || session.Email != "test@test.com" ||
 		rememberMe == nil || rememberMe.Selector != "selector" || rememberMe.TokenHash != "hash" {
 		t.Error("expected RememberMe to be created", session, rememberMe, err)
 	}
 
 	// existing rememberMe. Error
 	backend.Sessions = nil
-	if _, _, err := backend.CreateSession("test@test.com", "sessionHash", in5Minutes, in1Hour, true, "selector", "hash", time.Time{}, time.Time{}); err != errRememberMeSelectorExists {
+	if _, _, err := backend.CreateSession(1, "test@test.com", "sessionHash", in5Minutes, in1Hour, true, "selector", "hash", time.Time{}, time.Time{}); err != errRememberMeSelectorExists {
 		t.Error("expected error", err)
 	}
 }
@@ -115,11 +115,11 @@ func TestMemoryRenewRememberMe(t *testing.T) {
 
 func TestMemoryAddUser(t *testing.T) {
 	backend := newBackendMemory().(*backendMemory)
-	if err := backend.AddUser("email"); err != nil || len(backend.Users) != 1 {
+	if userID, err := backend.AddUser("email"); err != nil || len(backend.Users) != 1 || userID != 1 {
 		t.Error("expected valid session", err, backend.Users)
 	}
 
-	if err := backend.AddUser("email"); err != errUserAlreadyExists {
+	if userID, err := backend.AddUser("email"); err != errUserAlreadyExists || userID != -1 {
 		t.Error("expected user to already exist", err)
 	}
 }
@@ -154,7 +154,7 @@ func TestMemoryUpdateUser(t *testing.T) {
 
 func TestMemoryCreateLogin(t *testing.T) {
 	backend := newBackendMemory().(*backendMemory)
-	if login, err := backend.CreateLogin("email", "passwordHash", "fullName", "homeDirectory", 1, 1, "mailQuota", "fileQuota"); err != nil || login.Email != "email" {
+	if login, err := backend.CreateLogin(1, "email", "passwordHash", "fullName", "homeDirectory", 1, 1, "mailQuota", "fileQuota"); err != nil || login.Email != "email" {
 		t.Error("expected valid login", login)
 	}
 }
@@ -205,7 +205,7 @@ func TestToString(t *testing.T) {
 	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{})
 
 	actual := backend.ToString()
-	expected := "Users:\n     {  <nil> 0}\nLogins:\n     { 0 }\nSessions:\n     {  0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {   0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
+	expected := "Users:\n     {0   <nil> 0}\nLogins:\n     {0  0 }\nSessions:\n     {0   0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {0    0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
 	if actual != expected {
 		t.Error("expected different value", actual)
 	}

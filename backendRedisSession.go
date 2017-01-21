@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"github.com/robarchibald/onedb"
 	"math"
 	"time"
@@ -19,7 +20,7 @@ func newBackendRedisSession(server string, port int, password string, maxIdle, m
 
 // need to first check that this emailVerifyHash isn't being used, otherwise we'll clobber existing
 func (r *backendRedisSession) CreateEmailSession(email, emailVerifyHash string) error {
-	return r.saveEmailSession(&emailSession{Email: email, EmailVerifyHash: emailVerifyHash})
+	return r.UpdateEmailSession(emailVerifyHash, -1, email)
 }
 
 func (r *backendRedisSession) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
@@ -27,13 +28,17 @@ func (r *backendRedisSession) GetEmailSession(emailVerifyHash string) (*emailSes
 	return session, r.db.QueryStructRow(onedb.NewRedisGetCommand(r.getEmailSessionKey(emailVerifyHash)), session)
 }
 
+func (r *backendRedisSession) UpdateEmailSession(emailVerifyHash string, userID int, email string) error {
+	return r.saveEmailSession(&emailSession{userID, email, emailVerifyHash})
+}
+
 func (r *backendRedisSession) DeleteEmailSession(emailVerifyHash string) error {
 	return nil
 }
 
-func (r *backendRedisSession) CreateSession(email, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
+func (r *backendRedisSession) CreateSession(userID int, email, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
 	includeRememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
-	session := loginSession{Email: email, SessionHash: sessionHash, RenewTimeUTC: sessionRenewTimeUTC, ExpireTimeUTC: sessionExpireTimeUTC}
+	session := loginSession{userID, email, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
 	err := r.saveSession(&session)
 	if err != nil {
 		return nil, nil, err
@@ -41,7 +46,7 @@ func (r *backendRedisSession) CreateSession(email, sessionHash string, sessionRe
 
 	var rememberMe rememberMeSession
 	if includeRememberMe {
-		rememberMe = rememberMeSession{Email: email, Selector: rememberMeSelector, TokenHash: rememberMeTokenHash, RenewTimeUTC: rememberMeRenewTimeUTC, ExpireTimeUTC: rememberMeExpireTimeUTC}
+		rememberMe = rememberMeSession{userID, email, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC}
 		err = r.saveRememberMe(&rememberMe)
 		if err != nil {
 			return nil, nil, err

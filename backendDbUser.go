@@ -32,8 +32,9 @@ func (u *backendDbUser) GetLogin(email, loginProvider string) (*userLogin, error
 	return login, u.Db.QueryStruct(onedb.NewSqlQuery(u.GetUserLoginQuery, email, loginProvider), login)
 }
 
-func (u *backendDbUser) AddUser(email string) error {
-	return u.Db.Execute(onedb.NewSqlQuery(u.AddUserQuery, email))
+func (u *backendDbUser) AddUser(email string) (int, error) {
+	var userId int
+	return userId, u.Db.Execute(onedb.NewSqlQuery(u.AddUserQuery, email))
 }
 
 func (u *backendDbUser) GetUser(email string) (*user, error) {

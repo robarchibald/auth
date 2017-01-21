@@ -220,7 +220,7 @@ func (s *authStore) createSession(email string, rememberMe bool) (*loginSession,
 		return nil, newLoggedError("Problem generating sessionId", nil)
 	}
 
-	session, remember, err := s.backend.CreateSession(email, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
+	session, remember, err := s.backend.CreateSession(1, email, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
 	if err != nil {
 		return nil, newLoggedError("Unable to create new session", err)
 	}
@@ -353,7 +353,7 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 		return newLoggedError("Error while creating profile", err)
 	}
 
-	_, err = s.createLogin(session.Email, fullName, password, mailQuota, fileQuota)
+	_, err = s.createLogin(session.UserID, session.Email, fullName, password, mailQuota, fileQuota)
 	if err != nil {
 		return newLoggedError("Unable to create login", err)
 	}
@@ -368,7 +368,7 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 }
 
 /****************  TODO: send 0 for UID and GID numbers and empty quotas if mailQuota and fileQuota are 0 **********************/
-func (s *authStore) createLogin(email, fullName, password string, mailQuota, fileQuota int) (*userLogin, error) {
+func (s *authStore) createLogin(userID int, email, fullName, password string, mailQuota, fileQuota int) (*userLogin, error) {
 	passwordHash, err := cryptoHash(password)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
@@ -379,7 +379,7 @@ func (s *authStore) createLogin(email, fullName, password string, mailQuota, fil
 	homeDirectory := "/home"
 	mQuota := fmt.Sprintf("%dGB", mailQuota)
 	fQuota := fmt.Sprintf("%dGB", fileQuota)
-	login, err := s.backend.CreateLogin(email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
+	login, err := s.backend.CreateLogin(userID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}
@@ -409,9 +409,14 @@ func (s *authStore) verifyEmail(emailVerificationCode string) error {
 		return newLoggedError("Failed to verify email", err)
 	}
 
-	err = s.backend.AddUser(session.Email)
+	userID, err := s.backend.AddUser(session.Email)
 	if err != nil {
 		return newLoggedError("Failed to create new user in database", err)
+	}
+
+	err = s.backend.UpdateEmailSession(emailVerifyHash, userID, session.Email)
+	if err != nil {
+		return newLoggedError("Failed to update email session", err)
 	}
 
 	err = s.saveEmailCookie(emailVerificationCode, time.Now().UTC().Add(emailExpireDuration))

@@ -44,7 +44,7 @@ func (l *backendLDAPLogin) GetLogin(email, loginProvider string) (*userLogin, er
 }
 
 /****************  TODO: create different type of user if not using file and mail quotas  **********************/
-func (l *backendLDAPLogin) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+func (l *backendLDAPLogin) CreateLogin(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + ",ou=Users,dc=endfirst,dc=com")
 	req.Attribute("objectClass", []string{"posixAccount", "account", "ownCloud", "systemQuotas"})
 	req.Attribute("uid", []string{email})

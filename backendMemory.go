@@ -32,13 +32,13 @@ func (m *backendMemory) GetLogin(email, loginProvider string) (*userLogin, error
 	return login, nil
 }
 
-func (m *backendMemory) CreateSession(email, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
+func (m *backendMemory) CreateSession(userID int, email, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
 	session := m.getSessionByHash(sessionHash)
 	if session != nil {
 		return nil, nil, errSessionAlreadyExists
 	}
 
-	session = &loginSession{email, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
+	session = &loginSession{userID, email, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
 	m.Sessions = append(m.Sessions, session)
 	var rememberItem *rememberMeSession
 	if rememberMe {
@@ -47,7 +47,7 @@ func (m *backendMemory) CreateSession(email, sessionHash string, sessionRenewTim
 			return nil, nil, errRememberMeSelectorExists
 		}
 
-		rememberItem = &rememberMeSession{email, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC}
+		rememberItem = &rememberMeSession{userID, email, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC}
 		m.RememberMes = append(m.RememberMes, rememberItem)
 	}
 	return session, rememberItem, nil
@@ -113,19 +113,29 @@ func (m *backendMemory) GetEmailSession(emailVerifyHash string) (*emailSession, 
 	return session, nil
 }
 
+func (m *backendMemory) UpdateEmailSession(verifyHash string, userID int, email string) error {
+	session := m.getEmailSessionByEmailVerifyHash(verifyHash)
+	if session == nil {
+		return errEmailVerifyHashExists
+	}
+	session.UserID = userID
+	return nil
+}
+
 // ***************** TODO: need to come up with a way to clean up all sessions for this email **************
 func (m *backendMemory) DeleteEmailSession(emailVerifyHash string) error {
 	m.removeEmailSession(emailVerifyHash)
 	return nil
 }
 
-func (m *backendMemory) AddUser(email string) error {
+func (m *backendMemory) AddUser(email string) (int, error) {
 	u := m.getUserByEmail(email)
 	if u != nil {
-		return errUserAlreadyExists
+		return -1, errUserAlreadyExists
 	}
-	m.Users = append(m.Users, &user{"", email, nil, 0})
-	return nil
+	m.LastUserID++
+	m.Users = append(m.Users, &user{m.LastUserID, "", email, nil, 0})
+	return m.LastUserID, nil
 }
 
 func (m *backendMemory) GetUser(email string) (*user, error) {
@@ -147,8 +157,8 @@ func (m *backendMemory) UpdateUser(email, fullname string, company string, pictu
 }
 
 // This method needs to be fixed to work with the new data model using LDAP
-func (m *backendMemory) CreateLogin(email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
-	login := userLogin{email, 1, passwordHash}
+func (m *backendMemory) CreateLogin(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+	login := userLogin{userID, email, 1, passwordHash}
 	m.Logins = append(m.Logins, &login)
 
 	return &login, nil

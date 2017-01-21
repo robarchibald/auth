@@ -561,13 +561,15 @@ func TestAuthCreateProfile(t *testing.T) {
 }
 
 var verifyEmailTests = []struct {
-	Scenario              string
-	EmailVerificationCode string
-	HasCookiePutError     bool
-	getEmailSessionReturn *getEmailSessionReturn
-	MailErr               error
-	MethodsCalled         []string
-	ExpectedErr           string
+	Scenario                 string
+	EmailVerificationCode    string
+	HasCookiePutError        bool
+	getEmailSessionReturn    *getEmailSessionReturn
+	AddUserReturn            error
+	UpdateEmailSessionReturn error
+	MailErr                  error
+	MethodsCalled            []string
+	ExpectedErr              string
 }{
 	{
 		Scenario:              "Decode error",
@@ -583,18 +585,34 @@ var verifyEmailTests = []struct {
 		ExpectedErr:           "Failed to verify email",
 	},
 	{
+		Scenario:              "Add User fail",
+		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
+		getEmailSessionReturn: getEmailSessionSuccess(),
+		AddUserReturn:         errors.New("fail"),
+		MethodsCalled:         []string{"GetEmailSession", "AddUser"},
+		ExpectedErr:           "Failed to create new user in database",
+	},
+	{
+		Scenario:                 "Email session update fail",
+		EmailVerificationCode:    "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
+		getEmailSessionReturn:    getEmailSessionSuccess(),
+		UpdateEmailSessionReturn: errors.New("fail"),
+		MethodsCalled:            []string{"GetEmailSession", "AddUser", "UpdateEmailSession"},
+		ExpectedErr:              "Failed to update email session",
+	},
+	{
 		Scenario:              "Cookie Save Error",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		HasCookiePutError:     true,
-		MethodsCalled:         []string{"GetEmailSession", "AddUser"},
+		MethodsCalled:         []string{"GetEmailSession", "AddUser", "UpdateEmailSession"},
 		ExpectedErr:           "Failed to save email cookie",
 	},
 	{
 		Scenario:              "Mail Error",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
-		MethodsCalled:         []string{"GetEmailSession", "AddUser"},
+		MethodsCalled:         []string{"GetEmailSession", "AddUser", "UpdateEmailSession"},
 		MailErr:               errors.New("test"),
 		ExpectedErr:           "Failed to send welcome email",
 	},
@@ -602,13 +620,13 @@ var verifyEmailTests = []struct {
 		Scenario:              "Email sent",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
-		MethodsCalled:         []string{"GetEmailSession", "AddUser"},
+		MethodsCalled:         []string{"GetEmailSession", "AddUser", "UpdateEmailSession"},
 	},
 }
 
 func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
-		backend := &mockBackend{getEmailSessionReturn: test.getEmailSessionReturn}
+		backend := &mockBackend{getEmailSessionReturn: test.getEmailSessionReturn, AddUserReturn: test.AddUserReturn, UpdateEmailSessionReturn: test.UpdateEmailSessionReturn}
 		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
 		err := store.verifyEmail(test.EmailVerificationCode)
 		methods := store.backend.(*mockBackend).MethodsCalled
