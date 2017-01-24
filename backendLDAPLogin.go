@@ -29,7 +29,7 @@ type ldapData struct {
 
 func (l *backendLDAPLogin) Login(email, password string) (*userLogin, error) {
 	// check credentials
-	err := l.db.Execute(ldap.NewSimpleBindRequest(email, password, nil))
+	err := l.db.Execute(ldap.NewSimpleBindRequest(fmt.Sprintf("uid=%s,%s", email, l.baseDn), password, nil))
 	if err != nil {
 		return nil, err
 	}
@@ -48,17 +48,18 @@ func (l *backendLDAPLogin) Login(email, password string) (*userLogin, error) {
 }
 
 /****************  TODO: create different type of user if not using file and mail quotas  **********************/
-func (l *backendLDAPLogin) CreateLogin(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+func (l *backendLDAPLogin) CreateLogin(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + ",ou=Users,dc=endfirst,dc=com")
-	req.Attribute("objectClass", []string{"posixAccount", "account", "ownCloud", "systemQuotas"})
+	req.Attribute("objectClass", []string{"endfirstAccount", "endfirstSubscriber"})
 	req.Attribute("uid", []string{email})
+	req.Attribute("dbUserId", []string{strconv.Itoa(dbUserID)})
 	req.Attribute("cn", []string{fullName})
 	req.Attribute("userPassword", []string{passwordHash})
 	req.Attribute("uidNumber", []string{strconv.Itoa(uidNumber)})
 	req.Attribute("gidNumber", []string{strconv.Itoa(gidNumber)})
-	req.Attribute("homeDirectory", []string{homeDirectory})
-	req.Attribute("quota", []string{mailQuota})
-	req.Attribute("ownCloudQuota", []string{fileQuota})
+	req.Attribute("mailFolder", []string{homeDirectory})
+	req.Attribute("mailQuota", []string{mailQuota})
+	req.Attribute("fileQuota", []string{fileQuota})
 	err := l.db.Execute(req)
 	return &userLogin{}, err
 }

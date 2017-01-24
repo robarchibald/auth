@@ -102,7 +102,7 @@ func TestBackendUpdateUser(t *testing.T) {
 func TestBackendCreateLogin(t *testing.T) {
 	m := &mockBackend{CreateLoginReturn: loginErr()}
 	b := backend{u: m, l: m, s: m}
-	b.CreateLogin(1, "email", "hash", "name", "homeDir", 1, 1, "quota", "fileQuota")
+	b.CreateLogin(1, 1, "email", "hash", "name", "homeDir", 1, 1, "quota", "fileQuota")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "CreateLogin" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
@@ -331,7 +331,7 @@ func (b *mockBackend) UpdateUser(email, fullname, company, pictureURL string) er
 	return b.ErrReturn
 }
 
-func (b *mockBackend) CreateLogin(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+func (b *mockBackend) CreateLogin(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateLogin")
 	if b.CreateLoginReturn == nil {
 		return nil, errors.New("CreateLoginReturn not initialized")

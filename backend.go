@@ -27,7 +27,7 @@ type backender interface {
 	UpdateUser(email, fullname string, company string, pictureURL string) error
 
 	// LoginBackender. Write out since it contains duplicate BackendCloser
-	CreateLogin(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
+	CreateLogin(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
 	Login(email, password string) (*userLogin, error)
 	UpdateEmail(email string, password string, newEmail string) (*loginSession, error)
 	UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error)
@@ -47,7 +47,7 @@ type userBackender interface {
 }
 
 type loginBackender interface {
-	CreateLogin(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
+	CreateLogin(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
 	Login(email, password string) (*userLogin, error)
 	UpdateEmail(email string, password string, newEmail string) (*loginSession, error)
 	UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error)
@@ -212,8 +212,8 @@ func (b *backend) UpdateUser(email, fullname string, company string, pictureURL 
 	return b.u.UpdateUser(email, fullname, company, pictureURL)
 }
 
-func (b *backend) CreateLogin(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
-	return b.l.CreateLogin(userID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mailQuota, fileQuota)
+func (b *backend) CreateLogin(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+	return b.l.CreateLogin(userID, dbUserID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mailQuota, fileQuota)
 }
 
 func (b *backend) UpdateEmail(email string, password string, newEmail string) (*loginSession, error) {

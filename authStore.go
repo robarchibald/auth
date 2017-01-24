@@ -350,7 +350,7 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 		return newLoggedError("Error while creating profile", err)
 	}
 
-	_, err = s.createLogin(session.UserID, session.Email, fullName, password, mailQuota, fileQuota)
+	_, err = s.createLogin(session.UserID, session.UserID, session.Email, fullName, password, mailQuota, fileQuota)
 	if err != nil {
 		return newLoggedError("Unable to create login", err)
 	}
@@ -365,7 +365,7 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 }
 
 /****************  TODO: send 0 for UID and GID numbers and empty quotas if mailQuota and fileQuota are 0 **********************/
-func (s *authStore) createLogin(userID int, email, fullName, password string, mailQuota, fileQuota int) (*userLogin, error) {
+func (s *authStore) createLogin(userID, dbUserID int, email, fullName, password string, mailQuota, fileQuota int) (*userLogin, error) {
 	passwordHash, err := cryptoHash(password)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
@@ -376,7 +376,7 @@ func (s *authStore) createLogin(userID int, email, fullName, password string, ma
 	homeDirectory := "/home"
 	mQuota := fmt.Sprintf("%dGB", mailQuota)
 	fQuota := fmt.Sprintf("%dGB", fileQuota)
-	login, err := s.backend.CreateLogin(userID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
+	login, err := s.backend.CreateLogin(userID, dbUserID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}
