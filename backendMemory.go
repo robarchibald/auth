@@ -6,11 +6,18 @@ import (
 	"time"
 )
 
+type userLoginMemory struct {
+	UserID       int
+	Email        string
+	FullName     string
+	PasswordHash string
+}
+
 type backendMemory struct {
 	backender
 	EmailSessions  []*emailSession
 	Users          []*user
-	Logins         []*userLogin
+	Logins         []*userLoginMemory
 	Sessions       []*loginSession
 	RememberMes    []*rememberMeSession
 	LoginProviders []*loginProvider
@@ -24,21 +31,24 @@ func newBackendMemory() backender {
 	return &backendMemory{LoginProviders: []*loginProvider{&loginProvider{LoginProviderID: 1, Name: loginProviderDefaultName}}}
 }
 
-func (m *backendMemory) GetLogin(email, loginProvider string) (*userLogin, error) {
+func (m *backendMemory) Login(email, password string) (*userLogin, error) {
 	login := m.getLoginByEmail(email)
 	if login == nil {
 		return nil, errLoginNotFound
 	}
-	return login, nil
+	if err := cryptoHashEquals(password, login.PasswordHash); err != nil {
+		return nil, err
+	}
+	return &userLogin{login.UserID, login.Email, login.FullName}, nil
 }
 
-func (m *backendMemory) CreateSession(userID int, email, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
+func (m *backendMemory) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
 	session := m.getSessionByHash(sessionHash)
 	if session != nil {
 		return nil, nil, errSessionAlreadyExists
 	}
 
-	session = &loginSession{userID, email, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
+	session = &loginSession{userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
 	m.Sessions = append(m.Sessions, session)
 	var rememberItem *rememberMeSession
 	if rememberMe {
@@ -156,12 +166,11 @@ func (m *backendMemory) UpdateUser(email, fullname string, company string, pictu
 	return nil
 }
 
-// This method needs to be fixed to work with the new data model using LDAP
 func (m *backendMemory) CreateLogin(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
-	login := userLogin{userID, email, 1, passwordHash}
+	login := userLoginMemory{userID, email, fullName, passwordHash}
 	m.Logins = append(m.Logins, &login)
 
-	return &login, nil
+	return &userLogin{userID, email, fullName}, nil
 }
 
 func (m *backendMemory) UpdateEmail(email string, password string, newEmail string) (*loginSession, error) {
@@ -241,29 +250,16 @@ func (m *backendMemory) removeSession(sessionHash string) {
 	}
 }
 
-func (m *backendMemory) getLoginProvider(name string) *loginProvider {
-	for _, provider := range m.LoginProviders {
-		if provider.Name == name {
-			return provider
-		}
-	}
-	return nil
-}
-
-func (m *backendMemory) getLoginByUser(email, loginProvider string) *userLogin {
-	provider := m.getLoginProvider(loginProvider)
-	if provider == nil {
-		return nil
-	}
+func (m *backendMemory) getLoginByUser(email string) *userLoginMemory {
 	for _, login := range m.Logins {
-		if login.Email == email && login.LoginProviderID == provider.LoginProviderID {
+		if login.Email == email {
 			return login
 		}
 	}
 	return nil
 }
 
-func (m *backendMemory) getLoginByEmail(email string) *userLogin {
+func (m *backendMemory) getLoginByEmail(email string) *userLoginMemory {
 	for _, login := range m.Logins {
 		if login.Email == email {
 			return login

@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"github.com/robarchibald/onedb"
 	"math"
 	"time"
@@ -36,9 +35,9 @@ func (r *backendRedisSession) DeleteEmailSession(emailVerifyHash string) error {
 	return nil
 }
 
-func (r *backendRedisSession) CreateSession(userID int, email, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
+func (r *backendRedisSession) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
 	includeRememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
-	session := loginSession{userID, email, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
+	session := loginSession{userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
 	err := r.saveSession(&session)
 	if err != nil {
 		return nil, nil, err

@@ -12,6 +12,7 @@ var errInvalidSessionHash = errors.New("DB: Invalid SessionHash")
 var errRememberMeSelectorExists = errors.New("DB: RememberMe selector already exists")
 var errUserNotFound = errors.New("DB: User not found")
 var errLoginNotFound = errors.New("DB: Login not found")
+var errInvalidCredentials = errors.New("DB: Invalid Credentials")
 var errSessionNotFound = errors.New("DB: Session not found")
 var errSessionAlreadyExists = errors.New("DB: Session already exists")
 var errRememberMeNotFound = errors.New("DB: RememberMe not found")
@@ -27,7 +28,7 @@ type backender interface {
 
 	// LoginBackender. Write out since it contains duplicate BackendCloser
 	CreateLogin(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
-	GetLogin(email, loginProvider string) (*userLogin, error)
+	Login(email, password string) (*userLogin, error)
 	UpdateEmail(email string, password string, newEmail string) (*loginSession, error)
 	UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error)
 
@@ -47,7 +48,7 @@ type userBackender interface {
 
 type loginBackender interface {
 	CreateLogin(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
-	GetLogin(email, loginProvider string) (*userLogin, error)
+	Login(email, password string) (*userLogin, error)
 	UpdateEmail(email string, password string, newEmail string) (*loginSession, error)
 	UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error)
 	backendCloser
@@ -59,7 +60,7 @@ type sessionBackender interface {
 	UpdateEmailSession(verifyHash string, userID int, email string) error
 	DeleteEmailSession(verifyHash string) error
 
-	CreateSession(userID int, email string, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error)
+	CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error)
 	GetSession(sessionHash string) (*loginSession, error)
 	RenewSession(sessionHash string, renewTimeUTC time.Time) (*loginSession, error)
 	InvalidateSession(sessionHash string) error
@@ -86,15 +87,15 @@ type user struct {
 }
 
 type userLogin struct {
-	UserID          int
-	Email           string
-	LoginProviderID int
-	ProviderKey     string
+	UserID   int
+	Email    string
+	FullName string
 }
 
 type loginSession struct {
 	UserID        int
 	Email         string
+	FullName      string
 	SessionHash   string
 	RenewTimeUTC  time.Time
 	ExpireTimeUTC time.Time
@@ -159,12 +160,12 @@ type backend struct {
 	backendCloser
 }
 
-func (b *backend) GetLogin(email, loginProvider string) (*userLogin, error) {
-	return b.l.GetLogin(email, loginProvider)
+func (b *backend) Login(email, password string) (*userLogin, error) {
+	return b.l.Login(email, password)
 }
 
-func (b *backend) CreateSession(userID int, email, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
-	return b.s.CreateSession(userID, email, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC, rememberMe, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC)
+func (b *backend) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
+	return b.s.CreateSession(userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC, rememberMe, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC)
 }
 
 func (b *backend) GetSession(sessionHash string) (*loginSession, error) {

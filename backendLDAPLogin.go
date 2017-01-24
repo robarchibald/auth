@@ -22,25 +22,29 @@ func newBackendLDAPLogin(server string, port int, bindDn, password, baseDn, user
 }
 
 type ldapData struct {
-	UID           []string
-	UserPassword  []string
-	UIDNumber     []string
-	GIDNumber     []string
-	HomeDirectory []string
+	UID      string
+	DbUserId string
+	Cn       string
 }
 
-func (l *backendLDAPLogin) GetLogin(email, loginProvider string) (*userLogin, error) {
-	req := ldap.NewSearchRequest(l.baseDn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, 0, false, fmt.Sprintf(l.userLoginFilter, email), []string{"uid", "userPassword", "uidNumber", "gidNumber", "homeDirectory"}, nil)
-	data := &ldapData{}
-	err := l.db.QueryStructRow(req, data)
+func (l *backendLDAPLogin) Login(email, password string) (*userLogin, error) {
+	// check credentials
+	err := l.db.Execute(ldap.NewSimpleBindRequest(email, password, nil))
 	if err != nil {
 		return nil, err
 	}
-	var password string
-	if len(data.UserPassword) != 0 {
-		password = data.UserPassword[0]
+	// get login info
+	req := ldap.NewSearchRequest(l.baseDn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, 0, false, fmt.Sprintf(l.userLoginFilter, email), []string{"uid", "dbUserId", "cn"}, nil)
+	data := &ldapData{}
+	err = l.db.QueryStructRow(req, data)
+	if err != nil {
+		return nil, err
 	}
-	return &userLogin{ProviderKey: password}, nil
+	dbUserID, err := strconv.Atoi(data.DbUserId)
+	if err != nil {
+		return nil, err
+	}
+	return &userLogin{UserID: dbUserID, Email: data.UID, FullName: data.Cn}, nil
 }
 
 /****************  TODO: create different type of user if not using file and mail quotas  **********************/

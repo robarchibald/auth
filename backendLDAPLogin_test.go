@@ -23,31 +23,34 @@ func TestNewBackendLDAPLogin(t *testing.T) {
 		t.Fatal("unable to login", err)
 	}
 
-	_, err = l.GetLogin("test@test.com", "")
+	_, err = l.Login("test@test.com", "")
 	if err == nil {
 		t.Fatal("Expected no results", err)
 	}
 }
 
-func TestLdapGetLogin(t *testing.T) {
+func TestLdapLogin(t *testing.T) {
 	// success
-	data := ldapData{UserPassword: []string{"password"}}
+	data := ldapData{UID: "email", DbUserId: "1234"}
 	m := onedb.NewMock(nil, nil, data)
 	l := backendLDAPLogin{db: m, userLoginFilter: "%s"}
-	login, err := l.GetLogin("email", "provider")
-	if err != nil || login.ProviderKey != "password" {
-		t.Error("expected to find data", login)
+	login, err := l.Login("email", "password")
+	if err != nil || login.Email != "email" {
+		t.Error("expected to find data", login, err)
 	}
 
 	queries := m.QueriesRun()
-	if _, ok := queries[0].(*ldap.SearchRequest); !ok {
-		t.Error("expected ldap search request")
+	if _, ok := queries[0].(*ldap.SimpleBindRequest); !ok {
+		t.Error("expected ldap bind request first")
+	}
+	if _, ok := queries[1].(*ldap.SearchRequest); !ok {
+		t.Error("expected ldap searc request next")
 	}
 
 	// error
 	m = onedb.NewMock(nil, nil, nil)
 	l = backendLDAPLogin{db: m, userLoginFilter: "%s"}
-	_, err = l.GetLogin("email", "provider")
+	_, err = l.Login("email", "password")
 	if err == nil {
 		t.Error("expected error")
 	}

@@ -195,18 +195,15 @@ func (s *authStore) login(email, password string, rememberMe bool) (*loginSessio
 
 	// add in check for DDOS attack. Slow down or lock out checks for same account
 	// or same IP with multiple failed attempts
-	login, err := s.backend.GetLogin(email, loginProviderDefaultName)
+	login, err := s.backend.Login(email, password)
 	if err != nil {
 		return nil, newLoggedError("Invalid username or password", err)
 	}
 
-	if err := cryptoHashEquals(password, login.ProviderKey); err != nil {
-		return nil, newLoggedError("Invalid username or password", err)
-	}
-	return s.createSession(email, rememberMe)
+	return s.createSession(email, login.UserID, login.FullName, rememberMe)
 }
 
-func (s *authStore) createSession(email string, rememberMe bool) (*loginSession, error) {
+func (s *authStore) createSession(email string, userID int, fullname string, rememberMe bool) (*loginSession, error) {
 	var err error
 	var selector, token, tokenHash string
 	if rememberMe {
@@ -220,7 +217,7 @@ func (s *authStore) createSession(email string, rememberMe bool) (*loginSession,
 		return nil, newLoggedError("Problem generating sessionId", nil)
 	}
 
-	session, remember, err := s.backend.CreateSession(1, email, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
+	session, remember, err := s.backend.CreateSession(userID, email, fullname, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
 	if err != nil {
 		return nil, newLoggedError("Unable to create new session", err)
 	}
@@ -358,7 +355,7 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 		return newLoggedError("Unable to create login", err)
 	}
 
-	_, err = s.createSession(session.Email, false)
+	_, err = s.createSession(session.Email, session.UserID, fullName, false)
 	if err != nil {
 		return err
 	}
