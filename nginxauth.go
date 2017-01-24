@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/handlers"
 	"github.com/robarchibald/configReader"
@@ -177,23 +178,45 @@ func (s *nginxauth) method(name string, handler func(authStore authStorer, w htt
 func auth(authStore authStorer, w http.ResponseWriter, r *http.Request) {
 	session, err := authStore.GetSession()
 	if err != nil {
-		http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
-		if a, ok := err.(*authError); ok {
-			fmt.Println(a.Trace())
-		}
-	} else {
-		addUserHeader(session, w)
+		authErr(w, r, err)
+		return
+	}
+
+	user, err := json.Marshal(&userLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
+	if err != nil {
+		authErr(w, r, err)
+		return
+	}
+
+	addUserHeader(string(user), w)
+}
+
+func authErr(w http.ResponseWriter, r *http.Request, err error) {
+	http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
+	if a, ok := err.(*authError); ok {
+		fmt.Println(a.Trace())
 	}
 }
 
 func authBasic(authStore authStorer, w http.ResponseWriter, r *http.Request) {
 	session, err := authStore.GetBasicAuth()
 	if err != nil {
-		w.Header().Set("WWW-Authenticate", "Basic realm='Endfirst.com'")
-		http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
-	} else {
-		addUserHeader(session, w)
+		basicErr(w, r, err)
+		return
 	}
+
+	user, err := json.Marshal(&userLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
+	if err != nil {
+		basicErr(w, r, err)
+		return
+	}
+
+	addUserHeader(string(user), w)
+}
+
+func basicErr(w http.ResponseWriter, r *http.Request, err error) {
+	w.Header().Set("WWW-Authenticate", "Basic realm='Endfirst.com'")
+	http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
 }
 
 func login(authStore authStorer, w http.ResponseWriter, r *http.Request) {
@@ -234,6 +257,6 @@ func run(method func() error, w http.ResponseWriter) {
 	}
 }
 
-func addUserHeader(session *loginSession, w http.ResponseWriter) {
-	w.Header().Add("X-User", session.Email)
+func addUserHeader(userJSON string, w http.ResponseWriter) {
+	w.Header().Add("X-User", userJSON)
 }

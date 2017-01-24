@@ -43,9 +43,9 @@ func TestAuth(t *testing.T) {
 	}
 
 	w = httptest.NewRecorder()
-	storer = &mockAuthStorer{SessionReturn: &loginSession{Email: "test@test.com"}}
+	storer = &mockAuthStorer{SessionReturn: &loginSession{UserID: 1, Email: "test@test.com", FullName: "Name"}}
 	auth(storer, w, nil)
-	if w.Header().Get("X-User") != "test@test.com" || storer.LastRun != "GetSession" {
+	if w.Header().Get("X-User") != `{"UserID":1,"Email":"test@test.com","FullName":"Name"}` || storer.LastRun != "GetSession" {
 		t.Error("expected User header to be set", w.Header().Get("X-User"), storer.LastRun)
 	}
 }
@@ -61,7 +61,7 @@ func TestAuthBasic(t *testing.T) {
 	w = httptest.NewRecorder()
 	storer = &mockAuthStorer{SessionReturn: &loginSession{Email: "test@test.com"}}
 	authBasic(storer, w, nil)
-	if w.Header().Get("X-User") != "test@test.com" || storer.LastRun != "GetBasicAuth" {
+	if w.Header().Get("X-User") != `{"UserID":0,"Email":"test@test.com","FullName":""}` || storer.LastRun != "GetBasicAuth" {
 		t.Error("expected User header to be set", w.Header().Get("X-User"), storer.LastRun)
 	}
 }
@@ -129,8 +129,8 @@ func TestVerifyEmail(t *testing.T) {
 
 func TestAddUserHeader(t *testing.T) {
 	w := httptest.NewRecorder()
-	addUserHeader(&loginSession{Email: "test@test.com"}, w)
-	if w.Header().Get("X-User") != "test@test.com" {
+	addUserHeader(`{"name": "value"}`, w)
+	if w.Header().Get("X-User") != `{"name": "value"}` {
 		t.Error("expected halfauth header", w.Header())
 	}
 }
