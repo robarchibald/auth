@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"github.com/pkg/errors"
 	"time"
 )
 
@@ -24,7 +24,7 @@ type backender interface {
 	// UserBackender. Write out since it contains duplicate BackendCloser
 	AddUser(email string) (int, error)
 	GetUser(email string) (*user, error)
-	UpdateUser(email, fullname string, company string, pictureURL string) error
+	UpdateUser(userID int, fullname string, company string, pictureURL string) error
 
 	// LoginBackender. Write out since it contains duplicate BackendCloser
 	CreateLogin(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
@@ -42,7 +42,7 @@ type backendCloser interface {
 type userBackender interface {
 	AddUser(email string) (int, error)
 	GetUser(email string) (*user, error)
-	UpdateUser(email, fullname string, company string, pictureURL string) error
+	UpdateUser(userID int, fullname string, company string, pictureURL string) error
 	backendCloser
 }
 
@@ -208,8 +208,8 @@ func (b *backend) GetUser(email string) (*user, error) {
 	return b.u.GetUser(email)
 }
 
-func (b *backend) UpdateUser(email, fullname string, company string, pictureURL string) error {
-	return b.u.UpdateUser(email, fullname, company, pictureURL)
+func (b *backend) UpdateUser(userID int, fullname string, company string, pictureURL string) error {
+	return b.u.UpdateUser(userID, fullname, company, pictureURL)
 }
 
 func (b *backend) CreateLogin(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"github.com/pkg/errors"
 	"testing"
 	"time"
 )
@@ -93,7 +93,7 @@ func TestBackendGetEmailSession(t *testing.T) {
 func TestBackendUpdateUser(t *testing.T) {
 	m := &mockBackend{}
 	b := backend{u: m, l: m, s: m}
-	b.UpdateUser("hash", "name", "company", "url")
+	b.UpdateUser(1, "name", "company", "url")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "UpdateUser" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
@@ -326,7 +326,7 @@ func (b *mockBackend) GetUser(email string) (*user, error) {
 	return b.GetUserReturn.User, b.GetUserReturn.Err
 }
 
-func (b *mockBackend) UpdateUser(email, fullname, company, pictureURL string) error {
+func (b *mockBackend) UpdateUser(userID int, fullname, company, pictureURL string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdateUser")
 	return b.ErrReturn
 }

@@ -5,13 +5,63 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"github.com/kless/osutil/user/crypt/sha512_crypt"
+	"github.com/pkg/errors"
 	"math/big"
 )
 
 var errHashNotEqual = errors.New("input string does not match the supplied hash")
+
+type passwordStorer interface {
+	HashEquals(token, tokenHash string) error
+	Hash(token string) (string, error)
+}
+
+type cryptoHashStore struct {
+	passwordStorer
+}
+
+func (c *cryptoHashStore) HashEquals(token, tokenHash string) error {
+	if len(tokenHash) > 7 && tokenHash[0:7] == "{CRYPT}" {
+		tokenHash = tokenHash[7:]
+	}
+	hashed, err := cryptoHashWSalt(token, tokenHash) // sha512_crypt will strip out salt from hash
+	if err != nil {
+		return err
+	}
+	if subtle.ConstantTimeCompare([]byte(hashed), []byte(tokenHash)) != 1 {
+		return errHashNotEqual
+	}
+	return nil
+}
+
+func (c *cryptoHashStore) Hash(token string) (string, error) {
+	salt, err := getRandomSalt(16, 50000)
+	if err != nil {
+		return "", err
+	}
+	return cryptoHashWSalt(token, salt)
+}
+
+type hashStore struct {
+	passwordStorer
+}
+
+func (h *hashStore) HashEquals(token, tokenHash string) error {
+	hash, err := decodeFromString(tokenHash)
+	if err != nil {
+		return err
+	}
+	if !hashEquals([]byte(token), hash) {
+		return errors.New("supplied token and tokenHash do not match")
+	}
+	return nil
+}
+
+func (h *hashStore) Hash(token string) (string, error) {
+	return encodeToString(hash([]byte(token))), nil
+}
 
 func decodeStringToHash(token string) (string, error) {
 	data, err := decodeFromString(token)
@@ -56,10 +106,19 @@ func hash(bytes []byte) []byte {
 }
 
 // Url decode both the token and the hash and then compare
-func encodedHashEquals(token, tokenHash string) bool {
-	tokenBytes, _ := decodeFromString(token)
-	hashBytes, _ := decodeFromString(tokenHash)
-	return hashEquals(tokenBytes, hashBytes)
+func encodedHashEquals(token, tokenHash string) error {
+	tokenBytes, err := decodeFromString(token)
+	if err != nil {
+		return err
+	}
+	hashBytes, err := decodeFromString(tokenHash)
+	if err != nil {
+		return err
+	}
+	if !hashEquals(tokenBytes, hashBytes) {
+		return errors.New("token and tokenHash do not match")
+	}
+	return nil
 }
 
 func hashEquals(token, tokenHash []byte) bool {
@@ -92,28 +151,6 @@ func getRandomSalt(length, iterations int) (string, error) {
 		b[i] = letterBytes[int(c.Int64())]
 	}
 	return fmt.Sprintf("$6$rounds=%d$%s", iterations, b), nil
-}
-
-func cryptoHashEquals(in string, hash string) error {
-	if len(hash) > 7 && hash[0:7] == "{CRYPT}" {
-		hash = hash[7:]
-	}
-	hashed, err := cryptoHashWSalt(in, hash) // sha512_crypt will strip out salt from hash
-	if err != nil {
-		return err
-	}
-	if subtle.ConstantTimeCompare([]byte(hashed), []byte(hash)) != 1 {
-		return errHashNotEqual
-	}
-	return nil
-}
-
-func cryptoHash(in string) (string, error) {
-	salt, err := getRandomSalt(16, 200000)
-	if err != nil {
-		return "", err
-	}
-	return cryptoHashWSalt(in, salt)
 }
 
 func cryptoHashWSalt(in, salt string) (string, error) {

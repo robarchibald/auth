@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"github.com/pkg/errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -113,6 +113,9 @@ type MockCookieStore struct {
 func NewMockCookieStore(cookies map[string]interface{}, hasGetErr, hasPutErr bool) *MockCookieStore {
 	err := errors.New("failed")
 	var getErr, putErr error
+	if cookies == nil {
+		cookies = make(map[string]interface{})
+	}
 	if hasGetErr {
 		getErr = err
 	}

@@ -1,53 +1,46 @@
 package main
 
 import (
-	"errors"
+	"github.com/pkg/errors"
 	"github.com/robarchibald/onedb"
 )
 
 type backendDbUser struct {
 	Db onedb.DBer
 
-	GetUserLoginQuery string
-	AddUserQuery      string
-	VerifyEmailQuery  string
-	UpdateUserQuery   string
-	CreateLoginQuery  string
+	AddUserQuery     string
+	GetUserQuery     string
+	UpdateUserQuery  string
+	CreateLoginQuery string
 }
 
-func newBackendDbUser(server string, port int, username, password, database string, getUserLoginQuery, addUserQuery, verifyEmailQuery, updateUserQuery string) (userBackender, error) {
+func newBackendDbUser(server string, port int, username, password, database string, addUserQuery, getUserQuery, updateUserQuery string) (userBackender, error) {
 	db, err := onedb.NewPgx(server, uint16(port), username, password, database)
 	if err != nil {
 		return nil, err
 	}
 	return &backendDbUser{Db: db,
-		GetUserLoginQuery: getUserLoginQuery,
-		AddUserQuery:      addUserQuery,
-		VerifyEmailQuery:  verifyEmailQuery,
-		UpdateUserQuery:   updateUserQuery}, nil
-}
-
-func (u *backendDbUser) GetLogin(email, loginProvider string) (*userLogin, error) {
-	var login *userLogin
-	return login, u.Db.QueryStruct(onedb.NewSqlQuery(u.GetUserLoginQuery, email, loginProvider), login)
+		GetUserQuery:    getUserQuery,
+		AddUserQuery:    addUserQuery,
+		UpdateUserQuery: updateUserQuery}, nil
 }
 
 func (u *backendDbUser) AddUser(email string) (int, error) {
-	var userId int
-	return userId, u.Db.Execute(onedb.NewSqlQuery(u.AddUserQuery, email))
+	var userID int32 = -1
+	return int(userID), u.Db.QueryValues(onedb.NewSqlQuery(u.AddUserQuery, email), &userID)
 }
 
 func (u *backendDbUser) GetUser(email string) (*user, error) {
-	var r *user
-	err := u.Db.QueryStructRow(onedb.NewSqlQuery(u.VerifyEmailQuery, email), r)
-	if err != nil || r == nil {
+	r := &user{}
+	err := u.Db.QueryStructRow(onedb.NewSqlQuery(u.GetUserQuery, email), r)
+	if err != nil {
 		return nil, errors.New("Unable to get user: " + err.Error())
 	}
 	return r, err
 }
 
-func (u *backendDbUser) UpdateUser(email, fullname string, company string, pictureURL string) error {
-	return nil
+func (u *backendDbUser) UpdateUser(userID int, fullname string, company string, pictureURL string) error {
+	return u.Db.Execute(onedb.NewSqlQuery(u.UpdateUserQuery, userID, fullname))
 }
 
 func (u *backendDbUser) Close() error {

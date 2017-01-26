@@ -61,13 +61,14 @@ type authStore struct {
 	mailer      mailer
 	cookieStore cookieStorer
 	r           *http.Request
+	p           passwordStorer
 }
 
-func newAuthStore(b backender, mailer mailer, w http.ResponseWriter, r *http.Request, customPrefix string, cookieKey []byte, secureOnlyCookie bool) authStorer {
+func newAuthStore(b backender, mailer mailer, p passwordStorer, w http.ResponseWriter, r *http.Request, customPrefix string, cookieKey []byte, secureOnlyCookie bool) authStorer {
 	emailCookieName = customPrefix + "Email"
 	sessionCookieName = customPrefix + "Session"
 	rememberMeCookieName = customPrefix + "RememberMe"
-	return &authStore{b, mailer, newCookieStore(w, r, cookieKey, secureOnlyCookie), r}
+	return &authStore{b, mailer, newCookieStore(w, r, cookieKey, secureOnlyCookie), r, p}
 }
 
 func (s *authStore) GetSession() (*loginSession, error) {
@@ -127,9 +128,9 @@ func (s *authStore) getRememberMe() (*rememberMeSession, error) {
 		}
 		return nil, newLoggedError("Unable to find matching RememberMe in DB", err)
 	}
-	if !encodedHashEquals(cookie.Token, rememberMe.TokenHash) {
+	if err := encodedHashEquals(cookie.Token, rememberMe.TokenHash); err != nil {
 		s.deleteRememberMeCookie()
-		return nil, newLoggedError("RememberMe cookie doesn't match backend token", nil)
+		return nil, newLoggedError("RememberMe cookie doesn't match backend token", err)
 	}
 	if rememberMe.RenewTimeUTC.Before(time.Now().UTC()) {
 		rememberMe, err = s.backend.RenewRememberMe(cookie.Selector, time.Now().UTC().Add(rememberMeRenewDuration))
@@ -144,23 +145,16 @@ func (s *authStore) getRememberMe() (*rememberMeSession, error) {
 }
 
 func (s *authStore) renewSession(sessionID, sessionHash string, renewTimeUTC, expireTimeUTC *time.Time) (*loginSession, error) {
-	if renewTimeUTC.Before(time.Now().UTC()) && expireTimeUTC.After(time.Now().UTC()) {
-		session, err := s.backend.RenewSession(sessionHash, time.Now().UTC().Add(sessionRenewDuration))
+	// expired so check for valid rememberMe for renewal
+	if expireTimeUTC.Before(time.Now().UTC()) {
+		_, err := s.getRememberMe()
 		if err != nil {
-			return nil, newLoggedError("Unable to renew session", err)
+			return nil, newAuthError("Unable to renew session", err)
 		}
-
-		if err = s.saveSessionCookie(sessionID, session.RenewTimeUTC, session.ExpireTimeUTC); err != nil {
-			return nil, err
-		}
-		return session, nil
 	}
-
-	_, err := s.getRememberMe()
-	if err != nil {
-		return nil, newAuthError("Unable to renew session", err)
-	}
-
+	// TODO: may want to change to add logic to ensure that we don't renew past the expire date
+	// and so that we can't exceed the rememberMe expire time. Then, again, it may not matter much
+	// with just a 5 minute renew time.
 	session, err := s.backend.RenewSession(sessionHash, time.Now().UTC().Add(sessionRenewDuration))
 	if err != nil {
 		if err == errSessionNotFound {
@@ -340,7 +334,7 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 		return newLoggedError("Invalid email verification", err)
 	}
 
-	err = s.backend.UpdateUser(session.Email, fullName, organization, picturePath)
+	err = s.backend.UpdateUser(session.UserID, fullName, organization, picturePath)
 	if err != nil {
 		return newLoggedError("Unable to update user", err)
 	}
@@ -366,7 +360,7 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 
 /****************  TODO: send 0 for UID and GID numbers and empty quotas if mailQuota and fileQuota are 0 **********************/
 func (s *authStore) createLogin(userID, dbUserID int, email, fullName, password string, mailQuota, fileQuota int) (*userLogin, error) {
-	passwordHash, err := cryptoHash(password)
+	passwordHash, err := s.p.Hash(password)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}

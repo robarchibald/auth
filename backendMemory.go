@@ -23,12 +23,13 @@ type backendMemory struct {
 	LoginProviders []*loginProvider
 	LastUserID     int
 	LastLoginID    int
+	p              passwordStorer
 }
 
 const loginProviderDefaultName string = "Default"
 
-func newBackendMemory() backender {
-	return &backendMemory{LoginProviders: []*loginProvider{&loginProvider{LoginProviderID: 1, Name: loginProviderDefaultName}}}
+func newBackendMemory(p passwordStorer) backender {
+	return &backendMemory{p: p, LoginProviders: []*loginProvider{&loginProvider{LoginProviderID: 1, Name: loginProviderDefaultName}}}
 }
 
 func (m *backendMemory) Login(email, password string) (*userLogin, error) {
@@ -36,7 +37,7 @@ func (m *backendMemory) Login(email, password string) (*userLogin, error) {
 	if login == nil {
 		return nil, errLoginNotFound
 	}
-	if err := cryptoHashEquals(password, login.PasswordHash); err != nil {
+	if err := m.p.HashEquals(password, login.PasswordHash); err != nil {
 		return nil, err
 	}
 	return &userLogin{login.UserID, login.Email, login.FullName}, nil
@@ -109,7 +110,7 @@ func (m *backendMemory) CreateEmailSession(email, emailVerifyHash string) error 
 		return errEmailVerifyHashExists
 	}
 
-	m.EmailSessions = append(m.EmailSessions, &emailSession{Email: email, EmailVerifyHash: emailVerifyHash})
+	m.EmailSessions = append(m.EmailSessions, &emailSession{UserID: -1, Email: email, EmailVerifyHash: emailVerifyHash})
 
 	return nil
 }
@@ -156,8 +157,8 @@ func (m *backendMemory) GetUser(email string) (*user, error) {
 	return u, nil
 }
 
-func (m *backendMemory) UpdateUser(email, fullname string, company string, pictureURL string) error {
-	user := m.getUserByEmail(email)
+func (m *backendMemory) UpdateUser(userID int, fullname string, company string, pictureURL string) error {
+	user := m.getUserByID(userID)
 	if user == nil {
 		return errUserNotFound
 	}
@@ -250,7 +251,7 @@ func (m *backendMemory) removeSession(sessionHash string) {
 	}
 }
 
-func (m *backendMemory) getLoginByUser(email string) *userLoginMemory {
+func (m *backendMemory) getLoginByEmail(email string) *userLoginMemory {
 	for _, login := range m.Logins {
 		if login.Email == email {
 			return login
@@ -259,10 +260,10 @@ func (m *backendMemory) getLoginByUser(email string) *userLoginMemory {
 	return nil
 }
 
-func (m *backendMemory) getLoginByEmail(email string) *userLoginMemory {
-	for _, login := range m.Logins {
-		if login.Email == email {
-			return login
+func (m *backendMemory) getUserByID(userID int) *user {
+	for _, user := range m.Users {
+		if user.UserID == userID {
+			return user
 		}
 	}
 	return nil

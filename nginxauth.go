@@ -27,13 +27,12 @@ type authConf struct {
 	LdapPassword                             string
 	LdapBaseDn                               string
 	LdapUserFilter                           string
-	GetUserLoginQuery                        string
 	GetSessionQuery                          string
 	RenewSessionQuery                        string
 	GetRememberMeQuery                       string
 	RenewRememberMeQuery                     string
 	AddUserQuery                             string
-	VerifyEmailQuery                         string
+	GetUserQuery                             string
 	UpdateUserQuery                          string
 	CreateLoginQuery                         string
 	UpdateEmailAndInvalidateSessionsQuery    string
@@ -97,11 +96,10 @@ func newNginxAuth() (*nginxauth, error) {
 	if err != nil {
 		return nil, err
 	}
-	u := newBackendMemory()
-	/*u, err := newBackendDbUser(config.DbServer, config.DbPort, config.DbUser, config.DbPassword, config.DbDatabase, config.GetUserLoginQuery, config.AddUserQuery, config.VerifyEmailQuery, config.UpdateUserQuery)
+	u, err := newBackendDbUser(config.DbServer, config.DbPort, config.DbUser, config.DbPassword, config.DbDatabase, config.AddUserQuery, config.GetUserQuery, config.UpdateUserQuery)
 	if err != nil {
 		return nil, err
-	}*/
+	}
 	b := &backend{u: u, l: l, s: s}
 
 	mailer, err := config.NewEmailer()
@@ -170,7 +168,7 @@ func (s *nginxauth) method(name string, handler func(authStore authStorer, w htt
 			return
 		}
 		secureOnly := strings.HasPrefix(r.Referer(), "https") // proxy to back-end so if referer is secure connection, we can use secureOnly cookies
-		authStore := newAuthStore(s.backend, s.mailer, w, r, s.conf.StoragePrefix, s.cookieKey, secureOnly)
+		authStore := newAuthStore(s.backend, s.mailer, &cryptoHashStore{}, w, r, s.conf.StoragePrefix, s.cookieKey, secureOnly)
 		handler(authStore, w, r)
 	}
 }
@@ -195,6 +193,8 @@ func authErr(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
 	if a, ok := err.(*authError); ok {
 		fmt.Println(a.Trace())
+	} else {
+		fmt.Println(err)
 	}
 }
 

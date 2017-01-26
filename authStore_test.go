@@ -3,8 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
-	"errors"
-	"github.com/robarchibald/substring"
+	"github.com/pkg/errors"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
@@ -21,7 +20,7 @@ var pastTime = time.Now().Add(-5 * time.Minute)
 func getAuthStore(emailCookie *emailCookie, sessionCookie *sessionCookie, rememberCookie *rememberMeCookie, hasCookieGetError, hasCookiePutError bool, mailErr error, backend *mockBackend) *authStore {
 	r := &http.Request{}
 	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookie, sessionCookieName: sessionCookie, rememberMeCookieName: rememberCookie}, hasCookieGetError, hasCookiePutError)
-	return &authStore{backend, &TextMailer{Err: mailErr}, cookieStore, r}
+	return &authStore{backend, &TextMailer{Err: mailErr}, cookieStore, r, &hashStore{}}
 }
 
 func TestNewAuthStore(t *testing.T) {
@@ -29,7 +28,7 @@ func TestNewAuthStore(t *testing.T) {
 	r := &http.Request{}
 	b := &mockBackend{}
 	m := &TextMailer{}
-	actual := newAuthStore(b, m, w, r, "prefix", cookieKey, false).(*authStore)
+	actual := newAuthStore(b, m, &hashStore{}, w, r, "prefix", cookieKey, false).(*authStore)
 	if actual.backend != b || actual.cookieStore.(*cookieStore).w != w || actual.cookieStore.(*cookieStore).r != r {
 		t.Fatal("expected correct init")
 	}
@@ -106,12 +105,29 @@ var renewSessionTests = []struct {
 	ExpectedErr         string
 }{
 	{
+		Scenario:            "Successful renew With RememberMe",
+		RenewTimeUTC:        pastTime,
+		ExpireTimeUTC:       pastTime,
+		RememberCookie:      rememberCookie(futureTime, futureTime),
+		RenewSessionReturn:  sessionSuccess(futureTime, futureTime),
+		GetRememberMeReturn: rememberMe(futureTime, futureTime),
+		MethodsCalled:       []string{"GetRememberMe", "RenewSession"},
+	},
+	{
+		Scenario:          "Renew With RememberMe Error",
+		RenewTimeUTC:      pastTime,
+		ExpireTimeUTC:     pastTime,
+		RememberCookie:    rememberCookie(futureTime, futureTime),
+		HasCookieGetError: true,
+		ExpectedErr:       "Unable to renew session",
+	},
+	{
 		Scenario:           "Renew Error",
 		RenewTimeUTC:       pastTime,
 		ExpireTimeUTC:      futureTime,
-		RenewSessionReturn: sessionErr(),
+		RenewSessionReturn: &SessionReturn{nil, errSessionNotFound},
 		MethodsCalled:      []string{"RenewSession"},
-		ExpectedErr:        "Unable to renew session",
+		ExpectedErr:        "Problem renewing session",
 	},
 	{
 		Scenario:           "Renew Save cookie error",
@@ -123,41 +139,13 @@ var renewSessionTests = []struct {
 		ExpectedErr:        "Error saving session cookie",
 	},
 	{
-		Scenario:          "Error Getting RememberMe",
-		RenewTimeUTC:      pastTime,
-		ExpireTimeUTC:     pastTime,
-		HasCookieGetError: true,
-		ExpectedErr:       "Unable to renew session",
-	},
-	{
-		Scenario:            "Renew With RememberMe",
+		Scenario:            "Success with no rememberme",
 		RenewTimeUTC:        pastTime,
-		ExpireTimeUTC:       pastTime,
-		RememberCookie:      rememberCookie(futureTime, futureTime),
-		RenewSessionReturn:  sessionSuccess(futureTime, futureTime),
-		GetRememberMeReturn: rememberMe(futureTime, futureTime),
-		MethodsCalled:       []string{"GetRememberMe", "RenewSession"},
-	},
-	{
-		Scenario:            "Renew With RememberMe Error",
-		RenewTimeUTC:        pastTime,
-		ExpireTimeUTC:       pastTime,
-		RememberCookie:      rememberCookie(futureTime, futureTime),
-		GetRememberMeReturn: rememberMe(futureTime, futureTime),
-		RenewSessionReturn:  &SessionReturn{nil, errSessionNotFound},
-		MethodsCalled:       []string{"GetRememberMe", "RenewSession"},
-		ExpectedErr:         "Problem renewing session",
-	},
-	{
-		Scenario:            "Save cookie error",
-		RenewTimeUTC:        pastTime,
-		ExpireTimeUTC:       pastTime,
+		ExpireTimeUTC:       futureTime,
 		RememberCookie:      rememberCookie(futureTime, futureTime),
 		GetRememberMeReturn: rememberMe(futureTime, futureTime),
 		RenewSessionReturn:  sessionSuccess(futureTime, futureTime),
-		MethodsCalled:       []string{"GetRememberMe", "RenewSession"},
-		HasCookiePutError:   true,
-		ExpectedErr:         "Error saving session cookie",
+		MethodsCalled:       []string{"RenewSession"},
 	},
 }
 
@@ -346,72 +334,6 @@ func basicAuthRequest(username, password string) *http.Request {
 	auth = base64.StdEncoding.EncodeToString([]byte(auth))
 	r.Header.Add("Authorization", "Basic "+auth)
 	return r
-}
-
-func TestAuthStoreEndToEnd(t *testing.T) {
-	w := httptest.NewRecorder()
-	r := &http.Request{Header: http.Header{}}
-	b := newBackendMemory().(*backendMemory)
-	m := &TextMailer{}
-	s := newAuthStore(b, m, w, r, "prefix", cookieKey, false).(*authStore)
-
-	// register new user
-	// adds to users, logins and sessions
-	err := s.register("test@test.com")
-	if err != nil || len(b.EmailSessions) != 1 || b.EmailSessions[0].Email != "test@test.com" || len(b.Sessions) != 0 {
-		t.Fatal("expected to be able to add user", err, len(b.EmailSessions), b.EmailSessions[0], len(b.Sessions))
-	}
-
-	// get code from "email"
-	data := m.MessageData.(*sendVerifyParams)
-
-	// verify email
-	err = s.verifyEmail(data.VerificationCode)
-
-	// decode email cookie
-	value := substring.Between(w.HeaderMap["Set-Cookie"][0], "prefixEmail=", ";")
-	emailCookie := emailCookie{}
-	cookieStoreInstance.Decode("prefixEmail", value, &emailCookie)
-	emailVerifyHash, _ := decodeStringToHash(emailCookie.EmailVerificationCode)
-	if len(b.EmailSessions) != 1 || b.EmailSessions[0].EmailVerifyHash != emailVerifyHash {
-		t.Fatal("expected emailVerifyHash to be saved", b.EmailSessions[0], emailVerifyHash)
-	}
-
-	// add email cookie to the next request
-	r.AddCookie(newCookie("prefixEmail", value, false, emailExpireMins))
-
-	// create profile
-	err = s.createProfile("fullName", "company", "password", "picturePath", 1, 1)
-	hashErr := cryptoHashEquals("password", b.Logins[0].PasswordHash)
-	if err != nil || len(b.Users) != 1 || len(b.Sessions) != 1 || len(b.Logins) != 1 || b.Logins[0].Email != "test@test.com" || len(b.EmailSessions) != 0 || hashErr != nil {
-		t.Fatal("expected valid user, login and session", b.Logins[0], b.Logins[0].PasswordHash, hashErr)
-	}
-
-	// decode session cookie
-	value = substring.Between(w.HeaderMap["Set-Cookie"][1], "prefixSession=", ";")
-	sessionCookie := sessionCookie{}
-	cookieStoreInstance.Decode("prefixSession", value, &sessionCookie)
-	sessionHash, _ := decodeStringToHash(sessionCookie.SessionID)
-
-	// add session cookie to the next request
-	r.AddCookie(newCookie("prefixSession", value, false, emailExpireMins))
-
-	if err != nil || len(b.Sessions) != 1 || b.Sessions[0].SessionHash != sessionHash || len(b.Logins) != 1 || b.Logins[0].Email != "test@test.com" ||
-		b.Users[0].FullName != "fullName" || b.Users[0].PrimaryEmail != "test@test.com" {
-		t.Fatal("expected profile to be created", err, len(b.Sessions), b.Sessions[0].SessionHash != sessionHash, len(b.Logins) != 1, b.Logins[0].Email, b.Users[0].FullName, b.Users[0].PrimaryEmail)
-	}
-
-	// login on same browser with same existing session
-	session, err := s.login("test@test.com", "password", true)
-	if err != nil || len(b.Logins) != 1 || len(b.Sessions) != 1 || len(b.Users) != 1 || session.SessionHash != b.Sessions[0].SessionHash || session.Email != "test@test.com" {
-		t.Fatal("expected to login to existing session", err, len(b.Logins), len(b.Sessions), len(b.Users), session, b.Sessions[0].SessionHash)
-	}
-
-	// now login with different browser with new session ID. Create new session
-	//session, rememberMe, err = b.NewLoginSession(login.LoginId, "newSessionHash", time.Now().UTC().AddDate(0, 0, 1), time.Now().UTC().AddDate(0, 0, 5), false, "", "", time.Time{}, time.Time{})
-	//if err != nil || login == nil || rememberMe != nil || len(b.Sessions) != 2 {
-	//	t.Fatal("expected new User Login to be created")
-	//}
 }
 
 var registerTests = []struct {

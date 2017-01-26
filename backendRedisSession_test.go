@@ -111,16 +111,7 @@ func TestRedisRenewRememberMe(t *testing.T) {
 	m = onedb.NewMock(nil, nil, data)
 	r = backendRedisSession{db: m, prefix: "test"}
 	remember, err = r.RenewRememberMe("selector", time.Now())
-	if err != errRememberMeExpired || remember != nil {
-		t.Error("expected error", remember, err)
-	}
-
-	// invalid renew time
-	data = rememberMeSession{Selector: "selector", ExpireTimeUTC: time.Now().AddDate(0, 0, 1)}
-	m = onedb.NewMock(nil, nil, data)
-	r = backendRedisSession{db: m, prefix: "test"}
-	remember, err = r.RenewRememberMe("selector", time.Now().AddDate(0, 0, -1))
-	if err != errInvalidRenewTimeUTC || remember != nil {
+	if err == nil || err.Error() != "Unable to save expired rememberMe" || remember != nil {
 		t.Error("expected error", remember, err)
 	}
 }

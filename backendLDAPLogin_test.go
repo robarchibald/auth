@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"github.com/pkg/errors"
 	"github.com/robarchibald/configReader"
 	"github.com/robarchibald/onedb"
 	"gopkg.in/ldap.v2"

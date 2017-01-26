@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"github.com/pkg/errors"
 	"github.com/robarchibald/onedb"
 	"math"
 	"time"
@@ -61,14 +61,15 @@ func (r *backendRedisSession) GetSession(sessionHash string) (*loginSession, err
 }
 
 func (r *backendRedisSession) RenewSession(sessionHash string, renewTimeUTC time.Time) (*loginSession, error) {
-	session := &loginSession{}
-	key := r.getSessionKey(sessionHash)
-	err := r.db.QueryStructRow(onedb.NewRedisGetCommand(key), session)
+	session, err := r.GetSession(sessionHash)
 	if err != nil {
 		return nil, err
 	}
 	session.RenewTimeUTC = renewTimeUTC
-	return session, r.saveSession(session)
+	if err := r.saveSession(session); err != nil {
+		return nil, err
+	}
+	return session, nil
 }
 
 func (r *backendRedisSession) InvalidateSession(sessionHash string) error {
@@ -85,16 +86,14 @@ func (r *backendRedisSession) GetRememberMe(selector string) (*rememberMeSession
 }
 
 func (r *backendRedisSession) RenewRememberMe(selector string, renewTimeUTC time.Time) (*rememberMeSession, error) {
-	rememberMe := &rememberMeSession{}
-	err := r.db.QueryStructRow(onedb.NewRedisGetCommand(r.getRememberMeKey(selector)), rememberMe)
+	rememberMe, err := r.GetRememberMe(selector)
 	if err != nil {
 		return nil, err
-	} else if rememberMe.ExpireTimeUTC.Before(time.Now().UTC()) {
-		return nil, errRememberMeExpired
-	} else if rememberMe.ExpireTimeUTC.Before(renewTimeUTC) || renewTimeUTC.Before(time.Now().UTC()) {
-		return nil, errInvalidRenewTimeUTC
 	}
 	rememberMe.RenewTimeUTC = renewTimeUTC
+	if err := r.saveRememberMe(rememberMe); err != nil {
+		return nil, err
+	}
 	return rememberMe, nil
 }
 
