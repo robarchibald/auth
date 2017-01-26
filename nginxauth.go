@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 )
 
@@ -174,19 +175,23 @@ func (s *nginxauth) method(name string, handler func(authStore authStorer, w htt
 }
 
 func auth(authStore authStorer, w http.ResponseWriter, r *http.Request) {
+	log.Println("started auth")
 	session, err := authStore.GetSession()
 	if err != nil {
 		authErr(w, r, err)
+		log.Println("ended auth: session error")
 		return
 	}
 
 	user, err := json.Marshal(&userLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
 	if err != nil {
 		authErr(w, r, err)
+		log.Println("ended auth: json error")
 		return
 	}
 
 	addUserHeader(string(user), w)
+	log.Println("ended auth: success")
 }
 
 func authErr(w http.ResponseWriter, r *http.Request, err error) {
@@ -244,7 +249,10 @@ func verifyEmail(authStore authStorer, w http.ResponseWriter, r *http.Request) {
 }
 
 func run(method func() error, w http.ResponseWriter) {
+	methodName := reflect.TypeOf(method).Name
+	log.Println("starting: ", methodName)
 	err := method()
+	log.Println("completed: ", methodName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		if a, ok := err.(*authError); ok {
