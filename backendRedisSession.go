@@ -65,6 +65,9 @@ func (r *backendRedisSession) RenewSession(sessionHash string, renewTimeUTC time
 	if err != nil {
 		return nil, err
 	}
+	if session.ExpireTimeUTC.Before(time.Now().UTC()) {
+		session.ExpireTimeUTC = time.Now().UTC().Add(sessionExpireDuration)
+	}
 	session.RenewTimeUTC = renewTimeUTC
 	if err := r.saveSession(session); err != nil {
 		return nil, err

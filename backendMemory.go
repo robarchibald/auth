@@ -77,6 +77,9 @@ func (m *backendMemory) RenewSession(sessionHash string, renewTimeUTC time.Time)
 	if session == nil {
 		return nil, errSessionNotFound
 	}
+	if session.ExpireTimeUTC.Before(time.Now().UTC()) {
+		session.ExpireTimeUTC = time.Now().UTC().Add(sessionExpireDuration)
+	}
 	session.RenewTimeUTC = renewTimeUTC
 	return session, nil
 }
@@ -93,10 +96,6 @@ func (m *backendMemory) RenewRememberMe(selector string, renewTimeUTC time.Time)
 	rememberMe := m.getRememberMe(selector)
 	if rememberMe == nil {
 		return nil, errRememberMeNotFound
-	} else if rememberMe.ExpireTimeUTC.Before(time.Now().UTC()) {
-		return nil, errRememberMeExpired
-	} else if rememberMe.ExpireTimeUTC.Before(renewTimeUTC) || renewTimeUTC.Before(time.Now().UTC()) {
-		return nil, errInvalidRenewTimeUTC
 	}
 	rememberMe.RenewTimeUTC = renewTimeUTC
 	return rememberMe, nil

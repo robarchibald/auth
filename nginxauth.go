@@ -11,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 )
 
 type authConf struct {
@@ -175,23 +176,24 @@ func (s *nginxauth) method(name string, handler func(authStore authStorer, w htt
 }
 
 func auth(authStore authStorer, w http.ResponseWriter, r *http.Request) {
-	log.Println("started auth")
+	startTime := time.Now()
+	log.Println("auth begin: ")
 	session, err := authStore.GetSession()
 	if err != nil {
 		authErr(w, r, err)
-		log.Println("ended auth: session error")
+		log.Println("auth end:   session error", time.Since(startTime))
 		return
 	}
 
 	user, err := json.Marshal(&userLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
 	if err != nil {
 		authErr(w, r, err)
-		log.Println("ended auth: json error")
+		log.Println("auth end:   json error", time.Since(startTime))
 		return
 	}
 
 	addUserHeader(string(user), w)
-	log.Println("ended auth: success")
+	log.Println("auth end:   success", time.Since(startTime))
 }
 
 func authErr(w http.ResponseWriter, r *http.Request, err error) {
