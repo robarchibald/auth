@@ -106,18 +106,7 @@ func TestMemoryRenewRememberMe(t *testing.T) {
 		t.Error("expected err", err)
 	}
 
-	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{Selector: "expired", ExpireTimeUTC: time.Now().UTC().Add(-1 * time.Hour)})
-	if _, err := backend.RenewRememberMe("expired", renews); err != errRememberMeExpired {
-		t.Error("expected expired", err)
-	}
-
 	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{Selector: "selector", ExpireTimeUTC: time.Now().UTC().Add(time.Hour)})
-	if _, err := backend.RenewRememberMe("selector", time.Now().UTC().Add(2*time.Hour)); err != errInvalidRenewTimeUTC {
-		t.Error("expected invalid renew time", err)
-	}
-	if _, err := backend.RenewRememberMe("selector", time.Now().UTC().Add(-1*time.Hour)); err != errInvalidRenewTimeUTC {
-		t.Error("expected invalid renew time", err)
-	}
 	if rememberMe, _ := backend.RenewRememberMe("selector", renews); rememberMe.RenewTimeUTC != renews {
 		t.Error("expected valid rememberMe", rememberMe)
 	}

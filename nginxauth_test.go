@@ -2,9 +2,16 @@ package main
 
 import (
 	"github.com/pkg/errors"
+	"log"
 	"net/http/httptest"
 	"testing"
 )
+
+type nilWriter struct{}
+
+func (w *nilWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
 
 func TestNewRestServer(t *testing.T) {
 	if testing.Short() {
@@ -35,6 +42,7 @@ func TestNewEmailer(t *testing.T) {
 }
 
 func TestAuth(t *testing.T) {
+	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
 	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
 	auth(storer, w, nil)
@@ -51,6 +59,7 @@ func TestAuth(t *testing.T) {
 }
 
 func TestAuthBasic(t *testing.T) {
+	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
 	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
 	authBasic(storer, w, nil)
@@ -67,6 +76,7 @@ func TestAuthBasic(t *testing.T) {
 }
 
 func TestLogin(t *testing.T) {
+	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
 	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
 	login(storer, w, nil)
@@ -83,6 +93,7 @@ func TestLogin(t *testing.T) {
 }
 
 func TestRegister(t *testing.T) {
+	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
 	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
 	register(storer, w, nil)
@@ -101,6 +112,7 @@ func TestCreateProfile(t *testing.T) {
 }
 
 func TestUpdateEmail(t *testing.T) {
+	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
 	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
 	updateEmail(storer, w, nil)
@@ -110,6 +122,7 @@ func TestUpdateEmail(t *testing.T) {
 }
 
 func TestUpdatePassword(t *testing.T) {
+	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
 	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
 	updatePassword(storer, w, nil)
@@ -119,6 +132,7 @@ func TestUpdatePassword(t *testing.T) {
 }
 
 func TestVerifyEmail(t *testing.T) {
+	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
 	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
 	verifyEmail(storer, w, nil)
@@ -128,6 +142,7 @@ func TestVerifyEmail(t *testing.T) {
 }
 
 func TestAddUserHeader(t *testing.T) {
+	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
 	addUserHeader(`{"name": "value"}`, w)
 	if w.Header().Get("X-User") != `{"name": "value"}` {

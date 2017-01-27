@@ -92,17 +92,16 @@ func newNginxAuth() (*nginxauth, error) {
 		log.Fatal(err)
 	}
 
-	m := newBackendMemory(&cryptoHashStore{})
 	s := newBackendRedisSession(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections, config.StoragePrefix)
-	/*l, err := newBackendLDAPLogin(config.LdapServer, config.LdapPort, config.LdapBindDn, config.LdapPassword, config.LdapBaseDn, config.LdapUserFilter)
+	l, err := newBackendLDAPLogin(config.LdapServer, config.LdapPort, config.LdapBindDn, config.LdapPassword, config.LdapBaseDn, config.LdapUserFilter)
 	if err != nil {
 		return nil, err
 	}
 	u, err := newBackendDbUser(config.DbServer, config.DbPort, config.DbUser, config.DbPassword, config.DbDatabase, config.AddUserQuery, config.GetUserQuery, config.UpdateUserQuery)
 	if err != nil {
 		return nil, err
-	}*/
-	b := &backend{u: m, l: m, s: s}
+	}
+	b := &backend{u: u, l: l, s: s}
 
 	mailer, err := config.NewEmailer()
 	if err != nil {
