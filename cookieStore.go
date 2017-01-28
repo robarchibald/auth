@@ -84,6 +84,6 @@ func newCookie(name string, value string, secureOnly bool, expireMins int) *http
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   secureOnly,
-		MaxAge:   expireMins,
+		MaxAge:   expireMins * 60, // time in seconds
 	}
 }
