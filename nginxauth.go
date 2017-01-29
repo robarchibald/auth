@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/gorilla/handlers"
 	"github.com/robarchibald/configReader"
@@ -76,7 +77,9 @@ type nginxauth struct {
 }
 
 func main() {
-	server, err := newNginxAuth()
+	configFile := flag.String("c", "nginxauth.conf", "config file location")
+	flag.Parse()
+	server, err := newNginxAuth(*configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -85,9 +88,9 @@ func main() {
 	server.serve(server.conf.AuthServerListenPort)
 }
 
-func newNginxAuth() (*nginxauth, error) {
+func newNginxAuth(configFle string) (*nginxauth, error) {
 	config := authConf{}
-	err := configReader.ReadFile("nginxauth.conf", &config)
+	err := configReader.ReadFile(configFle, &config)
 	if err != nil {
 		log.Fatal(err)
 	}
