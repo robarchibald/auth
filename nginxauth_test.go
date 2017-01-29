@@ -17,8 +17,8 @@ func TestNewRestServer(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
-	_, err := newNginxAuth()
-	if err != nil { // will connect to the db and LDAP servers specified in auth.conf
+	_, err := newNginxAuth("nginxauth.conf")
+	if err != nil {
 		t.Error("expected success", err)
 	}
 }
