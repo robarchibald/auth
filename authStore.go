@@ -365,7 +365,21 @@ func (s *authStore) createLogin(userID, dbUserID int, email, fullName, password 
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}
+	if mailQuota == 0 || fileQuota == 0 {
+		return s.createAccount(userID, dbUserID, email, fullName, password)
+	}
+	return s.createSubscriber(userID, dbUserID, email, fullName, passwordHash, mailQuota, fileQuota)
+}
 
+func (s *authStore) createAccount(userID, dbUserID int, email, fullName, passwordHash string) (*userLogin, error) {
+	login, err := s.backend.CreateAccount(userID, dbUserID, email, passwordHash, fullName)
+	if err != nil {
+		return nil, newLoggedError("Unable to create account", err)
+	}
+	return login, nil
+}
+
+func (s *authStore) createSubscriber(userID, dbUserID int, email, fullName, passwordHash string, mailQuota, fileQuota int) (*userLogin, error) {
 	uidNumber := 10000 // vmail user
 	gidNumber := 10000 // vmail user
 	sepIndex := strings.Index(email, "@")
@@ -377,11 +391,12 @@ func (s *authStore) createLogin(userID, dbUserID int, email, fullName, password 
 	homeDirectory := fmt.Sprintf("/srv/vmail/%s/%s", domain, user)
 	mQuota := fmt.Sprintf("%dGB", mailQuota)
 	fQuota := fmt.Sprintf("%dGB", fileQuota)
+
 	login, err := s.backend.CreateSubscriber(userID, dbUserID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}
-	return login, err
+	return login, nil
 }
 
 // move to sessionStore
