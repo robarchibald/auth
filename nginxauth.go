@@ -165,7 +165,7 @@ func (s *nginxauth) serve(port int) {
 	http.HandleFunc("/updateEmail", s.method("POST", updateEmail))
 	http.HandleFunc("/updatePassword", s.method("POST", updatePassword))
 
-	http.ListenAndServe(fmt.Sprintf(":%d", port), s.fileLoggerHandler(handlers.CompressHandler(http.DefaultServeMux)))
+	http.ListenAndServe(fmt.Sprintf("localhost:%d", port), s.fileLoggerHandler(handlers.CompressHandler(http.DefaultServeMux)))
 }
 
 func (s *nginxauth) fileLoggerHandler(h http.Handler) http.Handler {
@@ -282,7 +282,7 @@ func addUserHeader(userJSON string, w http.ResponseWriter) {
 
 func createLogfiles(logFolder string) (*os.File, *os.File, error) {
 	if _, err := os.Stat(logFolder); err != nil && os.IsNotExist(err) {
-		os.MkdirAll(logFolder, 0644)
+		os.MkdirAll(logFolder, 0755)
 	}
 	eLog, err := os.OpenFile(path.Join(logFolder, "error.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
