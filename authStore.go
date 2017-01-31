@@ -370,7 +370,7 @@ func (s *authStore) createLogin(userID, dbUserID int, email, fullName, password 
 	homeDirectory := "/home"
 	mQuota := fmt.Sprintf("%dGB", mailQuota)
 	fQuota := fmt.Sprintf("%dGB", fileQuota)
-	login, err := s.backend.CreateLogin(userID, dbUserID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
+	login, err := s.backend.CreateSubscriber(userID, dbUserID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}

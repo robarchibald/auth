@@ -56,10 +56,10 @@ func TestLdapLogin(t *testing.T) {
 	}
 }
 
-func TestLdapCreateLogin(t *testing.T) {
+func TestLdapCreateSubscriber(t *testing.T) {
 	m := onedb.NewMock(nil, nil, nil)
 	l := backendLDAPLogin{db: m}
-	_, err := l.CreateLogin(1, 1, "email", "hash", "name", "homeDir", 1, 1, "mailQuota", "fileQuota")
+	_, err := l.CreateSubscriber(1, 1, "email", "hash", "name", "homeDir", 1, 1, "mailQuota", "fileQuota")
 	if err != nil {
 		t.Error("expected success")
 	}

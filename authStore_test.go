@@ -447,7 +447,7 @@ var createProfileTests = []struct {
 		EmailCookie:           &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		LoginReturn:           loginErr(),
-		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateLogin"},
+		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateSubscriber"},
 		ExpectedErr:           "Unable to create login",
 	},
 	{
@@ -456,7 +456,7 @@ var createProfileTests = []struct {
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		LoginReturn:           loginSuccess(),
 		CreateSessionReturn:   sessionRememberErr(),
-		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateLogin", "CreateSession"},
+		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateSubscriber", "CreateSession"},
 		ExpectedErr:           "Unable to create new session",
 	},
 	{
@@ -465,7 +465,7 @@ var createProfileTests = []struct {
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		LoginReturn:           loginSuccess(),
 		CreateSessionReturn:   sessionRemember(futureTime, futureTime),
-		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateLogin", "CreateSession", "InvalidateSession", "InvalidateRememberMe"},
+		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateSubscriber", "CreateSession", "InvalidateSession", "InvalidateRememberMe"},
 	},
 }
 

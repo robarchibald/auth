@@ -166,7 +166,14 @@ func (m *backendMemory) UpdateUser(userID int, fullname string, company string, 
 	return nil
 }
 
-func (m *backendMemory) CreateLogin(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+func (m *backendMemory) CreateAccount(userID, dbUserID int, email, passwordHash, fullName string) (*userLogin, error) {
+	login := userLoginMemory{userID, email, fullName, passwordHash}
+	m.Logins = append(m.Logins, &login)
+
+	return &userLogin{userID, email, fullName}, nil
+}
+
+func (m *backendMemory) CreateSubscriber(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
 	login := userLoginMemory{userID, email, fullName, passwordHash}
 	m.Logins = append(m.Logins, &login)
 

@@ -99,11 +99,11 @@ func TestBackendUpdateUser(t *testing.T) {
 	}
 }
 
-func TestBackendCreateLogin(t *testing.T) {
+func TestBackendCreateSubscriber(t *testing.T) {
 	m := &mockBackend{CreateLoginReturn: loginErr()}
 	b := backend{u: m, l: m, s: m}
-	b.CreateLogin(1, 1, "email", "hash", "name", "homeDir", 1, 1, "quota", "fileQuota")
-	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "CreateLogin" {
+	b.CreateSubscriber(1, 1, "email", "hash", "name", "homeDir", 1, 1, "quota", "fileQuota")
+	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "CreateSubscriber" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
 }
@@ -331,8 +331,16 @@ func (b *mockBackend) UpdateUser(userID int, fullname, company, pictureURL strin
 	return b.ErrReturn
 }
 
-func (b *mockBackend) CreateLogin(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
-	b.MethodsCalled = append(b.MethodsCalled, "CreateLogin")
+func (b *mockBackend) CreateAccount(userID, dbUserID int, email, passwordHash, fullName string) (*userLogin, error) {
+	b.MethodsCalled = append(b.MethodsCalled, "CreateAccount")
+	if b.CreateLoginReturn == nil {
+		return nil, errors.New("CreateLoginReturn not initialized")
+	}
+	return b.CreateLoginReturn.Login, b.CreateLoginReturn.Err
+}
+
+func (b *mockBackend) CreateSubscriber(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+	b.MethodsCalled = append(b.MethodsCalled, "CreateSubscriber")
 	if b.CreateLoginReturn == nil {
 		return nil, errors.New("CreateLoginReturn not initialized")
 	}

@@ -48,8 +48,19 @@ func (l *backendLDAPLogin) Login(email, password string) (*userLogin, error) {
 }
 
 /****************  TODO: create different type of user if not using file and mail quotas  **********************/
-func (l *backendLDAPLogin) CreateLogin(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
-	req := ldap.NewAddRequest("uid=" + email + ",ou=Users,dc=endfirst,dc=com")
+func (l *backendLDAPLogin) CreateAccount(userID, dbUserID int, email, passwordHash, fullName string) (*userLogin, error) {
+	req := ldap.NewAddRequest("uid=" + email + "," + l.baseDn)
+	req.Attribute("objectClass", []string{"endfirstAccount"})
+	req.Attribute("uid", []string{email})
+	req.Attribute("dbUserId", []string{strconv.Itoa(dbUserID)})
+	req.Attribute("cn", []string{fullName})
+	req.Attribute("userPassword", []string{passwordHash})
+	err := l.db.Execute(req)
+	return &userLogin{}, err
+}
+
+func (l *backendLDAPLogin) CreateSubscriber(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+	req := ldap.NewAddRequest("uid=" + email + "," + l.baseDn)
 	req.Attribute("objectClass", []string{"endfirstAccount", "endfirstSubscriber"})
 	req.Attribute("uid", []string{email})
 	req.Attribute("dbUserId", []string{strconv.Itoa(dbUserID)})
