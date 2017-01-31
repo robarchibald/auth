@@ -290,5 +290,5 @@ func createLogfiles(logFolder string) (*os.File, *os.File, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	return eLog, aLog, nil
+	return aLog, eLog, nil
 }
