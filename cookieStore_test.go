@@ -82,7 +82,7 @@ func TestPutCookie(t *testing.T) {
 	expireTime, err := time.Parse("Mon, 02 Jan 2006 15:04:05 MST", expires)
 	if err != nil || name != "myCookie" || actual.SessionID != expected.SessionID ||
 		actual.ExpireTimeUTC != expected.ExpireTimeUTC || actual.RenewTimeUTC != expected.RenewTimeUTC ||
-		path != "/" || maxAge != "43200" || expireTime.Sub(expectedCookieExpiration) > 1*time.Second {
+		path != "/" || maxAge != "2592000" || expireTime.Sub(expectedCookieExpiration) > 1*time.Second {
 		t.Fatal("unexpected", err, name, path, expireTime, maxAge)
 	}
 }

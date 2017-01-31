@@ -98,7 +98,7 @@ func _register(email string, b *backendMemory, m *TextMailer) (string, error) {
 
 	// register new user
 	// adds to users, logins and sessions
-	err := s.register(email)
+	err := s.register(email, "returnURL")
 	if err != nil {
 		return "", err
 	}
@@ -108,8 +108,8 @@ func _register(email string, b *backendMemory, m *TextMailer) (string, error) {
 	// get code from "email"
 	data := m.MessageData.(*sendVerifyParams)
 	emailVerifyHash, _ := decodeStringToHash(data.VerificationCode + "=")
-	if b.EmailSessions[lenSessions].Email != email || b.EmailSessions[lenSessions].EmailVerifyHash != emailVerifyHash {
-		return "", errors.Errorf("expected to have valid session: %s, %v", b.EmailSessions[lenSessions].Email, b.EmailSessions[lenSessions].EmailVerifyHash != emailVerifyHash)
+	if b.EmailSessions[lenSessions].Email != email || b.EmailSessions[lenSessions].EmailVerifyHash != emailVerifyHash || b.EmailSessions[lenSessions].DestinationURL != "returnURL" {
+		return "", errors.Errorf("expected to have valid session: %s, %v, %v", b.EmailSessions[lenSessions].Email, b.EmailSessions[lenSessions].EmailVerifyHash != emailVerifyHash, b.EmailSessions[lenSessions].DestinationURL != "returnURL")
 	}
 
 	return data.VerificationCode, nil
@@ -125,9 +125,12 @@ func _verify(verifyCode string, b *backendMemory, m *TextMailer) (*emailCookie, 
 	emailSession := b.getEmailSessionByEmailVerifyHash(emailVerifyHash)
 
 	// verify Email. Should 1. add user to b.Users, 2. set UserID in EmailSession, 3. add session
-	err := s.verifyEmail(verifyCode)
+	destinationURL, err := s.verifyEmail(verifyCode)
 	if err != nil {
 		return nil, err
+	}
+	if destinationURL != "returnURL" {
+		return nil, errors.Errorf("expected to get back destinationURL that we entered during register phase")
 	}
 	if len(b.Users) != +lenUsers+1 || len(b.EmailSessions) != lenEmailSessions {
 		return nil, errors.Errorf("expected to add user and update existing session: %v, %v", len(b.Users) != lenUsers+1, len(b.EmailSessions) != lenEmailSessions)

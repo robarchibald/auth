@@ -55,9 +55,9 @@ type loginBackender interface {
 }
 
 type sessionBackender interface {
-	CreateEmailSession(email, emailVerifyHash string) error
+	CreateEmailSession(email, emailVerifyHash, destinationURL string) error
 	GetEmailSession(verifyHash string) (*emailSession, error)
-	UpdateEmailSession(verifyHash string, userID int, email string) error
+	UpdateEmailSession(verifyHash string, userID int, email, destinationURL string) error
 	DeleteEmailSession(verifyHash string) error
 
 	CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error)
@@ -76,6 +76,7 @@ type emailSession struct {
 	UserID          int
 	Email           string
 	EmailVerifyHash string
+	DestinationURL  string
 }
 
 type user struct {
@@ -184,16 +185,16 @@ func (b *backend) RenewRememberMe(selector string, renewTimeUTC time.Time) (*rem
 	return b.s.RenewRememberMe(selector, renewTimeUTC)
 }
 
-func (b *backend) CreateEmailSession(email, emailVerifyHash string) error {
-	return b.s.CreateEmailSession(email, emailVerifyHash)
+func (b *backend) CreateEmailSession(email, emailVerifyHash, destinationURL string) error {
+	return b.s.CreateEmailSession(email, emailVerifyHash, destinationURL)
 }
 
 func (b *backend) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
 	return b.s.GetEmailSession(emailVerifyHash)
 }
 
-func (b *backend) UpdateEmailSession(emailVerifyHash string, userID int, email string) error {
-	return b.s.UpdateEmailSession(emailVerifyHash, userID, email)
+func (b *backend) UpdateEmailSession(emailVerifyHash string, userID int, email, destinationURL string) error {
+	return b.s.UpdateEmailSession(emailVerifyHash, userID, email, destinationURL)
 }
 
 func (b *backend) DeleteEmailSession(emailVerifyHash string) error {

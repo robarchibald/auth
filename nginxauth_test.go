@@ -152,9 +152,10 @@ func TestAddUserHeader(t *testing.T) {
 
 /*******************************************************/
 type mockAuthStorer struct {
-	SessionReturn *loginSession
-	ErrReturn     error
-	LastRun       string
+	SessionReturn        *loginSession
+	DestinationURLReturn string
+	ErrReturn            error
+	LastRun              string
 }
 
 func (s *mockAuthStorer) GetSession() (*loginSession, error) {
@@ -178,9 +179,9 @@ func (s *mockAuthStorer) CreateProfile() error {
 	s.LastRun = "CreateProfile"
 	return s.ErrReturn
 }
-func (s *mockAuthStorer) VerifyEmail() error {
+func (s *mockAuthStorer) VerifyEmail() (string, error) {
 	s.LastRun = "VerifyEmail"
-	return s.ErrReturn
+	return s.DestinationURLReturn, s.ErrReturn
 }
 func (s *mockAuthStorer) UpdateEmail() error {
 	s.LastRun = "UpdateEmail"

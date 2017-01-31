@@ -257,11 +257,15 @@ func updatePassword(authStore authStorer, w http.ResponseWriter, r *http.Request
 }
 
 func verifyEmail(authStore authStorer, w http.ResponseWriter, r *http.Request) {
-	run("verifyEmail", authStore.VerifyEmail, w)
+	destinationURL, err := authStore.VerifyEmail()
+	writeOutput(w, fmt.Sprintf("{ \"result\": \"Success\", \"destinationURL\": \"%s\" }", destinationURL), err)
 }
 
 func run(name string, method func() error, w http.ResponseWriter) {
-	err := method()
+	writeOutput(w, "{ \"result\": \"Success\" }", method())
+}
+
+func writeOutput(w http.ResponseWriter, message string, err error) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		logError(err)

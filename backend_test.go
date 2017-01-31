@@ -295,7 +295,7 @@ func (b *mockBackend) AddUser(email string) (int, error) {
 	return 1, b.AddUserReturn
 }
 
-func (b *mockBackend) CreateEmailSession(email, emailVerifyHash string) error {
+func (b *mockBackend) CreateEmailSession(email, emailVerifyHash, destinationURL string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateEmailSession")
 	return b.ErrReturn
 }
@@ -308,7 +308,7 @@ func (b *mockBackend) GetEmailSession(emailVerifyHash string) (*emailSession, er
 	return b.getEmailSessionReturn.Session, b.getEmailSessionReturn.Err
 }
 
-func (b *mockBackend) UpdateEmailSession(emailVerifyHash string, userID int, email string) error {
+func (b *mockBackend) UpdateEmailSession(emailVerifyHash string, userID int, email, destinationURL string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdateEmailSession")
 	return b.UpdateEmailSessionReturn
 }
@@ -408,7 +408,7 @@ func sessionRememberErr() *SessionRememberReturn {
 }
 
 func getEmailSessionSuccess() *getEmailSessionReturn {
-	return &getEmailSessionReturn{&emailSession{Email: "email", EmailVerifyHash: "hash"}, nil}
+	return &getEmailSessionReturn{&emailSession{Email: "email", EmailVerifyHash: "hash", DestinationURL: "destinationURL"}, nil}
 }
 func getEmailSessionErr() *getEmailSessionReturn {
 	return &getEmailSessionReturn{nil, errors.New("failed")}

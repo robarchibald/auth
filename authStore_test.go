@@ -385,7 +385,7 @@ func TestAuthRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &mockBackend{ErrReturn: test.CreateEmailSessionReturn, GetUserReturn: test.GetUserReturn}
 		store := getAuthStore(nil, nil, nil, false, false, test.MailErr, backend)
-		err := store.register(test.Email)
+		err := store.register(test.Email, "destinationURL")
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -492,6 +492,7 @@ var verifyEmailTests = []struct {
 	MailErr                  error
 	MethodsCalled            []string
 	ExpectedErr              string
+	DestinatinURL            string
 }{
 	{
 		Scenario:              "Decode error",
@@ -542,6 +543,7 @@ var verifyEmailTests = []struct {
 		Scenario:              "Email sent",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
+		DestinatinURL:         "destinationURL",
 		MethodsCalled:         []string{"GetEmailSession", "AddUser", "UpdateEmailSession"},
 	},
 }
@@ -550,11 +552,11 @@ func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &mockBackend{getEmailSessionReturn: test.getEmailSessionReturn, AddUserReturn: test.AddUserReturn, UpdateEmailSessionReturn: test.UpdateEmailSessionReturn}
 		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
-		err := store.verifyEmail(test.EmailVerificationCode)
+		destinationURL, err := store.verifyEmail(test.EmailVerificationCode)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
-			!collectionEqual(test.MethodsCalled, methods) {
-			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.MethodsCalled, methods)
+			!collectionEqual(test.MethodsCalled, methods) || test.DestinatinURL != destinationURL {
+			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.MethodsCalled, methods, destinationURL)
 		}
 	}
 }
@@ -659,13 +661,13 @@ func TestVerifyEmailPub(t *testing.T) {
 	backend := &mockBackend{getEmailSessionReturn: getEmailSessionErr()}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
 	store.r = r
-	err := store.VerifyEmail()
+	_, err := store.VerifyEmail()
 	if err == nil || err.Error() != "Failed to verify email" {
 		t.Error("expected error from child verifyEmail method", err)
 	}
 
 	buf.WriteString("b")
-	err = store.VerifyEmail()
+	_, err = store.VerifyEmail()
 	if err == nil || err.Error() != "Unable to get verification email from JSON" {
 		t.Error("expected error from VerifyEmail method", err)
 	}
@@ -778,22 +780,4 @@ func collectionEqual(expected, actual []string) bool {
 		}
 	}
 	return true
-}
-
-/****************************************************************************/
-type mockAuthStore struct {
-}
-
-func newMockAuthStore() *mockAuthStore {
-	return &mockAuthStore{}
-}
-
-func (s *mockAuthStore) Get() (*loginSession, error) {
-	return nil, nil
-}
-func (s *mockAuthStore) GetRememberMe() (*rememberMeSession, error) {
-	return nil, nil
-}
-func (s *mockAuthStore) Login(email, password, returnURL string) (*loginSession, error) {
-	return nil, nil
 }

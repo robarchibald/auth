@@ -33,7 +33,7 @@ type authStorer interface {
 	Login() error
 	Register() error
 	CreateProfile() error
-	VerifyEmail() error
+	VerifyEmail() (string, error)
 	UpdateEmail() error
 	UpdatePassword() error
 }
@@ -258,10 +258,10 @@ func (s *authStore) Register() error {
 	if err != nil {
 		return newAuthError("Unable to get email", err)
 	}
-	return s.register(registration.Email)
+	return s.register(registration.Email, registration.DestinationURL)
 }
 
-func (s *authStore) register(email string) error {
+func (s *authStore) register(email, destinationURL string) error {
 	if !isValidEmail(email) {
 		return newAuthError("Invalid email", nil)
 	}
@@ -271,7 +271,7 @@ func (s *authStore) register(email string) error {
 		return newAuthError("User already registered", err)
 	}
 
-	verifyCode, err := s.addEmailSession(email)
+	verifyCode, err := s.addEmailSession(email, destinationURL)
 	if err != nil {
 		return newLoggedError("Unable to save user", err)
 	}
@@ -296,13 +296,13 @@ func getBaseURL(url string) string {
 	return url[:protoIndex+3+firstSlash]
 }
 
-func (s *authStore) addEmailSession(email string) (string, error) {
+func (s *authStore) addEmailSession(email, destinationURL string) (string, error) {
 	verifyCode, verifyHash, err := generateStringAndHash()
 	if err != nil {
 		return "", newLoggedError("Problem generating email confirmation code", err)
 	}
 
-	err = s.backend.CreateEmailSession(email, verifyHash)
+	err = s.backend.CreateEmailSession(email, verifyHash, destinationURL)
 	if err != nil {
 		return "", newLoggedError("Problem adding user to database", err)
 	}
@@ -378,48 +378,48 @@ func (s *authStore) createLogin(userID, dbUserID int, email, fullName, password 
 }
 
 // move to sessionStore
-func (s *authStore) VerifyEmail() error {
+func (s *authStore) VerifyEmail() (string, error) {
 	verify, err := getVerificationCode(s.r)
 	if err != nil {
-		return newAuthError("Unable to get verification email from JSON", err)
+		return "", newAuthError("Unable to get verification email from JSON", err)
 	}
 	return s.verifyEmail(verify.EmailVerificationCode)
 }
 
-func (s *authStore) verifyEmail(emailVerificationCode string) error {
+func (s *authStore) verifyEmail(emailVerificationCode string) (string, error) {
 	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
 		emailVerificationCode = emailVerificationCode + "="
 	}
 	emailVerifyHash, err := decodeStringToHash(emailVerificationCode)
 	if err != nil {
-		return newLoggedError("Invalid verification code", err)
+		return "", newLoggedError("Invalid verification code", err)
 	}
 
 	session, err := s.backend.GetEmailSession(emailVerifyHash)
 	if err != nil {
-		return newLoggedError("Failed to verify email", err)
+		return "", newLoggedError("Failed to verify email", err)
 	}
 
 	userID, err := s.backend.AddUser(session.Email)
 	if err != nil {
-		return newLoggedError("Failed to create new user in database", err)
+		return "", newLoggedError("Failed to create new user in database", err)
 	}
 
-	err = s.backend.UpdateEmailSession(emailVerifyHash, userID, session.Email)
+	err = s.backend.UpdateEmailSession(emailVerifyHash, userID, session.Email, session.DestinationURL)
 	if err != nil {
-		return newLoggedError("Failed to update email session", err)
+		return "", newLoggedError("Failed to update email session", err)
 	}
 
 	err = s.saveEmailCookie(emailVerificationCode, time.Now().UTC().Add(emailExpireDuration))
 	if err != nil {
-		return newLoggedError("Failed to save email cookie", err)
+		return "", newLoggedError("Failed to save email cookie", err)
 	}
 
 	err = s.mailer.SendWelcome(session.Email, nil)
 	if err != nil {
-		return newLoggedError("Failed to send welcome email", err)
+		return "", newLoggedError("Failed to send welcome email", err)
 	}
-	return nil
+	return session.DestinationURL, nil
 }
 
 func (s *authStore) UpdateEmail() error { return nil }
@@ -475,7 +475,8 @@ func (s *authStore) saveRememberMeCookie(selector, token string, renewTimeUTC, e
 }
 
 type registration struct {
-	Email string
+	Email          string
+	DestinationURL string
 }
 
 func getRegistration(r *http.Request) (*registration, error) {
