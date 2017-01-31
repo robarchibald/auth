@@ -17,7 +17,7 @@ func TestNewRestServer(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
-	_, err := newNginxAuth("nginxauth.conf")
+	_, err := newNginxAuth("nginxauth.conf", ".")
 	if err != nil {
 		t.Error("expected success", err)
 	}

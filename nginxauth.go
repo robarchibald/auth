@@ -10,8 +10,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"strings"
-	"time"
 )
 
 type authConf struct {
@@ -74,21 +74,27 @@ type nginxauth struct {
 	mailer    mailer
 	cookieKey []byte
 	conf      authConf
+	accessLog *os.File
+	errorLog  *os.File
 }
 
 func main() {
-	configFile := flag.String("c", "nginxauth.conf", "config file location")
+	configFile := flag.String("c", "/etc/efrest/efrest.conf", "config file location")
+	logFolder := flag.String("l", "/var/log/efrest", "log folder")
 	flag.Parse()
-	server, err := newNginxAuth(*configFile)
+
+	server, err := newNginxAuth(*configFile, *logFolder)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer server.backend.Close()
+	defer server.accessLog.Close()
+	defer server.errorLog.Close()
 
 	server.serve(server.conf.AuthServerListenPort)
 }
 
-func newNginxAuth(configFle string) (*nginxauth, error) {
+func newNginxAuth(configFle, logFolder string) (*nginxauth, error) {
 	config := authConf{}
 	err := configReader.ReadFile(configFle, &config)
 	if err != nil {
@@ -116,7 +122,12 @@ func newNginxAuth(configFle string) (*nginxauth, error) {
 		return nil, err
 	}
 
-	return &nginxauth{b, mailer, cookieKey, config}, nil
+	aLog, eLog, err := createLogfiles(logFolder)
+	if err != nil {
+		return nil, err
+	}
+
+	return &nginxauth{b, mailer, cookieKey, config, aLog, eLog}, nil
 }
 
 func (n *authConf) NewEmailer() (*emailer, error) {
@@ -154,15 +165,11 @@ func (s *nginxauth) serve(port int) {
 	http.HandleFunc("/updateEmail", s.method("POST", updateEmail))
 	http.HandleFunc("/updatePassword", s.method("POST", updatePassword))
 
-	http.ListenAndServe(fmt.Sprintf(":%d", port), fileLoggerHandler(handlers.CompressHandler(http.DefaultServeMux)))
+	http.ListenAndServe(fmt.Sprintf(":%d", port), s.fileLoggerHandler(handlers.CompressHandler(http.DefaultServeMux)))
 }
 
-func fileLoggerHandler(h http.Handler) http.Handler {
-	logFile, err := os.OpenFile("nginxauth.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		panic(err)
-	}
-	return handlers.CombinedLoggingHandler(logFile, h)
+func (s *nginxauth) fileLoggerHandler(h http.Handler) http.Handler {
+	return handlers.CombinedLoggingHandler(s.accessLog, h)
 }
 
 func (s *nginxauth) method(name string, handler func(authStore authStorer, w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
@@ -178,59 +185,55 @@ func (s *nginxauth) method(name string, handler func(authStore authStorer, w htt
 }
 
 func auth(authStore authStorer, w http.ResponseWriter, r *http.Request) {
-	startTime := time.Now()
-	log.Println("auth begin:")
 	session, err := authStore.GetSession()
 	if err != nil {
 		authErr(w, r, err)
-		log.Println("auth end:   session error", time.Since(startTime))
 		return
 	}
 
 	user, err := json.Marshal(&userLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
 	if err != nil {
 		authErr(w, r, err)
-		log.Println("auth end:   json error", time.Since(startTime))
 		return
 	}
 
 	addUserHeader(string(user), w)
-	log.Println("auth end:   success", time.Since(startTime))
 }
 
 func authErr(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
+	logError(err)
+}
+
+func logError(err error) {
 	if a, ok := err.(*authError); ok {
-		fmt.Println(a.Trace())
+		log.Println(a.Trace())
 	} else {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }
 
 func authBasic(authStore authStorer, w http.ResponseWriter, r *http.Request) {
-	startTime := time.Now()
 	log.Println("authBasic begin:")
 	session, err := authStore.GetBasicAuth()
 	if err != nil {
 		basicErr(w, r, err)
-		log.Println("authBasic end:   session error", time.Since(startTime))
 		return
 	}
 
 	user, err := json.Marshal(&userLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
 	if err != nil {
 		basicErr(w, r, err)
-		log.Println("authBasic end:   json error", time.Since(startTime))
 		return
 	}
 
 	addUserHeader(string(user), w)
-	log.Println("authBasic end:   success", time.Since(startTime))
 }
 
 func basicErr(w http.ResponseWriter, r *http.Request, err error) {
 	w.Header().Set("WWW-Authenticate", "Basic realm='Endfirst.com'")
 	http.Error(w, "Authentication required: "+err.Error(), http.StatusUnauthorized)
+	logError(err)
 }
 
 func login(authStore authStorer, w http.ResponseWriter, r *http.Request) {
@@ -258,23 +261,34 @@ func verifyEmail(authStore authStorer, w http.ResponseWriter, r *http.Request) {
 }
 
 func run(name string, method func() error, w http.ResponseWriter) {
-	startTime := time.Now()
-	log.Println(name, "begin:")
 	err := method()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		if a, ok := err.(*authError); ok {
-			fmt.Println(a.Trace())
-		}
-		log.Println(name, "end:   error", time.Since(startTime))
+		logError(err)
 	} else {
 		w.Header().Add("Access-Control-Allow-Origin", "*")
 		w.Header().Add("Content-Type", "application/javascript")
 		fmt.Fprint(w, "{ \"result\": \"Success\" }")
-		log.Println(name, "end:   success", time.Since(startTime))
 	}
 }
 
 func addUserHeader(userJSON string, w http.ResponseWriter) {
 	w.Header().Add("X-User", userJSON)
+}
+
+func createLogfiles(logFolder string) (*os.File, *os.File, error) {
+	if _, err := os.Stat(logFolder); err != nil && os.IsNotExist(err) {
+		os.MkdirAll(logFolder, 0644)
+	}
+	eLog, err := os.OpenFile(path.Join(logFolder, "error.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, nil, err
+	}
+	log.SetOutput(eLog)
+
+	aLog, err := os.OpenFile(path.Join(logFolder, "access.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, nil, err
+	}
+	return eLog, aLog, nil
 }
