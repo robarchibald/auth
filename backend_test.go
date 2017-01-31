@@ -416,7 +416,7 @@ func sessionRememberErr() *SessionRememberReturn {
 }
 
 func getEmailSessionSuccess() *getEmailSessionReturn {
-	return &getEmailSessionReturn{&emailSession{Email: "email", EmailVerifyHash: "hash", DestinationURL: "destinationURL"}, nil}
+	return &getEmailSessionReturn{&emailSession{Email: "email@test.com", EmailVerifyHash: "hash", DestinationURL: "destinationURL"}, nil}
 }
 func getEmailSessionErr() *getEmailSessionReturn {
 	return &getEmailSessionReturn{nil, errors.New("failed")}

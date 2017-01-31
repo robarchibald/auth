@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -367,7 +368,13 @@ func (s *authStore) createLogin(userID, dbUserID int, email, fullName, password 
 
 	uidNumber := 10000 // vmail user
 	gidNumber := 10000 // vmail user
-	homeDirectory := "/home"
+	sepIndex := strings.Index(email, "@")
+	if sepIndex == -1 {
+		return nil, errors.New("invalid email address")
+	}
+	domain := email[sepIndex+1:]
+	user := email[:sepIndex]
+	homeDirectory := fmt.Sprintf("/srv/vmail/%s/%s", domain, user)
 	mQuota := fmt.Sprintf("%dGB", mailQuota)
 	fQuota := fmt.Sprintf("%dGB", fileQuota)
 	login, err := s.backend.CreateSubscriber(userID, dbUserID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
@@ -576,4 +583,13 @@ func getJSON(r *http.Request, result interface{}) error {
 
 func isValidEmail(email string) bool {
 	return len(email) <= 254 && len(email) >= 6 && emailRegex.MatchString(email) == true
+}
+
+func substringAfter(source, find string) string {
+	fromIndex := strings.Index(source, find)
+	if fromIndex == -1 {
+		return source
+	}
+	fromIndex += len(find)
+	return source[fromIndex:]
 }
