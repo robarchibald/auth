@@ -167,7 +167,7 @@ func (s *nginxauth) serve(port int) {
 	http.HandleFunc("/updateEmail", s.method("POST", updateEmail))
 	http.HandleFunc("/updatePassword", s.method("POST", updatePassword))
 
-	http.ListenAndServe(fmt.Sprintf("localhost:%d", port), s.fileLoggerHandler(handlers.CompressHandler(http.DefaultServeMux)))
+	http.ListenAndServe(fmt.Sprintf(":%d", port), s.fileLoggerHandler(handlers.CompressHandler(http.DefaultServeMux)))
 }
 
 func (s *nginxauth) fileLoggerHandler(h http.Handler) http.Handler {
