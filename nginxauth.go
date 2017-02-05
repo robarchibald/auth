@@ -74,7 +74,7 @@ type nginxauth struct {
 	mailer    mailer
 	cookieKey []byte
 	conf      authConf
-	accessLog *os.File
+	errorLog  *os.File
 }
 
 func main() {
@@ -87,7 +87,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer server.backend.Close()
-	defer server.accessLog.Close()
+	defer server.errorLog.Close()
 
 	server.serve(server.conf.AuthServerListenPort)
 }
@@ -164,11 +164,7 @@ func (s *nginxauth) serve(port int) {
 	http.HandleFunc("/updateEmail", s.method("POST", updateEmail))
 	http.HandleFunc("/updatePassword", s.method("POST", updatePassword))
 
-	http.ListenAndServe(fmt.Sprintf(":%d", port), s.fileLoggerHandler(handlers.CompressHandler(http.DefaultServeMux)))
-}
-
-func (s *nginxauth) fileLoggerHandler(h http.Handler) http.Handler {
-	return handlers.CombinedLoggingHandler(s.accessLog, h)
+	http.ListenAndServe(fmt.Sprintf(":%d", port), handlers.CompressHandler(http.DefaultServeMux))
 }
 
 func (s *nginxauth) method(name string, handler func(authStore authStorer, w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
