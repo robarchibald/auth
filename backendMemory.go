@@ -166,18 +166,18 @@ func (m *backendMemory) UpdateUser(userID int, fullname string, company string, 
 	return nil
 }
 
-func (m *backendMemory) CreateAccount(userID, dbUserID int, email, passwordHash, fullName string) (*userLogin, error) {
-	login := userLoginMemory{userID, email, fullName, passwordHash}
+func (m *backendMemory) CreateAccount(dbUserID int, email, passwordHash, fullName string) (*userLogin, error) {
+	login := userLoginMemory{dbUserID, email, fullName, passwordHash}
 	m.Logins = append(m.Logins, &login)
 
-	return &userLogin{userID, email, fullName}, nil
+	return &userLogin{dbUserID, email, fullName}, nil
 }
 
-func (m *backendMemory) CreateSubscriber(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
-	login := userLoginMemory{userID, email, fullName, passwordHash}
+func (m *backendMemory) CreateSubscriber(dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+	login := userLoginMemory{dbUserID, email, fullName, passwordHash}
 	m.Logins = append(m.Logins, &login)
 
-	return &userLogin{userID, email, fullName}, nil
+	return &userLogin{dbUserID, email, fullName}, nil
 }
 
 func (m *backendMemory) UpdateEmail(email string, password string, newEmail string) (*loginSession, error) {

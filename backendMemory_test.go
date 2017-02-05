@@ -153,7 +153,7 @@ func TestMemoryUpdateUser(t *testing.T) {
 
 func TestMemoryCreateSubscriber(t *testing.T) {
 	backend := newBackendMemory(&hashStore{}).(*backendMemory)
-	if login, err := backend.CreateSubscriber(1, 1, "email", "passwordHash", "fullName", "homeDirectory", 1, 1, "mailQuota", "fileQuota"); err != nil || login.Email != "email" {
+	if login, err := backend.CreateSubscriber(1, "email", "passwordHash", "fullName", "homeDirectory", 1, 1, "mailQuota", "fileQuota"); err != nil || login.Email != "email" {
 		t.Error("expected valid login", login)
 	}
 }

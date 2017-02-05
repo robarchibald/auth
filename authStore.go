@@ -345,7 +345,7 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 		return newLoggedError("Error while creating profile", err)
 	}
 
-	_, err = s.createLogin(session.UserID, session.UserID, session.Email, fullName, password, mailQuota, fileQuota)
+	_, err = s.createLogin(session.UserID, session.Email, fullName, password, mailQuota, fileQuota)
 	if err != nil {
 		return newLoggedError("Unable to create login", err)
 	}
@@ -360,26 +360,26 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 }
 
 /****************  TODO: send 0 for UID and GID numbers and empty quotas if mailQuota and fileQuota are 0 **********************/
-func (s *authStore) createLogin(userID, dbUserID int, email, fullName, password string, mailQuota, fileQuota int) (*userLogin, error) {
+func (s *authStore) createLogin(dbUserID int, email, fullName, password string, mailQuota, fileQuota int) (*userLogin, error) {
 	passwordHash, err := s.p.Hash(password)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}
 	if mailQuota == 0 || fileQuota == 0 {
-		return s.createAccount(userID, dbUserID, email, fullName, password)
+		return s.createAccount(dbUserID, email, fullName, password)
 	}
-	return s.createSubscriber(userID, dbUserID, email, fullName, passwordHash, mailQuota, fileQuota)
+	return s.createSubscriber(dbUserID, email, fullName, passwordHash, mailQuota, fileQuota)
 }
 
-func (s *authStore) createAccount(userID, dbUserID int, email, fullName, passwordHash string) (*userLogin, error) {
-	login, err := s.backend.CreateAccount(userID, dbUserID, email, passwordHash, fullName)
+func (s *authStore) createAccount(dbUserID int, email, fullName, passwordHash string) (*userLogin, error) {
+	login, err := s.backend.CreateAccount(dbUserID, email, passwordHash, fullName)
 	if err != nil {
 		return nil, newLoggedError("Unable to create account", err)
 	}
 	return login, nil
 }
 
-func (s *authStore) createSubscriber(userID, dbUserID int, email, fullName, passwordHash string, mailQuota, fileQuota int) (*userLogin, error) {
+func (s *authStore) createSubscriber(dbUserID int, email, fullName, passwordHash string, mailQuota, fileQuota int) (*userLogin, error) {
 	uidNumber := 10000 // vmail user
 	gidNumber := 10000 // vmail user
 	sepIndex := strings.Index(email, "@")
@@ -392,7 +392,7 @@ func (s *authStore) createSubscriber(userID, dbUserID int, email, fullName, pass
 	mQuota := fmt.Sprintf("%dGB", mailQuota)
 	fQuota := fmt.Sprintf("%dGB", fileQuota)
 
-	login, err := s.backend.CreateSubscriber(userID, dbUserID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
+	login, err := s.backend.CreateSubscriber(dbUserID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}

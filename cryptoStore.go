@@ -159,5 +159,5 @@ func cryptoHashWSalt(in, salt string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return hash, nil
+	return "{CRYPT}" + hash, nil
 }

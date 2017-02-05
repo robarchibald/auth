@@ -11,7 +11,9 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"reflect"
 	"strings"
+	"time"
 )
 
 type authConf struct {
@@ -174,6 +176,7 @@ func (s *nginxauth) fileLoggerHandler(h http.Handler) http.Handler {
 
 func (s *nginxauth) method(name string, handler func(authStore authStorer, w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		starttime := time.Now()
 		if r.Method != name {
 			http.Error(w, "Unsupported method", http.StatusInternalServerError)
 			return
@@ -181,10 +184,12 @@ func (s *nginxauth) method(name string, handler func(authStore authStorer, w htt
 		secureOnly := strings.HasPrefix(r.Referer(), "https") // proxy to back-end so if referer is secure connection, we can use secureOnly cookies
 		authStore := newAuthStore(s.backend, s.mailer, &cryptoHashStore{}, w, r, s.conf.StoragePrefix, s.cookieKey, secureOnly)
 		handler(authStore, w, r)
+		log.Println("finished with "+reflect.TypeOf(handler).Name(), time.Since(starttime))
 	}
 }
 
 func auth(authStore authStorer, w http.ResponseWriter, r *http.Request) {
+	starttime := time.Now()
 	session, err := authStore.GetSession()
 	if err != nil {
 		authErr(w, r, err)
@@ -198,6 +203,7 @@ func auth(authStore authStorer, w http.ResponseWriter, r *http.Request) {
 	}
 
 	addUserHeader(string(user), w)
+	log.Println("auth done", time.Since(starttime))
 }
 
 func authErr(w http.ResponseWriter, r *http.Request, err error) {

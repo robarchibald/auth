@@ -27,8 +27,8 @@ type backender interface {
 	UpdateUser(userID int, fullname string, company string, pictureURL string) error
 
 	// LoginBackender. Write out since it contains duplicate BackendCloser
-	CreateAccount(userID, dbUserID int, email, passwordHash, fullName string) (*userLogin, error)
-	CreateSubscriber(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
+	CreateAccount(dbUserID int, email, passwordHash, fullName string) (*userLogin, error)
+	CreateSubscriber(dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
 	Login(email, password string) (*userLogin, error)
 	UpdateEmail(email string, password string, newEmail string) (*loginSession, error)
 	UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error)
@@ -48,8 +48,8 @@ type userBackender interface {
 }
 
 type loginBackender interface {
-	CreateAccount(userID, dbUserID int, email, passwordHash, fullName string) (*userLogin, error)
-	CreateSubscriber(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
+	CreateAccount(dbUserID int, email, passwordHash, fullName string) (*userLogin, error)
+	CreateSubscriber(dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
 	Login(email, password string) (*userLogin, error)
 	UpdateEmail(email string, password string, newEmail string) (*loginSession, error)
 	UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error)
@@ -215,12 +215,12 @@ func (b *backend) UpdateUser(userID int, fullname string, company string, pictur
 	return b.u.UpdateUser(userID, fullname, company, pictureURL)
 }
 
-func (b *backend) CreateAccount(userID, dbUserID int, email, passwordHash, fullName string) (*userLogin, error) {
-	return b.l.CreateAccount(userID, dbUserID, email, passwordHash, fullName)
+func (b *backend) CreateAccount(dbUserID int, email, passwordHash, fullName string) (*userLogin, error) {
+	return b.l.CreateAccount(dbUserID, email, passwordHash, fullName)
 }
 
-func (b *backend) CreateSubscriber(userID, dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
-	return b.l.CreateSubscriber(userID, dbUserID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mailQuota, fileQuota)
+func (b *backend) CreateSubscriber(dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+	return b.l.CreateSubscriber(dbUserID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mailQuota, fileQuota)
 }
 
 func (b *backend) UpdateEmail(email string, password string, newEmail string) (*loginSession, error) {
