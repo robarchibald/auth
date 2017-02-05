@@ -67,7 +67,7 @@ func TestPutCookie(t *testing.T) {
 	store := getCookieStore()
 	renewTimeUTC := time.Date(2001, 1, 1, 12, 0, 0, 0, time.Local)
 	expireTimeUTC := time.Date(2002, 1, 1, 12, 0, 0, 0, time.Local)
-	expectedCookieExpiration := time.Now().AddDate(0, 1, 1) // add 1 month to today
+	expectedCookieExpiration := time.Now().Add(60 * 24 * 30 * time.Minute) // add 30 days
 	expected := &sessionCookie{"sessionId", renewTimeUTC, expireTimeUTC}
 	err := store.Put("myCookie", expected)
 

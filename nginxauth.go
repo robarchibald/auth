@@ -11,9 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"reflect"
 	"strings"
-	"time"
 )
 
 type authConf struct {
@@ -77,28 +75,32 @@ type nginxauth struct {
 	cookieKey []byte
 	conf      authConf
 	accessLog *os.File
-	errorLog  *os.File
 }
 
 func main() {
-	configFile := flag.String("c", "/etc/efrest/efrest.conf", "config file location")
-	logFolder := flag.String("l", "/var/log/efrest", "log folder")
+	configFile := flag.String("c", "/etc/nginxauth/nginxauth.conf", "config file location")
+	logfile := flag.String("l", "/var/log/nginxauth.log", "log file")
 	flag.Parse()
 
-	server, err := newNginxAuth(*configFile, *logFolder)
+	server, err := newNginxAuth(*configFile, *logfile)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer server.backend.Close()
 	defer server.accessLog.Close()
-	defer server.errorLog.Close()
 
 	server.serve(server.conf.AuthServerListenPort)
 }
 
-func newNginxAuth(configFle, logFolder string) (*nginxauth, error) {
+func newNginxAuth(configFle, logfile string) (*nginxauth, error) {
+	eLog, err := createLogfile(logfile)
+	if err != nil {
+		return nil, err
+	}
+	log.Println("Starting auth server")
+
 	config := authConf{}
-	err := configReader.ReadFile(configFle, &config)
+	err = configReader.ReadFile(configFle, &config)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -124,12 +126,7 @@ func newNginxAuth(configFle, logFolder string) (*nginxauth, error) {
 		return nil, err
 	}
 
-	aLog, eLog, err := createLogfiles(logFolder)
-	if err != nil {
-		return nil, err
-	}
-
-	return &nginxauth{b, mailer, cookieKey, config, aLog, eLog}, nil
+	return &nginxauth{b, mailer, cookieKey, config, eLog}, nil
 }
 
 func (n *authConf) NewEmailer() (*emailer, error) {
@@ -176,7 +173,6 @@ func (s *nginxauth) fileLoggerHandler(h http.Handler) http.Handler {
 
 func (s *nginxauth) method(name string, handler func(authStore authStorer, w http.ResponseWriter, r *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		starttime := time.Now()
 		if r.Method != name {
 			http.Error(w, "Unsupported method", http.StatusInternalServerError)
 			return
@@ -184,12 +180,10 @@ func (s *nginxauth) method(name string, handler func(authStore authStorer, w htt
 		secureOnly := strings.HasPrefix(r.Referer(), "https") // proxy to back-end so if referer is secure connection, we can use secureOnly cookies
 		authStore := newAuthStore(s.backend, s.mailer, &cryptoHashStore{}, w, r, s.conf.StoragePrefix, s.cookieKey, secureOnly)
 		handler(authStore, w, r)
-		log.Println("finished with "+reflect.TypeOf(handler).Name(), time.Since(starttime))
 	}
 }
 
 func auth(authStore authStorer, w http.ResponseWriter, r *http.Request) {
-	starttime := time.Now()
 	session, err := authStore.GetSession()
 	if err != nil {
 		authErr(w, r, err)
@@ -203,7 +197,6 @@ func auth(authStore authStorer, w http.ResponseWriter, r *http.Request) {
 	}
 
 	addUserHeader(string(user), w)
-	log.Println("auth done", time.Since(starttime))
 }
 
 func authErr(w http.ResponseWriter, r *http.Request, err error) {
@@ -220,7 +213,6 @@ func logError(err error) {
 }
 
 func authBasic(authStore authStorer, w http.ResponseWriter, r *http.Request) {
-	log.Println("authBasic begin:")
 	session, err := authStore.GetBasicAuth()
 	if err != nil {
 		basicErr(w, r, err)
@@ -286,19 +278,15 @@ func addUserHeader(userJSON string, w http.ResponseWriter) {
 	w.Header().Add("X-User", userJSON)
 }
 
-func createLogfiles(logFolder string) (*os.File, *os.File, error) {
-	if _, err := os.Stat(logFolder); err != nil && os.IsNotExist(err) {
-		os.MkdirAll(logFolder, 0755)
+func createLogfile(logFile string) (*os.File, error) {
+	dir := path.Dir(logFile)
+	if _, err := os.Stat(dir); err != nil && os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
 	}
-	eLog, err := os.OpenFile(path.Join(logFolder, "error.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	eLog, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	log.SetOutput(eLog)
-
-	aLog, err := os.OpenFile(path.Join(logFolder, "access.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err != nil {
-		return nil, nil, err
-	}
-	return aLog, eLog, nil
+	return eLog, nil
 }
