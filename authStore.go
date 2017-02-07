@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dgrijalva/jwt-go"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -31,6 +32,7 @@ const passwordValidationMessage string = "Password must be between 7 and 20 char
 type authStorer interface {
 	GetSession() (*loginSession, error)
 	GetBasicAuth() (*loginSession, error)
+	OAuthLogin() error
 	Login() error
 	Register() error
 	CreateProfile() error
@@ -196,6 +198,81 @@ func (s *authStore) login(email, password string, rememberMe bool) (*loginSessio
 	}
 
 	return s.createSession(email, login.UserID, login.FullName, rememberMe)
+}
+
+func (s *authStore) OAuthLogin() error {
+	email, fullname, err := getOAuthCredentials(s.r)
+	if err != nil {
+		return err
+	}
+	return s.oauthLogin(email, fullname)
+}
+
+func (s *authStore) oauthLogin(email, fullname string) error {
+	var userID int
+	user, err := s.backend.GetUser(email)
+	if user == nil || err != nil {
+		userID, err = s.backend.AddUser(email)
+		if err != nil {
+			return newLoggedError("Failed to create new user in database", err)
+		}
+
+		err = s.backend.UpdateUser(userID, fullname, "", "")
+		if err != nil {
+			return newLoggedError("Unable to update user", err)
+		}
+	} else {
+		userID = user.UserID
+	}
+
+	_, err = s.createLogin(userID, email, fullname, "", 0, 0)
+	if err != nil {
+		return newLoggedError("Unable to create login", err)
+	}
+
+	_, err = s.createSession(email, userID, fullname, false)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func getOAuthCredentials(r *http.Request) (string, string, error) {
+	var fullname, email, email2 string
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", "", fmt.Errorf("No authorization found")
+	}
+
+	authHeaderParts := strings.Split(authHeader, " ")
+	if len(authHeaderParts) != 2 || strings.ToLower(authHeaderParts[0]) != "bearer" {
+		return "", "", fmt.Errorf("Authorization header format must be Bearer {token}")
+	}
+
+	// need to actually parse here and handle error
+	token, _ := jwt.Parse(authHeaderParts[1], func(token *jwt.Token) (interface{}, error) {
+		//if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+		//	return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		//}
+		// supposed to validate the signature according to Microsoft. This is not trivial
+		// https://docs.microsoft.com/en-us/azure/active-directory/develop/active-directory-v2-tokens#validating-tokens
+
+		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+		return []byte("my_secret_key"), nil
+	})
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if ok {
+		fullname = fmt.Sprintf("%v", claims["name"])
+		email = fmt.Sprintf("%v", claims["unique_name"])
+		fmt.Println("unique_name:", email)
+		email2 = fmt.Sprintf("%v", claims["email"])
+		fmt.Println("email:", email2)
+		if email == "" || fullname == "" {
+			return "", "", fmt.Errorf("expected email and fullname")
+		}
+	}
+	return email, fullname, nil
 }
 
 func (s *authStore) createSession(email string, userID int, fullname string, rememberMe bool) (*loginSession, error) {

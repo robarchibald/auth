@@ -167,6 +167,10 @@ func (s *mockAuthStorer) GetBasicAuth() (*loginSession, error) {
 	s.LastRun = "GetBasicAuth"
 	return s.SessionReturn, s.ErrReturn
 }
+func (s *mockAuthStorer) OAuthLogin() error {
+	s.LastRun = "OAuthLogin"
+	return s.ErrReturn
+}
 func (s *mockAuthStorer) Login() error {
 	s.LastRun = "Login"
 	return s.ErrReturn

@@ -159,6 +159,7 @@ func (s *nginxauth) serve(port int) {
 	http.HandleFunc("/authBasic", s.method("GET", authBasic))
 	http.HandleFunc("/createProfile", s.method("POST", createProfile))
 	http.HandleFunc("/login", s.method("POST", login))
+	http.HandleFunc("/oauth", s.method("GET", oauthLogin))
 	http.HandleFunc("/register", s.method("POST", register))
 	http.HandleFunc("/verifyEmail", s.method("POST", verifyEmail))
 	http.HandleFunc("/updateEmail", s.method("POST", updateEmail))
@@ -230,6 +231,10 @@ func basicErr(w http.ResponseWriter, r *http.Request, err error) {
 	logError(err)
 }
 
+func oauthLogin(authStore authStorer, w http.ResponseWriter, r *http.Request) {
+	run("oauthLogin", authStore.OAuthLogin, w)
+}
+
 func login(authStore authStorer, w http.ResponseWriter, r *http.Request) {
 	run("login", authStore.Login, w)
 }
@@ -260,11 +265,11 @@ func run(name string, method func() error, w http.ResponseWriter) {
 }
 
 func writeOutput(w http.ResponseWriter, message string, err error) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		logError(err)
 	} else {
-		w.Header().Add("Access-Control-Allow-Origin", "*")
 		w.Header().Add("Content-Type", "application/javascript")
 		fmt.Fprint(w, "{ \"result\": \"Success\" }")
 	}
