@@ -33,37 +33,41 @@ func (l *backendLDAPLogin) Login(email, password string) (*userLogin, error) {
 	if err != nil {
 		return nil, err
 	}
+	return l.GetLogin(email)
+}
+
+func (l *backendLDAPLogin) GetLogin(email string) (*userLogin, error) {
 	// get login info
 	req := ldap.NewSearchRequest(l.baseDn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, 0, false, fmt.Sprintf(l.userLoginFilter, email), []string{"uid", "dbUserId", "cn"}, nil)
 	data := &ldapData{}
-	err = l.db.QueryStructRow(req, data)
+	err := l.db.QueryStructRow(req, data)
 	if err != nil {
 		return nil, err
 	}
-	dbUserID, err := strconv.Atoi(data.DbUserId)
+	userID, err := strconv.Atoi(data.DbUserId)
 	if err != nil {
 		return nil, err
 	}
-	return &userLogin{UserID: dbUserID, Email: data.UID, FullName: data.Cn}, nil
+	return &userLogin{UserID: userID, Email: data.UID, FullName: data.Cn}, nil
 }
 
 /****************  TODO: create different type of user if not using file and mail quotas  **********************/
-func (l *backendLDAPLogin) CreateAccount(dbUserID int, email, passwordHash, fullName string) (*userLogin, error) {
+func (l *backendLDAPLogin) CreateAccount(userID int, email, passwordHash, fullName string) (*userLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + "," + l.baseDn)
 	req.Attribute("objectClass", []string{"endfirstAccount"})
 	req.Attribute("uid", []string{email})
-	req.Attribute("dbUserId", []string{strconv.Itoa(dbUserID)})
+	req.Attribute("dbUserId", []string{strconv.Itoa(userID)})
 	req.Attribute("cn", []string{fullName})
 	req.Attribute("userPassword", []string{passwordHash})
 	err := l.db.Execute(req)
 	return &userLogin{}, err
 }
 
-func (l *backendLDAPLogin) CreateSubscriber(dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+func (l *backendLDAPLogin) CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + "," + l.baseDn)
 	req.Attribute("objectClass", []string{"endfirstAccount", "endfirstSubscriber"})
 	req.Attribute("uid", []string{email})
-	req.Attribute("dbUserId", []string{strconv.Itoa(dbUserID)})
+	req.Attribute("dbUserId", []string{strconv.Itoa(userID)})
 	req.Attribute("cn", []string{fullName})
 	req.Attribute("userPassword", []string{passwordHash})
 	req.Attribute("uidNumber", []string{strconv.Itoa(uidNumber)})

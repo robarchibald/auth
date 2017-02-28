@@ -32,6 +32,14 @@ func newBackendMemory(p passwordStorer) backender {
 	return &backendMemory{p: p, LoginProviders: []*loginProvider{&loginProvider{LoginProviderID: 1, Name: loginProviderDefaultName}}}
 }
 
+func (m *backendMemory) GetLogin(email string) (*userLogin, error) {
+	login := m.getLoginByEmail(email)
+	if login == nil {
+		return nil, errLoginNotFound
+	}
+	return &userLogin{login.UserID, login.Email, login.FullName}, nil
+}
+
 func (m *backendMemory) Login(email, password string) (*userLogin, error) {
 	login := m.getLoginByEmail(email)
 	if login == nil {
@@ -166,18 +174,18 @@ func (m *backendMemory) UpdateUser(userID int, fullname string, company string, 
 	return nil
 }
 
-func (m *backendMemory) CreateAccount(dbUserID int, email, passwordHash, fullName string) (*userLogin, error) {
-	login := userLoginMemory{dbUserID, email, fullName, passwordHash}
+func (m *backendMemory) CreateAccount(userID int, email, passwordHash, fullName string) (*userLogin, error) {
+	login := userLoginMemory{userID, email, fullName, passwordHash}
 	m.Logins = append(m.Logins, &login)
 
-	return &userLogin{dbUserID, email, fullName}, nil
+	return &userLogin{userID, email, fullName}, nil
 }
 
-func (m *backendMemory) CreateSubscriber(dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
-	login := userLoginMemory{dbUserID, email, fullName, passwordHash}
+func (m *backendMemory) CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+	login := userLoginMemory{userID, email, fullName, passwordHash}
 	m.Logins = append(m.Logins, &login)
 
-	return &userLogin{dbUserID, email, fullName}, nil
+	return &userLogin{userID, email, fullName}, nil
 }
 
 func (m *backendMemory) UpdateEmail(email string, password string, newEmail string) (*loginSession, error) {

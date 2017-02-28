@@ -225,6 +225,7 @@ type getEmailSessionReturn struct {
 
 type mockBackend struct {
 	backender
+	GetLoginReturn           *LoginReturn
 	LoginReturn              *LoginReturn
 	ExpirationReturn         *time.Time
 	GetSessionReturn         *SessionReturn
@@ -243,6 +244,14 @@ type mockBackend struct {
 	RememberMeReturn         *RememberMeReturn
 	ErrReturn                error
 	MethodsCalled            []string
+}
+
+func (b *mockBackend) GetLogin(email string) (*userLogin, error) {
+	b.MethodsCalled = append(b.MethodsCalled, "GetLogin")
+	if b.GetLoginReturn == nil {
+		return nil, errors.New("GetLoginReturn not initialized")
+	}
+	return b.GetLoginReturn.Login, b.GetLoginReturn.Err
 }
 
 func (b *mockBackend) Login(email, password string) (*userLogin, error) {
@@ -331,7 +340,7 @@ func (b *mockBackend) UpdateUser(userID int, fullname, company, pictureURL strin
 	return b.ErrReturn
 }
 
-func (b *mockBackend) CreateAccount(dbUserID int, email, passwordHash, fullName string) (*userLogin, error) {
+func (b *mockBackend) CreateAccount(userID int, email, passwordHash, fullName string) (*userLogin, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateAccount")
 	if b.CreateLoginReturn == nil {
 		return nil, errors.New("CreateLoginReturn not initialized")
@@ -339,7 +348,7 @@ func (b *mockBackend) CreateAccount(dbUserID int, email, passwordHash, fullName 
 	return b.CreateLoginReturn.Login, b.CreateLoginReturn.Err
 }
 
-func (b *mockBackend) CreateSubscriber(dbUserID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+func (b *mockBackend) CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateSubscriber")
 	if b.CreateLoginReturn == nil {
 		return nil, errors.New("CreateLoginReturn not initialized")
