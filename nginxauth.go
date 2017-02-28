@@ -270,7 +270,7 @@ func writeOutput(w http.ResponseWriter, message string, err error) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		logError(err)
 	} else {
-		w.Header().Add("Content-Type", "application/javascript")
+		w.Header().Add("Content-Type", "application/json")
 		fmt.Fprint(w, "{ \"result\": \"Success\" }")
 	}
 }
