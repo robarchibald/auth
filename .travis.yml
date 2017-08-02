@@ -10,6 +10,15 @@ before_install:
   - go get golang.org/x/tools/cmd/cover
   - go get github.com/mattn/goveralls
 
+addons:
+  apt:
+    packages:
+    - ldap-utils
+    - slapd
+
+services:
+  - postgresql
+
 deploy:
   provider: releases
   api_key:
