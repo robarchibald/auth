@@ -6,9 +6,10 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"math/big"
+
 	"github.com/kless/osutil/user/crypt/sha512_crypt"
 	"github.com/pkg/errors"
-	"math/big"
 )
 
 var errHashNotEqual = errors.New("input string does not match the supplied hash")
@@ -142,7 +143,7 @@ func generateRandomBytes(n int) ([]byte, error) {
 func getRandomSalt(length, iterations int) (string, error) {
 	const letterBytes = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\.`
 	b := make([]byte, length)
-	maxNum := big.NewInt(63)
+	maxNum := big.NewInt(64)
 	for i := range b {
 		c, err := rand.Int(rand.Reader, maxNum)
 		if err != nil {
