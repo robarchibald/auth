@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/pkg/errors"
 	"log"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/pkg/errors"
 )
 
 type nilWriter struct{}
@@ -17,7 +18,7 @@ func TestNewRestServer(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
-	_, err := newNginxAuth("nginxauth.conf", ".")
+	_, err := newNginxAuth("nginxauth.conf", "auth.log")
 	if err != nil {
 		t.Error("expected success", err)
 	}
