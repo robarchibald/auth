@@ -23,8 +23,7 @@ deploy:
   provider: releases
   api_key:
     secure: Je5/yqHkCpifBqtTCixMux0gfp9ogefGQx+Ep+AvlVyY1k1Qi9HXvvYDv7Vcd/s0KAovM5l1HLLzN8RVqdvXOvNqBdMyutggvmrfRQBRnX431kLQWh7hrKe7jhDnHKB+g7fVm4HpttHYfmT8v41U5JwN70jBbCTPiogeWPQTzpqm0f+cyOokSZ72eRXjaon/qq5xJLp5ZeOK+peNUSt7NrJLSOOMKzCPCPyB8+d2R6sKefO45m2Cktyq4vEsTMEngi5+fqBTGWu9H4ON3b2x5TGvDdFP7+JxtEF/xJX557sWl3+wHcLwhR0wv1YQ7B18bMp/ckTdueaCe7qERGSViXOWFLfEa4m+pdVICxQcHIn6XenvTHoqOr8NwOsdw7mcTniRrincjdyNS8ir6wBLnY9gAwcvmphL5eQEkQM+knfve5M+sOl20OihfYODT/6vbi5pSqiVxp1h2hVy3eZ5cx79bSvJ9m6RJwimElfl41fWakoEsgYZIXIB0QN6P8uZQMD4pCve7kqD/1nBVcKcUFpXDS0+26SKLGVIuEayTqpFo7vTqjlboSndeGdJVVpNj7POIB8PU86WKywzWHyE9npQr2yiI1cYvkZYfhpDVhqnlKHrYYGq+94dBaHyAfdWHs+9JEV0G6QZ1gnamUUSoMvWYwPxvI1ncueAqNi5Z2k=
-  file: nginxauth
   skip_cleanup: true
   on:
     # tags: true
-    repo: EndFirstCorp/nginxauth
+    repo: EndFirstCorp/auth
