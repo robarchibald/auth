@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -19,18 +18,15 @@ var futureTime = time.Now().Add(5 * time.Minute)
 var pastTime = time.Now().Add(-5 * time.Minute)
 
 func getAuthStore(emailCookie *emailCookie, sessionCookie *sessionCookie, rememberCookie *rememberMeCookie, hasCookieGetError, hasCookiePutError bool, mailErr error, backend *mockBackend) *authStore {
-	r := &http.Request{}
 	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookie, sessionCookieName: sessionCookie, rememberMeCookieName: rememberCookie}, hasCookieGetError, hasCookiePutError)
-	return &authStore{backend, &TextMailer{Err: mailErr}, cookieStore, r, &hashStore{}}
+	return &authStore{backend, &TextMailer{Err: mailErr}, cookieStore, &hashStore{}}
 }
 
 func TestNewAuthStore(t *testing.T) {
-	w := httptest.NewRecorder()
-	r := &http.Request{}
 	b := &mockBackend{}
 	m := &TextMailer{}
-	actual := NewAuthStore(b, m, &hashStore{}, w, r, "prefix", cookieKey, false).(*authStore)
-	if actual.backend != b || actual.cookieStore.(*cookieStore).w != w || actual.cookieStore.(*cookieStore).r != r {
+	actual := NewAuthStore(b, m, &hashStore{}, "prefix", cookieKey).(*authStore)
+	if actual.backend != b || actual.cookieStore.(*cookieStore).s == nil {
 		t.Fatal("expected correct init")
 	}
 }
@@ -83,7 +79,7 @@ func TestGetSession(t *testing.T) {
 		backend := &mockBackend{GetSessionReturn: test.GetSessionReturn, RenewSessionReturn: test.RenewSessionReturn}
 		store := getAuthStore(nil, test.SessionCookie, nil, false, false, nil, backend)
 		//store := getSessionStore(nil, test.SessionCookie, nil, test.HasCookieGetError, test.HasCookiePutError, backend)
-		val, err := store.GetSession()
+		val, err := store.GetSession(nil, &http.Request{})
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -155,7 +151,7 @@ func TestRenewSession(t *testing.T) {
 	for i, test := range renewSessionTests {
 		backend := &mockBackend{RenewSessionReturn: test.RenewSessionReturn, GetRememberMeReturn: test.GetRememberMeReturn}
 		store := getAuthStore(nil, nil, test.RememberCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		val, err := store.renewSession("sessionId", "sessionHash", &test.RenewTimeUTC, &test.ExpireTimeUTC)
+		val, err := store.renewSession(nil, &http.Request{}, "sessionId", "sessionHash", &test.RenewTimeUTC, &test.ExpireTimeUTC)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -221,7 +217,7 @@ func TestRememberMe(t *testing.T) {
 	for i, test := range rememberMeTests {
 		backend := &mockBackend{GetRememberMeReturn: test.GetRememberMeReturn, RenewRememberMeReturn: test.RenewRememberMeReturn}
 		store := getAuthStore(nil, nil, test.RememberCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		val, err := store.getRememberMe()
+		val, err := store.getRememberMe(nil, &http.Request{})
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -292,7 +288,7 @@ func TestCreateSession(t *testing.T) {
 	for i, test := range createSessionTests {
 		backend := &mockBackend{CreateSessionReturn: test.CreateSessionReturn}
 		store := getAuthStore(nil, test.SessionCookie, test.RememberMeCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		val, err := store.createSession("test@test.com", 1, "fullname", test.RememberMe)
+		val, err := store.createSession(nil, &http.Request{}, "test@test.com", 1, "fullname", test.RememberMe)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -304,27 +300,25 @@ func TestCreateSession(t *testing.T) {
 func TestAuthGetBasicAuth(t *testing.T) {
 	// found session
 	store := getAuthStore(nil, sessionCookieGood(futureTime, futureTime), nil, false, false, nil, &mockBackend{GetSessionReturn: sessionSuccess(futureTime, futureTime)})
-	if _, err := store.GetBasicAuth(); err != nil {
+	if _, err := store.GetBasicAuth(nil, &http.Request{}); err != nil {
 		t.Error("expected success", err)
 	}
 
 	// Credential error
 	store = getAuthStore(nil, nil, nil, true, false, nil, &mockBackend{LoginReturn: loginErr()})
-	if _, err := store.GetBasicAuth(); err == nil || err.Error() != "Problem decoding credentials from basic auth" {
+	if _, err := store.GetBasicAuth(nil, &http.Request{}); err == nil || err.Error() != "Problem decoding credentials from basic auth" {
 		t.Error("expected error")
 	}
 
 	// login error
 	store = getAuthStore(nil, nil, nil, true, false, nil, &mockBackend{LoginReturn: loginErr(), GetSessionReturn: sessionSuccess(futureTime, futureTime)})
-	store.r = basicAuthRequest("test@test.com", "password")
-	if _, err := store.GetBasicAuth(); err == nil || err.Error() != "Invalid username or password" {
+	if _, err := store.GetBasicAuth(nil, basicAuthRequest("test@test.com", "password")); err == nil || err.Error() != "Invalid username or password" {
 		t.Error("expected error", err)
 	}
 
 	// login success
 	store = getAuthStore(nil, nil, nil, true, false, nil, &mockBackend{LoginReturn: loginSuccess(), GetSessionReturn: sessionSuccess(futureTime, futureTime), CreateSessionReturn: sessionRemember(futureTime, futureTime)})
-	store.r = basicAuthRequest("test@test.com", "correctPassword")
-	if _, err := store.GetBasicAuth(); err != nil {
+	if _, err := store.GetBasicAuth(nil, basicAuthRequest("test@test.com", "correctPassword")); err != nil {
 		t.Error("expected success")
 	}
 }
@@ -386,7 +380,7 @@ func TestAuthRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &mockBackend{ErrReturn: test.CreateEmailSessionReturn, GetUserReturn: test.GetUserReturn}
 		store := getAuthStore(nil, nil, nil, false, false, test.MailErr, backend)
-		err := store.register(test.Email, "destinationURL")
+		err := store.register(&http.Request{}, test.Email, "destinationURL")
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -474,7 +468,7 @@ func TestAuthCreateProfile(t *testing.T) {
 	for i, test := range createProfileTests {
 		backend := &mockBackend{ErrReturn: test.UpdateUserReturn, getEmailSessionReturn: test.getEmailSessionReturn, CreateLoginReturn: test.LoginReturn, CreateSessionReturn: test.CreateSessionReturn, DeleteEmailSessionReturn: test.DeleteEmailSessionReturn}
 		store := getAuthStore(test.EmailCookie, nil, nil, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		err := store.createProfile("name", "organization", "password", "path", 1, 1)
+		err := store.createProfile(nil, &http.Request{}, "name", "organization", "password", "path", 1, 1)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -553,7 +547,7 @@ func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &mockBackend{getEmailSessionReturn: test.getEmailSessionReturn, AddUserReturn: test.AddUserReturn, UpdateEmailSessionReturn: test.UpdateEmailSessionReturn}
 		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
-		destinationURL, err := store.verifyEmail(test.EmailVerificationCode)
+		destinationURL, err := store.verifyEmail(nil, &http.Request{}, test.EmailVerificationCode)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) || test.DestinatinURL != destinationURL {
@@ -607,7 +601,7 @@ func TestAuthLogin(t *testing.T) {
 	for i, test := range loginTests {
 		backend := &mockBackend{LoginReturn: test.LoginReturn, ErrReturn: test.ErrReturn, CreateSessionReturn: test.CreateSessionReturn}
 		store := getAuthStore(nil, nil, nil, false, false, nil, backend)
-		val, err := store.login(test.Email, test.Password, test.RememberMe)
+		val, err := store.login(nil, &http.Request{}, test.Email, test.Password, test.RememberMe)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -632,14 +626,13 @@ func TestRegisterPub(t *testing.T) {
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &mockBackend{}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	store.r = r
-	err := store.Register()
+	err := store.Register(nil, r)
 	if err == nil || err.Error() != "Invalid email" {
 		t.Error("expected error from child register method", err)
 	}
 
 	buf.WriteString("b")
-	err = store.Register()
+	err = store.Register(nil, r)
 	if err == nil || !strings.HasPrefix(err.Error(), "Unable to get email") {
 		t.Error("expected error from parent Register method", err)
 	}
@@ -661,14 +654,13 @@ func TestVerifyEmailPub(t *testing.T) {
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &mockBackend{getEmailSessionReturn: getEmailSessionErr()}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	store.r = r
-	_, err := store.VerifyEmail()
+	_, err := store.VerifyEmail(nil, r)
 	if err == nil || err.Error() != "Failed to verify email" {
 		t.Error("expected error from child verifyEmail method", err)
 	}
 
 	buf.WriteString("b")
-	_, err = store.VerifyEmail()
+	_, err = store.VerifyEmail(nil, r)
 	if err == nil || err.Error() != "Unable to get verification email from JSON" {
 		t.Error("expected error from VerifyEmail method", err)
 	}
@@ -690,18 +682,16 @@ func TestLoginJson(t *testing.T) {
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &mockBackend{LoginReturn: loginErr()}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	store.r = r
-	err := store.Login().(*AuthError).innerError
+	err := store.Login(nil, r).(*AuthError).innerError
 	if err == nil || err.Error() != "failed" {
 		t.Error("expected error from login method", err)
 	}
 
 	buf.WriteString("b")
-	err = store.Login()
+	err = store.Login(nil, r)
 	if err == nil || err.Error() != "Unable to get credentials" {
 		t.Error("expected error from login method", err)
 	}
-
 }
 
 func TestGetProfile(t *testing.T) {
@@ -741,14 +731,13 @@ func TestCreateProfilePub(t *testing.T) {
 	r.Header.Add("Content-Type", w.FormDataContentType())
 	backend := &mockBackend{}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	store.r = r
-	err := store.CreateProfile()
+	err := store.CreateProfile(nil, r)
 	if err == nil || err.Error() != "Unable to get email verification cookie" {
 		t.Error("expected error from CreateProfile method", err)
 	}
 
-	store.r = &http.Request{Body: ioutil.NopCloser(&buf)}
-	err = store.CreateProfile()
+	r = &http.Request{Body: ioutil.NopCloser(&buf)}
+	err = store.CreateProfile(nil, r)
 	if err == nil || err.Error() != "Unable to get profile information from form" {
 		t.Error("expected error from CreateProfile method", err)
 	}

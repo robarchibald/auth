@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
@@ -8,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strings"
 
 	"github.com/EndFirstCorp/auth"
 	"github.com/EndFirstCorp/configReader"
@@ -71,11 +71,10 @@ type authConf struct {
 }
 
 type nginxauth struct {
-	backend   auth.Backender
-	mailer    auth.Mailer
-	cookieKey []byte
-	conf      authConf
-	errorLog  *os.File
+	backend  auth.Backender
+	a        auth.AuthStorer
+	conf     authConf
+	errorLog *os.File
 }
 
 func main() {
@@ -127,7 +126,7 @@ func newNginxAuth(configFle, logfile string) (*nginxauth, error) {
 		return nil, err
 	}
 
-	return &nginxauth{b, mailer, cookieKey, config, eLog}, nil
+	return &nginxauth{b, auth.NewAuthStore(b, mailer, &auth.CryptoHashStore{}, config.StoragePrefix, cookieKey), config, eLog}, nil
 }
 
 func (n *authConf) NewEmailer() (*auth.Emailer, error) {
@@ -175,26 +174,24 @@ func (s *nginxauth) method(name string, handler func(authStore auth.AuthStorer, 
 			http.Error(w, "Unsupported method", http.StatusInternalServerError)
 			return
 		}
-		secureOnly := strings.HasPrefix(r.Referer(), "https") // proxy to back-end so if referer is secure connection, we can use secureOnly cookies
-		authStore := auth.NewAuthStore(s.backend, s.mailer, &auth.CryptoHashStore{}, w, r, s.conf.StoragePrefix, s.cookieKey, secureOnly)
-		handler(authStore, w, r)
+		handler(s.a, w, r)
 	}
 }
 
 func authCookie(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	/*session, err := authStore.GetSession()
+	session, err := authStore.GetSession(w, r)
 	if err != nil {
 		authErr(w, r, err)
 		return
 	}
 
-		user, err := json.Marshal(&auth.userLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
-		if err != nil {
-			authErr(w, r, err)
-			return
-		}
+	user, err := json.Marshal(&auth.UserLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
+	if err != nil {
+		authErr(w, r, err)
+		return
+	}
 
-		addUserHeader(string(user), w)*/
+	addUserHeader(string(user), w)
 }
 
 func authErr(w http.ResponseWriter, r *http.Request, err error) {
@@ -211,19 +208,19 @@ func logError(err error) {
 }
 
 func authBasic(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	/*session, err := authStore.GetBasicAuth()
+	session, err := authStore.GetBasicAuth(w, r)
 	if err != nil {
 		basicErr(w, r, err)
 		return
 	}
 
-	user, err := json.Marshal(&auth.userLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
+	user, err := json.Marshal(&auth.UserLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
 	if err != nil {
 		basicErr(w, r, err)
 		return
 	}
 
-	addUserHeader(string(user), w)*/
+	addUserHeader(string(user), w)
 }
 
 func basicErr(w http.ResponseWriter, r *http.Request, err error) {
@@ -233,36 +230,36 @@ func basicErr(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func oauthLogin(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("oauthLogin", authStore.OAuthLogin, w)
+	run("oauthLogin", authStore.OAuthLogin, w, r)
 }
 
 func login(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("login", authStore.Login, w)
+	run("login", authStore.Login, w, r)
 }
 
 func register(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("register", authStore.Register, w)
+	run("register", authStore.Register, w, r)
 }
 
 func createProfile(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("createProfile", authStore.CreateProfile, w)
+	run("createProfile", authStore.CreateProfile, w, r)
 }
 
 func updateEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("updateEmail", authStore.UpdateEmail, w)
+	run("updateEmail", authStore.UpdateEmail, w, r)
 }
 
 func updatePassword(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("updatePassword", authStore.UpdatePassword, w)
+	run("updatePassword", authStore.UpdatePassword, w, r)
 }
 
 func verifyEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	destinationURL, err := authStore.VerifyEmail()
+	destinationURL, err := authStore.VerifyEmail(w, r)
 	writeOutput(w, fmt.Sprintf("{ \"result\": \"Success\", \"destinationURL\": \"%s\" }", destinationURL), err)
 }
 
-func run(name string, method func() error, w http.ResponseWriter) {
-	writeOutput(w, "{ \"result\": \"Success\" }", method())
+func run(name string, method func(http.ResponseWriter, *http.Request) error, w http.ResponseWriter, r *http.Request) {
+	writeOutput(w, "{ \"result\": \"Success\" }", method(w, r))
 }
 
 func writeOutput(w http.ResponseWriter, message string, err error) {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -160,40 +161,40 @@ type mockAuthStorer struct {
 	LastRun              string
 }
 
-func (s *mockAuthStorer) GetSession() (*auth.LoginSession, error) {
+func (s *mockAuthStorer) GetSession(w http.ResponseWriter, r *http.Request) (*auth.LoginSession, error) {
 	s.LastRun = "GetSession"
 	return s.SessionReturn, s.ErrReturn
 }
 
-func (s *mockAuthStorer) GetBasicAuth() (*auth.LoginSession, error) {
+func (s *mockAuthStorer) GetBasicAuth(w http.ResponseWriter, r *http.Request) (*auth.LoginSession, error) {
 	s.LastRun = "GetBasicAuth"
 	return s.SessionReturn, s.ErrReturn
 }
-func (s *mockAuthStorer) OAuthLogin() error {
+func (s *mockAuthStorer) OAuthLogin(w http.ResponseWriter, r *http.Request) error {
 	s.LastRun = "OAuthLogin"
 	return s.ErrReturn
 }
-func (s *mockAuthStorer) Login() error {
+func (s *mockAuthStorer) Login(w http.ResponseWriter, r *http.Request) error {
 	s.LastRun = "Login"
 	return s.ErrReturn
 }
-func (s *mockAuthStorer) Register() error {
+func (s *mockAuthStorer) Register(w http.ResponseWriter, r *http.Request) error {
 	s.LastRun = "Register"
 	return s.ErrReturn
 }
-func (s *mockAuthStorer) CreateProfile() error {
+func (s *mockAuthStorer) CreateProfile(w http.ResponseWriter, r *http.Request) error {
 	s.LastRun = "CreateProfile"
 	return s.ErrReturn
 }
-func (s *mockAuthStorer) VerifyEmail() (string, error) {
+func (s *mockAuthStorer) VerifyEmail(w http.ResponseWriter, r *http.Request) (string, error) {
 	s.LastRun = "VerifyEmail"
 	return s.DestinationURLReturn, s.ErrReturn
 }
-func (s *mockAuthStorer) UpdateEmail() error {
+func (s *mockAuthStorer) UpdateEmail(w http.ResponseWriter, r *http.Request) error {
 	s.LastRun = "UpdateEmail"
 	return s.ErrReturn
 }
-func (s *mockAuthStorer) UpdatePassword() error {
+func (s *mockAuthStorer) UpdatePassword(w http.ResponseWriter, r *http.Request) error {
 	s.LastRun = "UpdatePassword"
 	return s.ErrReturn
 }
