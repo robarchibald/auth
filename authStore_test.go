@@ -551,7 +551,7 @@ func TestAuthVerifyEmail(t *testing.T) {
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) || test.DestinatinURL != destinationURL {
-			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.MethodsCalled, methods, destinationURL)
+			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected methods: %s\tactual methods: %s, destination: %s", i, test.Scenario, test.ExpectedErr, err, test.MethodsCalled, methods, destinationURL)
 		}
 	}
 }
