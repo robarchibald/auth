@@ -1,9 +1,8 @@
-package main
+package auth
 
 import (
 	"bytes"
 	"encoding/base64"
-	"github.com/pkg/errors"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 var futureTime = time.Now().Add(5 * time.Minute)
@@ -28,7 +29,7 @@ func TestNewAuthStore(t *testing.T) {
 	r := &http.Request{}
 	b := &mockBackend{}
 	m := &TextMailer{}
-	actual := newAuthStore(b, m, &hashStore{}, w, r, "prefix", cookieKey, false).(*authStore)
+	actual := NewAuthStore(b, m, &hashStore{}, w, r, "prefix", cookieKey, false).(*authStore)
 	if actual.backend != b || actual.cookieStore.(*cookieStore).w != w || actual.cookieStore.(*cookieStore).r != r {
 		t.Fatal("expected correct init")
 	}
@@ -65,7 +66,7 @@ var getSessionTests = []struct {
 	{
 		Scenario:         "Get Session Error",
 		SessionCookie:    sessionCookieGood(futureTime, futureTime),
-		GetSessionReturn: &SessionReturn{&loginSession{}, errSessionNotFound},
+		GetSessionReturn: &SessionReturn{&LoginSession{}, errSessionNotFound},
 		MethodsCalled:    []string{"GetSession"},
 		ExpectedErr:      "Failed to verify session",
 	},
@@ -690,7 +691,7 @@ func TestLoginJson(t *testing.T) {
 	backend := &mockBackend{LoginReturn: loginErr()}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
 	store.r = r
-	err := store.Login().(*authError).innerError
+	err := store.Login().(*AuthError).innerError
 	if err == nil || err.Error() != "failed" {
 		t.Error("expected error from login method", err)
 	}

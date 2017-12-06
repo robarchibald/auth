@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"github.com/pkg/errors"
@@ -104,7 +104,7 @@ func substringBetween(source, from, to string) string {
 
 /****************************************************************************/
 type MockCookieStore struct {
-	cookieStorer
+	CookieStorer
 	cookies map[string]interface{}
 	getErr  error
 	putErr  error

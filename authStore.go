@@ -1,10 +1,9 @@
-package main
+package auth
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dgrijalva/jwt-go"
 )
 
 var emailCookieName = "Email"
@@ -29,9 +30,10 @@ const rememberMeRenewDuration time.Duration = time.Hour
 const rememberMeExpireDuration time.Duration = time.Hour * 24 * 30 // 30 days
 const passwordValidationMessage string = "Password must be between 7 and 20 characters"
 
-type authStorer interface {
-	GetSession() (*loginSession, error)
-	GetBasicAuth() (*loginSession, error)
+// AuthStorer interface provides the necessary functionality to get and store authentication information
+type AuthStorer interface {
+	GetSession() (*LoginSession, error)
+	GetBasicAuth() (*LoginSession, error)
 	OAuthLogin() error
 	Login() error
 	Register() error
@@ -60,21 +62,21 @@ type rememberMeCookie struct {
 }
 
 type authStore struct {
-	backend     backender
-	mailer      mailer
-	cookieStore cookieStorer
+	backend     Backender
+	mailer      Mailer
+	cookieStore CookieStorer
 	r           *http.Request
-	p           passwordStorer
+	c           Crypter
 }
 
-func newAuthStore(b backender, mailer mailer, p passwordStorer, w http.ResponseWriter, r *http.Request, customPrefix string, cookieKey []byte, secureOnlyCookie bool) authStorer {
+func NewAuthStore(b Backender, mailer Mailer, c Crypter, w http.ResponseWriter, r *http.Request, customPrefix string, cookieKey []byte, secureOnlyCookie bool) AuthStorer {
 	emailCookieName = customPrefix + "Email"
 	sessionCookieName = customPrefix + "Session"
 	rememberMeCookieName = customPrefix + "RememberMe"
-	return &authStore{b, mailer, newCookieStore(w, r, cookieKey, secureOnlyCookie), r, p}
+	return &authStore{b, mailer, newCookieStore(w, r, cookieKey, secureOnlyCookie), r, c}
 }
 
-func (s *authStore) GetSession() (*loginSession, error) {
+func (s *authStore) GetSession() (*LoginSession, error) {
 	cookie, err := s.getSessionCookie()
 	if err != nil || cookie.SessionID == "" { // impossible to get the session if there is no cookie
 		return nil, newAuthError("Session cookie not found", err)
@@ -98,7 +100,7 @@ func (s *authStore) GetSession() (*loginSession, error) {
 	return session, nil
 }
 
-func (s *authStore) GetBasicAuth() (*loginSession, error) {
+func (s *authStore) GetBasicAuth() (*LoginSession, error) {
 	session, err := s.GetSession()
 	if err == nil {
 		return session, nil
@@ -147,7 +149,7 @@ func (s *authStore) getRememberMe() (*rememberMeSession, error) {
 	return rememberMe, nil
 }
 
-func (s *authStore) renewSession(sessionID, sessionHash string, renewTimeUTC, expireTimeUTC *time.Time) (*loginSession, error) {
+func (s *authStore) renewSession(sessionID, sessionHash string, renewTimeUTC, expireTimeUTC *time.Time) (*LoginSession, error) {
 	// expired so check for valid rememberMe for renewal
 	if expireTimeUTC.Before(time.Now().UTC()) {
 		_, err := s.getRememberMe()
@@ -182,7 +184,7 @@ func (s *authStore) Login() error {
 	return err
 }
 
-func (s *authStore) login(email, password string, rememberMe bool) (*loginSession, error) {
+func (s *authStore) login(email, password string, rememberMe bool) (*LoginSession, error) {
 	if !isValidEmail(email) {
 		return nil, newAuthError("Please enter a valid email address.", nil)
 	}
@@ -277,7 +279,7 @@ func getOAuthCredentials(r *http.Request) (string, string, error) {
 	return email, fullname, nil
 }
 
-func (s *authStore) createSession(email string, userID int, fullname string, rememberMe bool) (*loginSession, error) {
+func (s *authStore) createSession(email string, userID int, fullname string, rememberMe bool) (*LoginSession, error) {
 	var err error
 	var selector, token, tokenHash string
 	if rememberMe {
@@ -439,8 +441,8 @@ func (s *authStore) createProfile(fullName, organization, password, picturePath 
 }
 
 /****************  TODO: send 0 for UID and GID numbers and empty quotas if mailQuota and fileQuota are 0 **********************/
-func (s *authStore) createLogin(userID int, email, fullName, password string, mailQuota, fileQuota int) (*userLogin, error) {
-	passwordHash, err := s.p.Hash(password)
+func (s *authStore) createLogin(userID int, email, fullName, password string, mailQuota, fileQuota int) (*UserLogin, error) {
+	passwordHash, err := s.c.Hash(password)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}
@@ -450,7 +452,7 @@ func (s *authStore) createLogin(userID int, email, fullName, password string, ma
 	return s.createSubscriber(userID, email, fullName, passwordHash, mailQuota, fileQuota)
 }
 
-func (s *authStore) createAccount(userID int, email, fullName, passwordHash string) (*userLogin, error) {
+func (s *authStore) createAccount(userID int, email, fullName, passwordHash string) (*UserLogin, error) {
 	login, err := s.backend.CreateAccount(userID, email, passwordHash, fullName)
 	if err != nil {
 		return nil, newLoggedError("Unable to create account", err)
@@ -458,7 +460,7 @@ func (s *authStore) createAccount(userID int, email, fullName, passwordHash stri
 	return login, nil
 }
 
-func (s *authStore) createSubscriber(userID int, email, fullName, passwordHash string, mailQuota, fileQuota int) (*userLogin, error) {
+func (s *authStore) createSubscriber(userID int, email, fullName, passwordHash string, mailQuota, fileQuota int) (*UserLogin, error) {
 	uidNumber := 10000 // vmail user
 	gidNumber := 10000 // vmail user
 	sepIndex := strings.Index(email, "@")

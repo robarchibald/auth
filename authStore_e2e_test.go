@@ -1,10 +1,11 @@
-package main
+package auth
 
 import (
-	"github.com/pkg/errors"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 func TestAuthStoreEndToEnd(t *testing.T) {
@@ -170,7 +171,7 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 		return nil, err
 	}
 	// check password was saved correctly
-	hashErr := s.p.HashEquals(password, b.Logins[0].PasswordHash)
+	hashErr := s.c.HashEquals(password, b.Logins[0].PasswordHash)
 	if hashErr != nil {
 		return nil, err
 	}

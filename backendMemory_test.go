@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"testing"
@@ -66,7 +66,7 @@ func TestMemoryGetSession(t *testing.T) {
 	}
 
 	// add session now and try again... should be returned
-	backend.Sessions = append(backend.Sessions, &loginSession{SessionHash: "sessionHash"})
+	backend.Sessions = append(backend.Sessions, &LoginSession{SessionHash: "sessionHash"})
 	if session, _ := backend.GetSession("sessionHash"); session.SessionHash != "sessionHash" {
 		t.Error("expected session to be returned", session)
 	}
@@ -80,7 +80,7 @@ func TestMemoryRenewSession(t *testing.T) {
 	}
 
 	// add session now and try again... should be renewed
-	backend.Sessions = append(backend.Sessions, &loginSession{SessionHash: "sessionHash"})
+	backend.Sessions = append(backend.Sessions, &LoginSession{SessionHash: "sessionHash"})
 	if session, _ := backend.RenewSession("sessionHash", renews); session.SessionHash != "sessionHash" || session.RenewTimeUTC != renews {
 		t.Error("expected session to be renewed", session)
 	}
@@ -170,7 +170,7 @@ func TestMemoryUpdatePassword(t *testing.T) {
 
 func TestMemoryInvalidateSession(t *testing.T) {
 	backend := newBackendMemory(&hashStore{}).(*backendMemory)
-	backend.Sessions = append(backend.Sessions, &loginSession{SessionHash: "hash"})
+	backend.Sessions = append(backend.Sessions, &LoginSession{SessionHash: "hash"})
 	backend.InvalidateSession("hash")
 	if len(backend.Sessions) != 0 {
 		t.Error("Expected to remove session")
@@ -200,7 +200,7 @@ func TestToString(t *testing.T) {
 	backend := newBackendMemory(&hashStore{}).(*backendMemory)
 	backend.Users = append(backend.Users, &user{})
 	backend.Logins = append(backend.Logins, &userLoginMemory{})
-	backend.Sessions = append(backend.Sessions, &loginSession{})
+	backend.Sessions = append(backend.Sessions, &LoginSession{})
 	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{})
 
 	actual := backend.ToString()

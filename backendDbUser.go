@@ -1,8 +1,8 @@
-package main
+package auth
 
 import (
+	"github.com/EndFirstCorp/onedb"
 	"github.com/pkg/errors"
-	"github.com/robarchibald/onedb"
 )
 
 type backendDbUser struct {
@@ -14,7 +14,8 @@ type backendDbUser struct {
 	CreateLoginQuery string
 }
 
-func newBackendDbUser(server string, port int, username, password, database string, addUserQuery, getUserQuery, updateUserQuery string) (userBackender, error) {
+// NewBackendDbUser creates a Postgres-based UserBackender
+func NewBackendDbUser(server string, port int, username, password, database string, addUserQuery, getUserQuery, updateUserQuery string) (userBackender, error) {
 	db, err := onedb.NewPgx(server, uint16(port), username, password, database)
 	if err != nil {
 		return nil, err

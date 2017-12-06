@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"crypto/rand"
@@ -14,16 +14,17 @@ import (
 
 var errHashNotEqual = errors.New("input string does not match the supplied hash")
 
-type passwordStorer interface {
+// Crypter interface is used to store the password hash and to compare two password hashes together for equality
+type Crypter interface {
 	HashEquals(token, tokenHash string) error
 	Hash(token string) (string, error)
 }
 
-type cryptoHashStore struct {
-	passwordStorer
+type CryptoHashStore struct {
+	Crypter
 }
 
-func (c *cryptoHashStore) HashEquals(token, tokenHash string) error {
+func (c *CryptoHashStore) HashEquals(token, tokenHash string) error {
 	if len(tokenHash) > 7 && tokenHash[0:7] == "{CRYPT}" {
 		tokenHash = tokenHash[7:]
 	}
@@ -37,7 +38,7 @@ func (c *cryptoHashStore) HashEquals(token, tokenHash string) error {
 	return nil
 }
 
-func (c *cryptoHashStore) Hash(token string) (string, error) {
+func (c *CryptoHashStore) Hash(token string) (string, error) {
 	salt, err := getRandomSalt(16, 50000)
 	if err != nil {
 		return "", err
@@ -46,11 +47,11 @@ func (c *cryptoHashStore) Hash(token string) (string, error) {
 }
 
 type hashStore struct {
-	passwordStorer
+	Crypter
 }
 
 func (h *hashStore) HashEquals(token, tokenHash string) error {
-	hash, err := decodeFromString(tokenHash)
+	hash, err := DecodeFromString(tokenHash)
 	if err != nil {
 		return err
 	}
@@ -65,14 +66,14 @@ func (h *hashStore) Hash(token string) (string, error) {
 }
 
 func decodeStringToHash(token string) (string, error) {
-	data, err := decodeFromString(token)
+	data, err := DecodeFromString(token)
 	if err != nil {
 		return "", err
 	}
 	return encodeToString(hash(data)), nil
 }
 
-func decodeFromString(token string) ([]byte, error) {
+func DecodeFromString(token string) ([]byte, error) {
 	return base64.URLEncoding.DecodeString(token)
 }
 
@@ -108,11 +109,11 @@ func hash(bytes []byte) []byte {
 
 // Url decode both the token and the hash and then compare
 func encodedHashEquals(token, tokenHash string) error {
-	tokenBytes, err := decodeFromString(token)
+	tokenBytes, err := DecodeFromString(token)
 	if err != nil {
 		return err
 	}
-	hashBytes, err := decodeFromString(tokenHash)
+	hashBytes, err := DecodeFromString(tokenHash)
 	if err != nil {
 		return err
 	}

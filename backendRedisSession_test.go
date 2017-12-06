@@ -1,9 +1,10 @@
-package main
+package auth
 
 import (
-	"github.com/robarchibald/onedb"
 	"testing"
 	"time"
+
+	"github.com/EndFirstCorp/onedb"
 )
 
 func TestNewBackendRedisSession(t *testing.T) {
@@ -38,7 +39,7 @@ func TestRedisCreateSession(t *testing.T) {
 }
 
 func TestRedisGetSession(t *testing.T) {
-	data := loginSession{Email: "test@test.com", SessionHash: "hash"}
+	data := LoginSession{Email: "test@test.com", SessionHash: "hash"}
 	m := onedb.NewMock(nil, nil, data)
 	r := backendRedisSession{db: m, prefix: "test"}
 	s, err := r.GetSession("hash")
@@ -49,7 +50,7 @@ func TestRedisGetSession(t *testing.T) {
 
 func TestRedisRenewSession(t *testing.T) {
 	// success
-	data := loginSession{Email: "test@test.com", SessionHash: "hash", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
+	data := LoginSession{Email: "test@test.com", SessionHash: "hash", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
 	m := onedb.NewMock(nil, nil, data)
 	r := backendRedisSession{db: m, prefix: "test"}
 	s, err := r.RenewSession("hash", time.Now().AddDate(1, 0, 0))
@@ -68,7 +69,7 @@ func TestRedisRenewSession(t *testing.T) {
 
 func TestRedisInvalidateSession(t *testing.T) {
 	// success
-	data := loginSession{Email: "test@test.com", SessionHash: "hash", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
+	data := LoginSession{Email: "test@test.com", SessionHash: "hash", ExpireTimeUTC: time.Now().AddDate(1, 0, 0)}
 	m := onedb.NewMock(nil, nil, data)
 	r := backendRedisSession{db: m, prefix: "test"}
 	if err := r.InvalidateSession("hash"); err != nil {

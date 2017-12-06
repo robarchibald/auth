@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"html/template"
@@ -8,12 +8,12 @@ import (
 const verifyEmailTmpl string = "code:{{ .VerificationCode }}, email:{{ .Email }}"
 
 func TestRenderHtmlBody(t *testing.T) {
-	m := emailer{templateCache: template.Must(template.New("verifyEmail").Parse(verifyEmailTmpl))}
+	m := Emailer{TemplateCache: template.Must(template.New("verifyEmail").Parse(verifyEmailTmpl))}
 	if txt, err := m.renderHTMLBody("verifyEmail", sendVerifyParams{VerificationCode: "1234", Email: "email@example.com"}); txt != "code:1234, email:email@example.com" || err != nil {
 		t.Error("expected correct txt and no error", txt, err)
 	}
 
-	m = emailer{templateCache: template.Must(template.New("verifyEmail").Parse(verifyEmailTmpl))}
+	m = Emailer{TemplateCache: template.Must(template.New("verifyEmail").Parse(verifyEmailTmpl))}
 	if _, err := m.renderHTMLBody("verifyEmail..", nil); err == nil {
 		t.Error("expected error", err)
 	}
@@ -21,8 +21,8 @@ func TestRenderHtmlBody(t *testing.T) {
 
 func TestSends(t *testing.T) {
 	sender := &NilSender{}
-	m := emailer{
-		sender:                  sender,
+	m := Emailer{
+		Sender:                  sender,
 		VerifyEmailTemplate:     "testTemplates/verifyEmail.html",
 		VerifyEmailSubject:      "verifyEmailSubject",
 		WelcomeTemplate:         "testTemplates/welcomeEmail.html",
@@ -36,7 +36,7 @@ func TestSends(t *testing.T) {
 		PasswordChangedTemplate: "testTemplates/passwordChanged.html",
 		PasswordChangedSubject:  "passwordChangedSubject",
 	}
-	m.templateCache = template.Must(template.ParseFiles(m.VerifyEmailTemplate, m.WelcomeTemplate,
+	m.TemplateCache = template.Must(template.ParseFiles(m.VerifyEmailTemplate, m.WelcomeTemplate,
 		m.NewLoginTemplate, m.LockedOutTemplate, m.EmailChangedTemplate, m.PasswordChangedTemplate))
 	data := &emailSession{Email: "myemail@here.com"}
 	err := m.SendVerify("to", data)
@@ -87,7 +87,7 @@ func (s *NilSender) Send(to, subject, body string) error {
 
 type TextMailer struct {
 	Err error
-	mailer
+	Mailer
 	MessageTo   string
 	MessageData interface{}
 }

@@ -1,8 +1,9 @@
-package main
+package auth
 
 import (
-	"github.com/pkg/errors"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 var errEmailVerifyHashExists = errors.New("DB: Email verify hash already exists")
@@ -20,19 +21,20 @@ var errRememberMeNeedsRenew = errors.New("DB: RememberMe needs to be renewed")
 var errRememberMeExpired = errors.New("DB: RememberMe is expired")
 var errUserAlreadyExists = errors.New("DB: User already exists")
 
-type backender interface {
+// Backender interface contains all the methods needed to read and write users, sessions and logins
+type Backender interface {
 	// UserBackender. Write out since it contains duplicate BackendCloser
 	AddUser(email string) (int, error)
 	GetUser(email string) (*user, error)
 	UpdateUser(userID int, fullname string, company string, pictureURL string) error
 
 	// LoginBackender. Write out since it contains duplicate BackendCloser
-	CreateAccount(userID int, email, passwordHash, fullName string) (*userLogin, error)
-	CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
-	GetLogin(email string) (*userLogin, error)
-	Login(email, password string) (*userLogin, error)
-	UpdateEmail(email string, password string, newEmail string) (*loginSession, error)
-	UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error)
+	CreateAccount(userID int, email, passwordHash, fullName string) (*UserLogin, error)
+	CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error)
+	GetLogin(email string) (*UserLogin, error)
+	Login(email, password string) (*UserLogin, error)
+	UpdateEmail(email string, password string, newEmail string) (*LoginSession, error)
+	UpdatePassword(email string, oldPassword string, newPassword string) (*LoginSession, error)
 
 	sessionBackender
 }
@@ -49,12 +51,12 @@ type userBackender interface {
 }
 
 type loginBackender interface {
-	CreateAccount(userID int, email, passwordHash, fullName string) (*userLogin, error)
-	CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error)
-	GetLogin(email string) (*userLogin, error)
-	Login(email, password string) (*userLogin, error)
-	UpdateEmail(email string, password string, newEmail string) (*loginSession, error)
-	UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error)
+	CreateAccount(userID int, email, passwordHash, fullName string) (*UserLogin, error)
+	CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error)
+	GetLogin(email string) (*UserLogin, error)
+	Login(email, password string) (*UserLogin, error)
+	UpdateEmail(email string, password string, newEmail string) (*LoginSession, error)
+	UpdatePassword(email string, oldPassword string, newPassword string) (*LoginSession, error)
 	backendCloser
 }
 
@@ -64,9 +66,9 @@ type sessionBackender interface {
 	UpdateEmailSession(verifyHash string, userID int, email, destinationURL string) error
 	DeleteEmailSession(verifyHash string) error
 
-	CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error)
-	GetSession(sessionHash string) (*loginSession, error)
-	RenewSession(sessionHash string, renewTimeUTC time.Time) (*loginSession, error)
+	CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error)
+	GetSession(sessionHash string) (*LoginSession, error)
+	RenewSession(sessionHash string, renewTimeUTC time.Time) (*LoginSession, error)
 	InvalidateSession(sessionHash string) error
 	InvalidateSessions(email string) error
 
@@ -91,13 +93,13 @@ type user struct {
 	AccessFailedCount int
 }
 
-type userLogin struct {
+type UserLogin struct {
 	UserID   int
 	Email    string
 	FullName string
 }
 
-type loginSession struct {
+type LoginSession struct {
 	UserID        int
 	Email         string
 	FullName      string
@@ -123,32 +125,32 @@ type loginProvider struct {
 	OAuthURL          string
 }
 
-type authError struct {
+type AuthError struct {
 	message    string
 	innerError error
 	shouldLog  bool
 	error
 }
 
-func newLoggedError(message string, innerError error) *authError {
-	return &authError{message: message, innerError: innerError, shouldLog: true}
+func newLoggedError(message string, innerError error) *AuthError {
+	return &AuthError{message: message, innerError: innerError, shouldLog: true}
 }
 
-func newAuthError(message string, innerError error) *authError {
-	return &authError{message: message, innerError: innerError}
+func newAuthError(message string, innerError error) *AuthError {
+	return &AuthError{message: message, innerError: innerError}
 }
 
-func (a *authError) Error() string {
+func (a *AuthError) Error() string {
 	return a.message
 }
 
-func (a *authError) Trace() string {
+func (a *AuthError) Trace() string {
 	trace := a.message + "\n"
 	indent := "  "
 	inner := a.innerError
 	for inner != nil {
 		trace += indent + inner.Error() + "\n"
-		e, ok := inner.(*authError)
+		e, ok := inner.(*AuthError)
 		if !ok {
 			break
 		}
@@ -165,23 +167,28 @@ type backend struct {
 	backendCloser
 }
 
-func (b *backend) GetLogin(email string) (*userLogin, error) {
+// NewBackend returns a Backender from a UserBackender, LoginBackender and SessionBackender
+func NewBackend(u userBackender, l loginBackender, s sessionBackender) Backender {
+	return &backend{u: u, l: l, s: s}
+}
+
+func (b *backend) GetLogin(email string) (*UserLogin, error) {
 	return b.l.GetLogin(email)
 }
 
-func (b *backend) Login(email, password string) (*userLogin, error) {
+func (b *backend) Login(email, password string) (*UserLogin, error) {
 	return b.l.Login(email, password)
 }
 
-func (b *backend) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
+func (b *backend) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
 	return b.s.CreateSession(userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC, rememberMe, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC)
 }
 
-func (b *backend) GetSession(sessionHash string) (*loginSession, error) {
+func (b *backend) GetSession(sessionHash string) (*LoginSession, error) {
 	return b.s.GetSession(sessionHash)
 }
 
-func (b *backend) RenewSession(sessionHash string, renewTimeUTC time.Time) (*loginSession, error) {
+func (b *backend) RenewSession(sessionHash string, renewTimeUTC time.Time) (*LoginSession, error) {
 	return b.s.RenewSession(sessionHash, renewTimeUTC)
 }
 
@@ -221,19 +228,19 @@ func (b *backend) UpdateUser(userID int, fullname string, company string, pictur
 	return b.u.UpdateUser(userID, fullname, company, pictureURL)
 }
 
-func (b *backend) CreateAccount(userID int, email, passwordHash, fullName string) (*userLogin, error) {
+func (b *backend) CreateAccount(userID int, email, passwordHash, fullName string) (*UserLogin, error) {
 	return b.l.CreateAccount(userID, email, passwordHash, fullName)
 }
 
-func (b *backend) CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+func (b *backend) CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
 	return b.l.CreateSubscriber(userID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mailQuota, fileQuota)
 }
 
-func (b *backend) UpdateEmail(email string, password string, newEmail string) (*loginSession, error) {
+func (b *backend) UpdateEmail(email string, password string, newEmail string) (*LoginSession, error) {
 	return b.l.UpdateEmail(email, password, newEmail)
 }
 
-func (b *backend) UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error) {
+func (b *backend) UpdatePassword(email string, oldPassword string, newPassword string) (*LoginSession, error) {
 	return b.l.UpdatePassword(email, oldPassword, newPassword)
 }
 

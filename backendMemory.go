@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"bytes"
@@ -14,50 +14,50 @@ type userLoginMemory struct {
 }
 
 type backendMemory struct {
-	backender
+	Backender
 	EmailSessions  []*emailSession
 	Users          []*user
 	Logins         []*userLoginMemory
-	Sessions       []*loginSession
+	Sessions       []*LoginSession
 	RememberMes    []*rememberMeSession
 	LoginProviders []*loginProvider
 	LastUserID     int
 	LastLoginID    int
-	p              passwordStorer
+	c              Crypter
 }
 
 const loginProviderDefaultName string = "Default"
 
-func newBackendMemory(p passwordStorer) backender {
-	return &backendMemory{p: p, LoginProviders: []*loginProvider{&loginProvider{LoginProviderID: 1, Name: loginProviderDefaultName}}}
+func newBackendMemory(c Crypter) Backender {
+	return &backendMemory{c: c, LoginProviders: []*loginProvider{&loginProvider{LoginProviderID: 1, Name: loginProviderDefaultName}}}
 }
 
-func (m *backendMemory) GetLogin(email string) (*userLogin, error) {
+func (m *backendMemory) GetLogin(email string) (*UserLogin, error) {
 	login := m.getLoginByEmail(email)
 	if login == nil {
 		return nil, errLoginNotFound
 	}
-	return &userLogin{login.UserID, login.Email, login.FullName}, nil
+	return &UserLogin{login.UserID, login.Email, login.FullName}, nil
 }
 
-func (m *backendMemory) Login(email, password string) (*userLogin, error) {
+func (m *backendMemory) Login(email, password string) (*UserLogin, error) {
 	login := m.getLoginByEmail(email)
 	if login == nil {
 		return nil, errLoginNotFound
 	}
-	if err := m.p.HashEquals(password, login.PasswordHash); err != nil {
+	if err := m.c.HashEquals(password, login.PasswordHash); err != nil {
 		return nil, err
 	}
-	return &userLogin{login.UserID, login.Email, login.FullName}, nil
+	return &UserLogin{login.UserID, login.Email, login.FullName}, nil
 }
 
-func (m *backendMemory) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
+func (m *backendMemory) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
 	session := m.getSessionByHash(sessionHash)
 	if session != nil {
 		return nil, nil, errSessionAlreadyExists
 	}
 
-	session = &loginSession{userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
+	session = &LoginSession{userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
 	m.Sessions = append(m.Sessions, session)
 	var rememberItem *rememberMeSession
 	if rememberMe {
@@ -72,7 +72,7 @@ func (m *backendMemory) CreateSession(userID int, email, fullname, sessionHash s
 	return session, rememberItem, nil
 }
 
-func (m *backendMemory) GetSession(sessionHash string) (*loginSession, error) {
+func (m *backendMemory) GetSession(sessionHash string) (*LoginSession, error) {
 	session := m.getSessionByHash(sessionHash)
 	if session == nil {
 		return nil, errSessionNotFound
@@ -80,7 +80,7 @@ func (m *backendMemory) GetSession(sessionHash string) (*loginSession, error) {
 	return session, nil
 }
 
-func (m *backendMemory) RenewSession(sessionHash string, renewTimeUTC time.Time) (*loginSession, error) {
+func (m *backendMemory) RenewSession(sessionHash string, renewTimeUTC time.Time) (*LoginSession, error) {
 	session := m.getSessionByHash(sessionHash)
 	if session == nil {
 		return nil, errSessionNotFound
@@ -174,25 +174,25 @@ func (m *backendMemory) UpdateUser(userID int, fullname string, company string, 
 	return nil
 }
 
-func (m *backendMemory) CreateAccount(userID int, email, passwordHash, fullName string) (*userLogin, error) {
+func (m *backendMemory) CreateAccount(userID int, email, passwordHash, fullName string) (*UserLogin, error) {
 	login := userLoginMemory{userID, email, fullName, passwordHash}
 	m.Logins = append(m.Logins, &login)
 
-	return &userLogin{userID, email, fullName}, nil
+	return &UserLogin{userID, email, fullName}, nil
 }
 
-func (m *backendMemory) CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+func (m *backendMemory) CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
 	login := userLoginMemory{userID, email, fullName, passwordHash}
 	m.Logins = append(m.Logins, &login)
 
-	return &userLogin{userID, email, fullName}, nil
+	return &UserLogin{userID, email, fullName}, nil
 }
 
-func (m *backendMemory) UpdateEmail(email string, password string, newEmail string) (*loginSession, error) {
+func (m *backendMemory) UpdateEmail(email string, password string, newEmail string) (*LoginSession, error) {
 	return nil, nil
 }
 
-func (m *backendMemory) UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error) {
+func (m *backendMemory) UpdatePassword(email string, oldPassword string, newPassword string) (*LoginSession, error) {
 	return nil, nil
 }
 
@@ -301,7 +301,7 @@ func (m *backendMemory) getEmailSessionByEmailVerifyHash(hash string) *emailSess
 	return nil
 }
 
-func (m *backendMemory) getSessionByHash(sessionHash string) *loginSession {
+func (m *backendMemory) getSessionByHash(sessionHash string) *LoginSession {
 	for _, session := range m.Sessions {
 		if session.SessionHash == sessionHash {
 			return session

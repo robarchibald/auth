@@ -1,24 +1,26 @@
-package main
+package auth
 
 import (
-	"github.com/pkg/errors"
-	"github.com/robarchibald/configReader"
-	"github.com/robarchibald/onedb"
-	"gopkg.in/ldap.v2"
 	"testing"
+
+	"github.com/EndFirstCorp/onedb"
+	"github.com/pkg/errors"
+	"gopkg.in/ldap.v2"
 )
 
 func TestNewBackendLDAPLogin(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
-	config := &authConf{}
-	err := configReader.ReadFile("nginxauth.conf", config)
-	if err != nil {
-		t.Fatal("unable to load config file", err)
-	}
 
-	l, err := newBackendLDAPLogin(config.LdapServer, config.LdapPort, config.LdapBindDn, config.LdapPassword, config.LdapBaseDn, config.LdapUserFilter)
+	ldapServer := "ldap"
+	ldapPort := 389
+	ldapBindDn := "uid=admin,ou=SystemAccounts,dc=example,dc=com"
+	ldapPassword := "secret"
+	ldapBaseDn := "ou=Users,dc=example,dc=com"
+	ldapUserFilter := "(&(objectClass=account)(uid=%s))"
+
+	l, err := NewBackendLDAPLogin(ldapServer, ldapPort, ldapBindDn, ldapPassword, ldapBaseDn, ldapUserFilter)
 	if err != nil {
 		t.Fatal("unable to login", err)
 	}

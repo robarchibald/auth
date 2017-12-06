@@ -1,10 +1,11 @@
-package main
+package auth
 
 import (
 	"fmt"
-	"github.com/robarchibald/onedb"
-	"gopkg.in/ldap.v2"
 	"strconv"
+
+	"github.com/EndFirstCorp/onedb"
+	"gopkg.in/ldap.v2"
 )
 
 type backendLDAPLogin struct {
@@ -13,7 +14,8 @@ type backendLDAPLogin struct {
 	userLoginFilter string
 }
 
-func newBackendLDAPLogin(server string, port int, bindDn, password, baseDn, userLoginFilter string) (loginBackender, error) {
+// NewBackendLDAPLogin creates a LoginBackender using OpenLDAP
+func NewBackendLDAPLogin(server string, port int, bindDn, password, baseDn, userLoginFilter string) (loginBackender, error) {
 	db, err := onedb.NewLdap(server, port, bindDn, password)
 	if err != nil {
 		return nil, err
@@ -27,7 +29,7 @@ type ldapData struct {
 	Cn       string
 }
 
-func (l *backendLDAPLogin) Login(email, password string) (*userLogin, error) {
+func (l *backendLDAPLogin) Login(email, password string) (*UserLogin, error) {
 	// check credentials
 	err := l.db.Execute(ldap.NewSimpleBindRequest(fmt.Sprintf("uid=%s,%s", email, l.baseDn), password, nil))
 	if err != nil {
@@ -36,7 +38,7 @@ func (l *backendLDAPLogin) Login(email, password string) (*userLogin, error) {
 	return l.GetLogin(email)
 }
 
-func (l *backendLDAPLogin) GetLogin(email string) (*userLogin, error) {
+func (l *backendLDAPLogin) GetLogin(email string) (*UserLogin, error) {
 	// get login info
 	req := ldap.NewSearchRequest(l.baseDn, ldap.ScopeSingleLevel, ldap.NeverDerefAliases, 0, 0, false, fmt.Sprintf(l.userLoginFilter, email), []string{"uid", "dbUserId", "cn"}, nil)
 	data := &ldapData{}
@@ -48,11 +50,11 @@ func (l *backendLDAPLogin) GetLogin(email string) (*userLogin, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &userLogin{UserID: userID, Email: data.UID, FullName: data.Cn}, nil
+	return &UserLogin{UserID: userID, Email: data.UID, FullName: data.Cn}, nil
 }
 
 /****************  TODO: create different type of user if not using file and mail quotas  **********************/
-func (l *backendLDAPLogin) CreateAccount(userID int, email, passwordHash, fullName string) (*userLogin, error) {
+func (l *backendLDAPLogin) CreateAccount(userID int, email, passwordHash, fullName string) (*UserLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + "," + l.baseDn)
 	req.Attribute("objectClass", []string{"endfirstAccount"})
 	req.Attribute("uid", []string{email})
@@ -60,10 +62,10 @@ func (l *backendLDAPLogin) CreateAccount(userID int, email, passwordHash, fullNa
 	req.Attribute("cn", []string{fullName})
 	req.Attribute("userPassword", []string{passwordHash})
 	err := l.db.Execute(req)
-	return &userLogin{}, err
+	return &UserLogin{}, err
 }
 
-func (l *backendLDAPLogin) CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*userLogin, error) {
+func (l *backendLDAPLogin) CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + "," + l.baseDn)
 	req.Attribute("objectClass", []string{"endfirstAccount", "endfirstSubscriber"})
 	req.Attribute("uid", []string{email})
@@ -76,14 +78,14 @@ func (l *backendLDAPLogin) CreateSubscriber(userID int, email, passwordHash, ful
 	req.Attribute("mailQuota", []string{mailQuota})
 	req.Attribute("fileQuota", []string{fileQuota})
 	err := l.db.Execute(req)
-	return &userLogin{}, err
+	return &UserLogin{}, err
 }
 
-func (l *backendLDAPLogin) UpdateEmail(email string, password string, newEmail string) (*loginSession, error) {
+func (l *backendLDAPLogin) UpdateEmail(email string, password string, newEmail string) (*LoginSession, error) {
 	return nil, nil
 }
 
-func (l *backendLDAPLogin) UpdatePassword(email string, oldPassword string, newPassword string) (*loginSession, error) {
+func (l *backendLDAPLogin) UpdatePassword(email string, oldPassword string, newPassword string) (*LoginSession, error) {
 	return nil, nil
 }
 

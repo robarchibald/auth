@@ -1,10 +1,11 @@
-package main
+package auth
 
 import (
-	"github.com/pkg/errors"
-	"github.com/robarchibald/onedb"
 	"math"
 	"time"
+
+	"github.com/EndFirstCorp/onedb"
+	"github.com/pkg/errors"
 )
 
 type backendRedisSession struct {
@@ -12,7 +13,8 @@ type backendRedisSession struct {
 	prefix string
 }
 
-func newBackendRedisSession(server string, port int, password string, maxIdle, maxConnections int, keyPrefix string) sessionBackender {
+// NewBackendRedisSession returns a SessionBackender for Redis
+func NewBackendRedisSession(server string, port int, password string, maxIdle, maxConnections int, keyPrefix string) sessionBackender {
 	r := onedb.NewRedis(server, port, password, maxIdle, maxConnections)
 	return &backendRedisSession{db: r, prefix: keyPrefix}
 }
@@ -36,8 +38,8 @@ func (r *backendRedisSession) DeleteEmailSession(emailVerifyHash string) error {
 }
 
 func (r *backendRedisSession) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
-	includeRememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*loginSession, *rememberMeSession, error) {
-	session := loginSession{userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
+	includeRememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
+	session := LoginSession{userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
 	err := r.saveSession(&session)
 	if err != nil {
 		return nil, nil, err
@@ -55,12 +57,12 @@ func (r *backendRedisSession) CreateSession(userID int, email, fullname, session
 	return &session, &rememberMe, nil
 }
 
-func (r *backendRedisSession) GetSession(sessionHash string) (*loginSession, error) {
-	session := &loginSession{}
+func (r *backendRedisSession) GetSession(sessionHash string) (*LoginSession, error) {
+	session := &LoginSession{}
 	return session, r.db.QueryStructRow(onedb.NewRedisGetCommand(r.getSessionKey(sessionHash)), session)
 }
 
-func (r *backendRedisSession) RenewSession(sessionHash string, renewTimeUTC time.Time) (*loginSession, error) {
+func (r *backendRedisSession) RenewSession(sessionHash string, renewTimeUTC time.Time) (*LoginSession, error) {
 	session, err := r.GetSession(sessionHash)
 	if err != nil {
 		return nil, err
@@ -112,7 +114,7 @@ func (r *backendRedisSession) saveEmailSession(session *emailSession) error {
 	return r.save(r.getEmailSessionKey(session.EmailVerifyHash), session, emailExpireMins*60)
 }
 
-func (r *backendRedisSession) saveSession(session *loginSession) error {
+func (r *backendRedisSession) saveSession(session *LoginSession) error {
 	if time.Since(session.ExpireTimeUTC).Seconds() >= 0 {
 		return errors.New("Unable to save expired session")
 	}

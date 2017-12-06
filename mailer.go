@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"bytes"
@@ -8,7 +8,8 @@ import (
 	"gopkg.in/gomail.v2"
 )
 
-type mailer interface {
+// Mailer interface includes methods needed to send communication to users on account updates
+type Mailer interface {
 	SendWelcome(to string, data interface{}) error
 	SendVerify(to string, data interface{}) error
 	SendNewLogin(to string, data interface{}) error
@@ -21,9 +22,9 @@ type sender interface {
 	Send(to, subject, body string) error
 }
 
-type emailer struct {
-	templateCache *template.Template
-	sender        sender
+type Emailer struct {
+	TemplateCache *template.Template
+	Sender        sender
 
 	VerifyEmailTemplate     string
 	VerifyEmailSubject      string
@@ -39,7 +40,7 @@ type emailer struct {
 	PasswordChangedSubject  string
 }
 
-type smtpSender struct {
+type SmtpSender struct {
 	SMTPServer           string
 	SMTPPort             int
 	SMTPFromEmail        string
@@ -47,7 +48,7 @@ type smtpSender struct {
 	EmailFromDisplayName string
 }
 
-func (s *smtpSender) Send(to, subject, body string) error {
+func (s *SmtpSender) Send(to, subject, body string) error {
 	m := gomail.NewMessage()
 	m.SetHeader("From", m.FormatAddress(s.SMTPFromEmail, s.EmailFromDisplayName))
 	m.SetHeader("To", to)
@@ -62,42 +63,42 @@ func (s *smtpSender) Send(to, subject, body string) error {
 	return nil
 }
 
-func (e *emailer) SendVerify(to string, data interface{}) error {
+func (e *Emailer) SendVerify(to string, data interface{}) error {
 	return e.send(to, e.VerifyEmailSubject, e.VerifyEmailTemplate, data)
 }
 
-func (e *emailer) SendWelcome(to string, data interface{}) error {
+func (e *Emailer) SendWelcome(to string, data interface{}) error {
 	return e.send(to, e.WelcomeSubject, e.WelcomeTemplate, data)
 }
 
-func (e *emailer) SendNewLogin(to string, data interface{}) error {
+func (e *Emailer) SendNewLogin(to string, data interface{}) error {
 	return e.send(to, e.NewLoginSubject, e.NewLoginTemplate, data)
 }
 
-func (e *emailer) SendLockedOut(to string, data interface{}) error {
+func (e *Emailer) SendLockedOut(to string, data interface{}) error {
 	return e.send(to, e.LockedOutSubject, e.LockedOutTemplate, data)
 }
 
-func (e *emailer) SendEmailChanged(to string, data interface{}) error {
+func (e *Emailer) SendEmailChanged(to string, data interface{}) error {
 	return e.send(to, e.EmailChangedSubject, e.EmailChangedTemplate, data)
 }
 
-func (e *emailer) SendPasswordChanged(to string, data interface{}) error {
+func (e *Emailer) SendPasswordChanged(to string, data interface{}) error {
 	return e.send(to, e.PasswordChangedSubject, e.PasswordChangedTemplate, data)
 }
 
-func (e *emailer) send(to string, subject string, emailTemplate string, data interface{}) error {
+func (e *Emailer) send(to string, subject string, emailTemplate string, data interface{}) error {
 	body, err := e.renderHTMLBody(emailTemplate, data)
 	if err != nil {
 		return err
 	}
 
-	return e.sender.Send(to, subject, body)
+	return e.Sender.Send(to, subject, body)
 }
 
-func (e *emailer) renderHTMLBody(path string, data interface{}) (string, error) {
+func (e *Emailer) renderHTMLBody(path string, data interface{}) (string, error) {
 	var buf bytes.Buffer
-	err := e.templateCache.ExecuteTemplate(&buf, filepath.Base(path), data)
+	err := e.TemplateCache.ExecuteTemplate(&buf, filepath.Base(path), data)
 	if err != nil {
 		return "", err
 	}

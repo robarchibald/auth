@@ -1,6 +1,6 @@
 // This file taken with some modification from authboss
 // github.com/go-authboss
-package main
+package auth
 
 import (
 	"net/http"
@@ -11,7 +11,8 @@ import (
 
 var cookieStoreInstance *securecookie.SecureCookie
 
-type cookieStorer interface {
+// CookieStorer interface provides the necessary methods for handling cookies
+type CookieStorer interface {
 	Get(key string, result interface{}) error
 	Put(key string, value interface{}) error
 	PutWithExpire(key string, expireMins int, value interface{}) error
@@ -24,7 +25,7 @@ type cookieStore struct {
 	secureOnly bool
 }
 
-func newCookieStore(w http.ResponseWriter, r *http.Request, cookieKey []byte, secureOnly bool) cookieStorer {
+func newCookieStore(w http.ResponseWriter, r *http.Request, cookieKey []byte, secureOnly bool) CookieStorer {
 	if cookieStoreInstance == nil {
 		cookieStoreInstance = securecookie.New(cookieKey, nil)
 	}
