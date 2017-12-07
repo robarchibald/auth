@@ -126,7 +126,7 @@ func newNginxAuth(configFle, logfile string) (*nginxauth, error) {
 		return nil, err
 	}
 
-	return &nginxauth{b, auth.NewAuthStore(b, mailer, &auth.CryptoHashStore{}, config.StoragePrefix, cookieKey), config, eLog}, nil
+	return &nginxauth{b, auth.NewAuthStore(b, mailer, config.StoragePrefix, cookieKey), config, eLog}, nil
 }
 
 func (n *authConf) NewEmailer() (*auth.Emailer, error) {
