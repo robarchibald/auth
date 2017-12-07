@@ -94,7 +94,7 @@ func TestAuthStoreEndToEnd(t *testing.T) {
 func _register(email string, b *backendMemory, m *TextMailer) (string, error) {
 	r := &http.Request{Header: http.Header{}}
 	c := NewMockCookieStore(nil, false, false)
-	s := &authStore{b, m, c, &hashStore{}}
+	s := &authStore{b, m, c}
 	lenSessions := len(b.EmailSessions)
 
 	// register new user
@@ -119,7 +119,7 @@ func _register(email string, b *backendMemory, m *TextMailer) (string, error) {
 func _verify(verifyCode string, b *backendMemory, m *TextMailer) (*emailCookie, error) {
 	r := &http.Request{Header: http.Header{}}
 	c := NewMockCookieStore(nil, false, false)
-	s := &authStore{b, m, c, &hashStore{}}
+	s := &authStore{b, m, c}
 	lenEmailSessions := len(b.EmailSessions)
 	lenUsers := len(b.Users)
 	emailVerifyHash, _ := decodeStringToHash(verifyCode + "=")
@@ -154,7 +154,7 @@ func _verify(verifyCode string, b *backendMemory, m *TextMailer) (*emailCookie, 
 func _createProfile(fullName, password string, emailCookie *emailCookie, b *backendMemory, m *TextMailer) (*sessionCookie, error) {
 	r := &http.Request{Header: http.Header{}}
 	c := NewMockCookieStore(map[string]interface{}{"Email": emailCookie}, false, false)
-	s := &authStore{b, m, c, &hashStore{}}
+	s := &authStore{b, m, c}
 
 	emailVerifyHash, _ := decodeStringToHash(emailCookie.EmailVerificationCode)
 	oldEmailSession := b.getEmailSessionByEmailVerifyHash(emailVerifyHash)
@@ -171,7 +171,8 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 		return nil, err
 	}
 	// check password was saved correctly
-	hashErr := s.c.HashEquals(password, b.Logins[0].PasswordHash)
+	h := &hashStore{}
+	hashErr := h.HashEquals(password, b.Logins[0].PasswordHash)
 	if hashErr != nil {
 		return nil, err
 	}
@@ -202,7 +203,7 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 func _login(email, password string, remember bool, clientSessionCookie *sessionCookie, rememberCookie *rememberMeCookie, b *backendMemory, m *TextMailer) (*sessionCookie, *rememberMeCookie, error) {
 	r := &http.Request{Header: http.Header{}}
 	c := NewMockCookieStore(map[string]interface{}{"Session": clientSessionCookie, "RememberMe": rememberCookie}, false, false)
-	s := &authStore{b, m, c, &hashStore{}}
+	s := &authStore{b, m, c}
 	lenLogins := len(b.Logins)
 	lenUsers := len(b.Users)
 
@@ -263,7 +264,7 @@ func _login(email, password string, remember bool, clientSessionCookie *sessionC
 func _auth(clientSessionCookie *sessionCookie, rememberCookie *rememberMeCookie, b *backendMemory, m *TextMailer) error {
 	r := &http.Request{Header: http.Header{}}
 	c := NewMockCookieStore(map[string]interface{}{"Session": clientSessionCookie, "RememberMe": rememberCookie}, false, false)
-	s := &authStore{b, m, c, &hashStore{}}
+	s := &authStore{b, m, c}
 	session, err := s.GetSession(nil, r)
 	if err != nil {
 		return err

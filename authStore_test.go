@@ -19,13 +19,13 @@ var pastTime = time.Now().Add(-5 * time.Minute)
 
 func getAuthStore(emailCookie *emailCookie, sessionCookie *sessionCookie, rememberCookie *rememberMeCookie, hasCookieGetError, hasCookiePutError bool, mailErr error, backend *mockBackend) *authStore {
 	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookie, sessionCookieName: sessionCookie, rememberMeCookieName: rememberCookie}, hasCookieGetError, hasCookiePutError)
-	return &authStore{backend, &TextMailer{Err: mailErr}, cookieStore, &hashStore{}}
+	return &authStore{backend, &TextMailer{Err: mailErr}, cookieStore}
 }
 
 func TestNewAuthStore(t *testing.T) {
 	b := &mockBackend{}
 	m := &TextMailer{}
-	actual := NewAuthStore(b, m, &hashStore{}, "prefix", cookieKey).(*authStore)
+	actual := NewAuthStore(b, m, "prefix", cookieKey).(*authStore)
 	if actual.backend != b || actual.cookieStore.(*cookieStore).s == nil {
 		t.Fatal("expected correct init")
 	}

@@ -63,14 +63,13 @@ type authStore struct {
 	backend     Backender
 	mailer      Mailer
 	cookieStore CookieStorer
-	c           Crypter
 }
 
-func NewAuthStore(b Backender, mailer Mailer, c Crypter, customPrefix string, cookieKey []byte) AuthStorer {
+func NewAuthStore(b Backender, mailer Mailer, customPrefix string, cookieKey []byte) AuthStorer {
 	emailCookieName = customPrefix + "Email"
 	sessionCookieName = customPrefix + "Session"
 	rememberMeCookieName = customPrefix + "RememberMe"
-	return &authStore{b, mailer, newCookieStore(cookieKey), c}
+	return &authStore{b, mailer, newCookieStore(cookieKey)}
 }
 
 func (s *authStore) GetSession(w http.ResponseWriter, r *http.Request) (*LoginSession, error) {
