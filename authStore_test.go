@@ -442,7 +442,7 @@ var createProfileTests = []struct {
 		EmailCookie:           &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		LoginReturn:           loginErr(),
-		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateSubscriber"},
+		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateLogin"},
 		ExpectedErr:           "Unable to create login",
 	},
 	{
@@ -451,7 +451,7 @@ var createProfileTests = []struct {
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		LoginReturn:           loginSuccess(),
 		CreateSessionReturn:   sessionRememberErr(),
-		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateSubscriber", "CreateSession"},
+		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateLogin", "CreateSession"},
 		ExpectedErr:           "Unable to create new session",
 	},
 	{
@@ -460,7 +460,7 @@ var createProfileTests = []struct {
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		LoginReturn:           loginSuccess(),
 		CreateSessionReturn:   sessionRemember(futureTime, futureTime),
-		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateSubscriber", "CreateSession", "InvalidateSession", "InvalidateRememberMe"},
+		MethodsCalled:         []string{"GetEmailSession", "UpdateUser", "DeleteEmailSession", "CreateLogin", "CreateSession", "InvalidateSession", "InvalidateRememberMe"},
 	},
 }
 
@@ -468,7 +468,7 @@ func TestAuthCreateProfile(t *testing.T) {
 	for i, test := range createProfileTests {
 		backend := &mockBackend{ErrReturn: test.UpdateUserReturn, getEmailSessionReturn: test.getEmailSessionReturn, CreateLoginReturn: test.LoginReturn, CreateSessionReturn: test.CreateSessionReturn, DeleteEmailSessionReturn: test.DeleteEmailSessionReturn}
 		store := getAuthStore(test.EmailCookie, nil, nil, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		err := store.createProfile(nil, &http.Request{}, "name", "organization", "password", "path", 1, 1)
+		err := store.createProfile(nil, &http.Request{}, "name", "organization", "password", "path")
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -712,7 +712,7 @@ func TestGetProfile(t *testing.T) {
 	r, _ := http.NewRequest("PUT", "url", &buf)
 	r.Header.Add("Content-Type", w.FormDataContentType())
 	profile, err := getProfile(r)
-	if err != nil || profile == nil || profile.FullName != "name" || profile.Organization != "org" || profile.Password != "pass" || profile.MailQuota != 1 || profile.FileQuota != 1 {
+	if err != nil || profile == nil || profile.FullName != "name" || profile.Organization != "org" || profile.Password != "pass" {
 		t.Error("expected correct profile", profile, err)
 	}
 }

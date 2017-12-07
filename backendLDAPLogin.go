@@ -54,24 +54,24 @@ func (l *backendLDAPLogin) GetLogin(email string) (*UserLogin, error) {
 }
 
 /****************  TODO: create different type of user if not using file and mail quotas  **********************/
-func (l *backendLDAPLogin) CreateAccount(userID int, email, passwordHash, fullName string) (*UserLogin, error) {
+func (l *backendLDAPLogin) CreateLogin(userID int, email, password, fullName string) (*UserLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + "," + l.baseDn)
 	req.Attribute("objectClass", []string{"endfirstAccount"})
 	req.Attribute("uid", []string{email})
 	req.Attribute("dbUserId", []string{strconv.Itoa(userID)})
 	req.Attribute("cn", []string{fullName})
-	req.Attribute("userPassword", []string{passwordHash})
+	req.Attribute("userPassword", []string{password})
 	err := l.db.Execute(req)
 	return &UserLogin{}, err
 }
 
-func (l *backendLDAPLogin) CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
+/*func (l *backendLDAPLogin) CreateSubscriber(userID int, email, password, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + "," + l.baseDn)
 	req.Attribute("objectClass", []string{"endfirstAccount", "endfirstSubscriber"})
 	req.Attribute("uid", []string{email})
 	req.Attribute("dbUserId", []string{strconv.Itoa(userID)})
 	req.Attribute("cn", []string{fullName})
-	req.Attribute("userPassword", []string{passwordHash})
+	req.Attribute("userPassword", []string{password})
 	req.Attribute("uidNumber", []string{strconv.Itoa(uidNumber)})
 	req.Attribute("gidNumber", []string{strconv.Itoa(gidNumber)})
 	req.Attribute("mailFolder", []string{homeDirectory})
@@ -79,7 +79,7 @@ func (l *backendLDAPLogin) CreateSubscriber(userID int, email, passwordHash, ful
 	req.Attribute("fileQuota", []string{fileQuota})
 	err := l.db.Execute(req)
 	return &UserLogin{}, err
-}
+}*/
 
 func (l *backendLDAPLogin) UpdateEmail(email string, password string, newEmail string) (*LoginSession, error) {
 	return nil, nil

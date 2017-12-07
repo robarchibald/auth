@@ -2,7 +2,6 @@ package auth
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -227,7 +225,7 @@ func (s *authStore) oauthLogin(w http.ResponseWriter, r *http.Request, email, fu
 	}
 
 	if _, err := s.backend.GetLogin(email); err != nil {
-		_, err = s.createLogin(userID, email, fullname, "", 0, 0)
+		_, err = s.backend.CreateLogin(userID, email, "", fullname)
 		if err != nil {
 			return newLoggedError("Unable to create login", err)
 		}
@@ -396,10 +394,10 @@ func (s *authStore) CreateProfile(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return newAuthError("Unable to get profile information from form", err)
 	}
-	return s.createProfile(w, r, profile.FullName, profile.Organization, profile.Password, profile.PicturePath, profile.MailQuota, profile.FileQuota)
+	return s.createProfile(w, r, profile.FullName, profile.Organization, profile.Password, profile.PicturePath)
 }
 
-func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, fullName, organization, password, picturePath string, mailQuota, fileQuota int) error {
+func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, fullName, organization, password, picturePath string) error {
 	emailCookie, err := s.getEmailCookie(w, r)
 	if err != nil || emailCookie.EmailVerificationCode == "" {
 		return newLoggedError("Unable to get email verification cookie", err)
@@ -425,7 +423,7 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, fullNa
 		return newLoggedError("Error while creating profile", err)
 	}
 
-	_, err = s.createLogin(session.UserID, session.Email, fullName, password, mailQuota, fileQuota)
+	_, err = s.backend.CreateLogin(session.UserID, session.Email, password, fullName)
 	if err != nil {
 		return newLoggedError("Unable to create login", err)
 	}
@@ -437,46 +435,6 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, fullNa
 
 	s.deleteEmailCookie(w)
 	return nil
-}
-
-/****************  TODO: send 0 for UID and GID numbers and empty quotas if mailQuota and fileQuota are 0 **********************/
-func (s *authStore) createLogin(userID int, email, fullName, password string, mailQuota, fileQuota int) (*UserLogin, error) {
-	passwordHash, err := s.c.Hash(password)
-	if err != nil {
-		return nil, newLoggedError("Unable to create login", err)
-	}
-	if mailQuota == 0 || fileQuota == 0 {
-		return s.createAccount(userID, email, fullName, password)
-	}
-	return s.createSubscriber(userID, email, fullName, passwordHash, mailQuota, fileQuota)
-}
-
-func (s *authStore) createAccount(userID int, email, fullName, passwordHash string) (*UserLogin, error) {
-	login, err := s.backend.CreateAccount(userID, email, passwordHash, fullName)
-	if err != nil {
-		return nil, newLoggedError("Unable to create account", err)
-	}
-	return login, nil
-}
-
-func (s *authStore) createSubscriber(userID int, email, fullName, passwordHash string, mailQuota, fileQuota int) (*UserLogin, error) {
-	uidNumber := 10000 // vmail user
-	gidNumber := 10000 // vmail user
-	sepIndex := strings.Index(email, "@")
-	if sepIndex == -1 {
-		return nil, errors.New("invalid email address")
-	}
-	domain := email[sepIndex+1:]
-	user := email[:sepIndex]
-	homeDirectory := fmt.Sprintf("/srv/vmail/%s/%s", domain, user)
-	mQuota := fmt.Sprintf("%dGB", mailQuota)
-	fQuota := fmt.Sprintf("%dGB", fileQuota)
-
-	login, err := s.backend.CreateSubscriber(userID, email, passwordHash, fullName, homeDirectory, uidNumber, gidNumber, mQuota, fQuota)
-	if err != nil {
-		return nil, newLoggedError("Unable to create login", err)
-	}
-	return login, nil
 }
 
 // move to sessionStore
@@ -632,8 +590,6 @@ type profile struct {
 	Organization string
 	Password     string
 	PicturePath  string
-	MailQuota    int
-	FileQuota    int
 }
 
 func getProfile(r *http.Request) (*profile, error) {
@@ -654,15 +610,10 @@ func getProfile(r *http.Request) (*profile, error) {
 
 	// **************  TODO: change to generic way to get other parameters *******************
 
-	// get quota. will be zero if not found
-	mailQuota, _ := strconv.Atoi(r.FormValue("mailQuota"))
-	fileQuota, _ := strconv.Atoi(r.FormValue("fileQuota"))
 	profile.FullName = r.FormValue("fullName")
 	profile.Organization = r.FormValue("Organization")
 	profile.Password = r.FormValue("password")
 	profile.PicturePath = handler.Filename
-	profile.MailQuota = mailQuota
-	profile.FileQuota = fileQuota
 
 	return profile, nil
 }

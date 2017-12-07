@@ -28,7 +28,8 @@ type backendMemory struct {
 
 const loginProviderDefaultName string = "Default"
 
-func newBackendMemory(c Crypter) Backender {
+// NewBackendMemory creates a memory-backed Backender
+func NewBackendMemory(c Crypter) Backender {
 	return &backendMemory{c: c, LoginProviders: []*loginProvider{&loginProvider{LoginProviderID: 1, Name: loginProviderDefaultName}}}
 }
 
@@ -174,14 +175,11 @@ func (m *backendMemory) UpdateUser(userID int, fullname string, company string, 
 	return nil
 }
 
-func (m *backendMemory) CreateAccount(userID int, email, passwordHash, fullName string) (*UserLogin, error) {
-	login := userLoginMemory{userID, email, fullName, passwordHash}
-	m.Logins = append(m.Logins, &login)
-
-	return &UserLogin{userID, email, fullName}, nil
-}
-
-func (m *backendMemory) CreateSubscriber(userID int, email, passwordHash, fullName, homeDirectory string, uidNumber, gidNumber int, mailQuota, fileQuota string) (*UserLogin, error) {
+func (m *backendMemory) CreateLogin(userID int, email, password, fullName string) (*UserLogin, error) {
+	passwordHash, err := m.c.Hash(password)
+	if err != nil {
+		return nil, err
+	}
 	login := userLoginMemory{userID, email, fullName, passwordHash}
 	m.Logins = append(m.Logins, &login)
 

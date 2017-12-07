@@ -9,7 +9,7 @@ import (
 )
 
 func TestAuthStoreEndToEnd(t *testing.T) {
-	b := newBackendMemory(&hashStore{}).(*backendMemory)
+	b := NewBackendMemory(&hashStore{}).(*backendMemory)
 	m := &TextMailer{}
 
 	// Register emails
@@ -166,7 +166,7 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 	}
 
 	// create profile
-	err := s.createProfile(nil, r, fullName, "company", password, "picturePath", 1, 1)
+	err := s.createProfile(nil, r, fullName, "company", password, "picturePath")
 	if err != nil {
 		return nil, err
 	}

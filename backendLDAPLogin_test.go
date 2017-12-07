@@ -58,20 +58,6 @@ func TestLdapLogin(t *testing.T) {
 	}
 }
 
-func TestLdapCreateSubscriber(t *testing.T) {
-	m := onedb.NewMock(nil, nil, nil)
-	l := backendLDAPLogin{db: m}
-	_, err := l.CreateSubscriber(1, "email", "hash", "name", "homeDir", 1, 1, "mailQuota", "fileQuota")
-	if err != nil {
-		t.Error("expected success")
-	}
-
-	queries := m.QueriesRun()
-	if _, ok := queries[0].(*ldap.AddRequest); !ok {
-		t.Error("expected ldap add request")
-	}
-}
-
 // replace with test that does something when code does something
 func TestLdapUpdateEmail(t *testing.T) {
 	m := onedb.NewMock(nil, nil, nil)
