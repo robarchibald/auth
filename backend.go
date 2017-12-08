@@ -24,12 +24,12 @@ var errUserAlreadyExists = errors.New("DB: User already exists")
 // Backender interface contains all the methods needed to read and write users, sessions and logins
 type Backender interface {
 	// UserBackender. Write out since it contains duplicate BackendCloser
-	AddUser(email string) (int, error)
+	AddUser(email string) (string, error)
 	GetUser(email string) (*user, error)
-	UpdateUser(userID int, fullname string, company string, pictureURL string) error
+	UpdateUser(userID, fullname string, company string, pictureURL string) error
 
 	// LoginBackender. Write out since it contains duplicate BackendCloser
-	CreateLogin(userID int, email, password, fullName string) (*UserLogin, error)
+	CreateLogin(userID, email, password, fullName string) (*UserLogin, error)
 	GetLogin(email string) (*UserLogin, error)
 	Login(email, password string) (*UserLogin, error)
 	UpdateEmail(email string, password string, newEmail string) (*LoginSession, error)
@@ -42,15 +42,16 @@ type backendCloser interface {
 	Close() error
 }
 
-type userBackender interface {
-	AddUser(email string) (int, error)
+// UserBackender interface holds methods for user management
+type UserBackender interface {
+	AddUser(email string) (string, error)
 	GetUser(email string) (*user, error)
-	UpdateUser(userID int, fullname string, company string, pictureURL string) error
+	UpdateUser(userID, fullname string, company string, pictureURL string) error
 	backendCloser
 }
 
 type loginBackender interface {
-	CreateLogin(userID int, email, password, fullName string) (*UserLogin, error)
+	CreateLogin(userID, email, password, fullName string) (*UserLogin, error)
 	GetLogin(email string) (*UserLogin, error)
 	Login(email, password string) (*UserLogin, error)
 	UpdateEmail(email string, password string, newEmail string) (*LoginSession, error)
@@ -61,10 +62,10 @@ type loginBackender interface {
 type sessionBackender interface {
 	CreateEmailSession(email, emailVerifyHash, destinationURL string) error
 	GetEmailSession(verifyHash string) (*emailSession, error)
-	UpdateEmailSession(verifyHash string, userID int, email, destinationURL string) error
+	UpdateEmailSession(verifyHash string, userID, email, destinationURL string) error
 	DeleteEmailSession(verifyHash string) error
 
-	CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error)
+	CreateSession(userID, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error)
 	GetSession(sessionHash string) (*LoginSession, error)
 	RenewSession(sessionHash string, renewTimeUTC time.Time) (*LoginSession, error)
 	InvalidateSession(sessionHash string) error
@@ -77,28 +78,30 @@ type sessionBackender interface {
 }
 
 type emailSession struct {
-	UserID          int
+	UserID          string
 	Email           string
 	EmailVerifyHash string
 	DestinationURL  string
 }
 
 type user struct {
-	UserID            int
+	UserID            string
 	FullName          string
 	PrimaryEmail      string
 	LockoutEndTimeUTC *time.Time
 	AccessFailedCount int
 }
 
+// UserLogin is the struct which holds login information
 type UserLogin struct {
-	UserID   int
+	UserID   string
 	Email    string
 	FullName string
 }
 
+// LoginSession is the struct which holds session information
 type LoginSession struct {
-	UserID        int
+	UserID        string
 	Email         string
 	FullName      string
 	SessionHash   string
@@ -107,7 +110,7 @@ type LoginSession struct {
 }
 
 type rememberMeSession struct {
-	UserID        int
+	UserID        string
 	Email         string
 	Selector      string
 	TokenHash     string
@@ -123,6 +126,7 @@ type loginProvider struct {
 	OAuthURL          string
 }
 
+// AuthError struct holds detailed auth error info
 type AuthError struct {
 	message    string
 	innerError error
@@ -159,14 +163,14 @@ func (a *AuthError) Trace() string {
 }
 
 type backend struct {
-	u userBackender
+	u UserBackender
 	l loginBackender
 	s sessionBackender
 	backendCloser
 }
 
 // NewBackend returns a Backender from a UserBackender, LoginBackender and SessionBackender
-func NewBackend(u userBackender, l loginBackender, s sessionBackender) Backender {
+func NewBackend(u UserBackender, l loginBackender, s sessionBackender) Backender {
 	return &backend{u: u, l: l, s: s}
 }
 
@@ -178,7 +182,7 @@ func (b *backend) Login(email, password string) (*UserLogin, error) {
 	return b.l.Login(email, password)
 }
 
-func (b *backend) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
+func (b *backend) CreateSession(userID string, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
 	return b.s.CreateSession(userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC, rememberMe, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC)
 }
 
@@ -206,7 +210,7 @@ func (b *backend) GetEmailSession(emailVerifyHash string) (*emailSession, error)
 	return b.s.GetEmailSession(emailVerifyHash)
 }
 
-func (b *backend) UpdateEmailSession(emailVerifyHash string, userID int, email, destinationURL string) error {
+func (b *backend) UpdateEmailSession(emailVerifyHash string, userID, email, destinationURL string) error {
 	return b.s.UpdateEmailSession(emailVerifyHash, userID, email, destinationURL)
 }
 
@@ -214,7 +218,7 @@ func (b *backend) DeleteEmailSession(emailVerifyHash string) error {
 	return b.s.DeleteEmailSession(emailVerifyHash)
 }
 
-func (b *backend) AddUser(email string) (int, error) {
+func (b *backend) AddUser(email string) (string, error) {
 	return b.u.AddUser(email)
 }
 
@@ -222,11 +226,11 @@ func (b *backend) GetUser(email string) (*user, error) {
 	return b.u.GetUser(email)
 }
 
-func (b *backend) UpdateUser(userID int, fullname string, company string, pictureURL string) error {
+func (b *backend) UpdateUser(userID, fullname string, company string, pictureURL string) error {
 	return b.u.UpdateUser(userID, fullname, company, pictureURL)
 }
 
-func (b *backend) CreateLogin(userID int, email, password, fullName string) (*UserLogin, error) {
+func (b *backend) CreateLogin(userID, email, password, fullName string) (*UserLogin, error) {
 	return b.l.CreateLogin(userID, email, password, fullName)
 }
 

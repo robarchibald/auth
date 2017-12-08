@@ -207,7 +207,7 @@ func (s *authStore) OAuthLogin(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *authStore) oauthLogin(w http.ResponseWriter, r *http.Request, email, fullname string) error {
-	var userID int
+	var userID string
 	user, err := s.backend.GetUser(email)
 	if user == nil || err != nil {
 		userID, err = s.backend.AddUser(email)
@@ -275,7 +275,7 @@ func getOAuthCredentials(r *http.Request) (string, string, error) {
 	return email, fullname, nil
 }
 
-func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, email string, userID int, fullname string, rememberMe bool) (*LoginSession, error) {
+func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, email, userID, fullname string, rememberMe bool) (*LoginSession, error) {
 	var err error
 	var selector, token, tokenHash string
 	if rememberMe {

@@ -54,9 +54,9 @@ func TestAuth(t *testing.T) {
 	}
 
 	w = httptest.NewRecorder()
-	storer = &mockAuthStorer{SessionReturn: &auth.LoginSession{UserID: 1, Email: "test@test.com", FullName: "Name"}}
+	storer = &mockAuthStorer{SessionReturn: &auth.LoginSession{UserID: "1", Email: "test@test.com", FullName: "Name"}}
 	authCookie(storer, w, nil)
-	if w.Header().Get("X-User") != `{"UserID":1,"Email":"test@test.com","FullName":"Name"}` || storer.LastRun != "GetSession" {
+	if w.Header().Get("X-User") != `{"UserID":"1","Email":"test@test.com","FullName":"Name"}` || storer.LastRun != "GetSession" {
 		t.Error("expected User header to be set", w.Header().Get("X-User"), storer.LastRun)
 	}
 }
@@ -71,9 +71,9 @@ func TestAuthBasic(t *testing.T) {
 	}
 
 	w = httptest.NewRecorder()
-	storer = &mockAuthStorer{SessionReturn: &auth.LoginSession{Email: "test@test.com"}}
+	storer = &mockAuthStorer{SessionReturn: &auth.LoginSession{UserID: "0", Email: "test@test.com"}}
 	authBasic(storer, w, nil)
-	if w.Header().Get("X-User") != `{"UserID":0,"Email":"test@test.com","FullName":""}` || storer.LastRun != "GetBasicAuth" {
+	if w.Header().Get("X-User") != `{"UserID":"0","Email":"test@test.com","FullName":""}` || storer.LastRun != "GetBasicAuth" {
 		t.Error("expected User header to be set", w.Header().Get("X-User"), storer.LastRun)
 	}
 }

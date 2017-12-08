@@ -2,7 +2,6 @@ package auth
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/EndFirstCorp/onedb"
 	"gopkg.in/ldap.v2"
@@ -46,19 +45,15 @@ func (l *backendLDAPLogin) GetLogin(email string) (*UserLogin, error) {
 	if err != nil {
 		return nil, err
 	}
-	userID, err := strconv.Atoi(data.DbUserId)
-	if err != nil {
-		return nil, err
-	}
-	return &UserLogin{UserID: userID, Email: data.UID, FullName: data.Cn}, nil
+	return &UserLogin{UserID: data.DbUserId, Email: data.UID, FullName: data.Cn}, nil
 }
 
 /****************  TODO: create different type of user if not using file and mail quotas  **********************/
-func (l *backendLDAPLogin) CreateLogin(userID int, email, password, fullName string) (*UserLogin, error) {
+func (l *backendLDAPLogin) CreateLogin(userID, email, password, fullName string) (*UserLogin, error) {
 	req := ldap.NewAddRequest("uid=" + email + "," + l.baseDn)
 	req.Attribute("objectClass", []string{"endfirstAccount"})
 	req.Attribute("uid", []string{email})
-	req.Attribute("dbUserId", []string{strconv.Itoa(userID)})
+	req.Attribute("dbUserId", []string{userID})
 	req.Attribute("cn", []string{fullName})
 	req.Attribute("userPassword", []string{password})
 	err := l.db.Execute(req)

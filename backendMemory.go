@@ -3,11 +3,12 @@ package auth
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"time"
 )
 
 type userLoginMemory struct {
-	UserID       int
+	UserID       string
 	Email        string
 	FullName     string
 	PasswordHash string
@@ -52,7 +53,7 @@ func (m *backendMemory) Login(email, password string) (*UserLogin, error) {
 	return &UserLogin{login.UserID, login.Email, login.FullName}, nil
 }
 
-func (m *backendMemory) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
+func (m *backendMemory) CreateSession(userID, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
 	session := m.getSessionByHash(sessionHash)
 	if session != nil {
 		return nil, nil, errSessionAlreadyExists
@@ -118,7 +119,7 @@ func (m *backendMemory) CreateEmailSession(email, emailVerifyHash, destinationUR
 		return errEmailVerifyHashExists
 	}
 
-	m.EmailSessions = append(m.EmailSessions, &emailSession{-1, email, emailVerifyHash, destinationURL})
+	m.EmailSessions = append(m.EmailSessions, &emailSession{"", email, emailVerifyHash, destinationURL})
 
 	return nil
 }
@@ -132,7 +133,7 @@ func (m *backendMemory) GetEmailSession(emailVerifyHash string) (*emailSession, 
 	return session, nil
 }
 
-func (m *backendMemory) UpdateEmailSession(verifyHash string, userID int, email, destinationURL string) error {
+func (m *backendMemory) UpdateEmailSession(verifyHash string, userID, email, destinationURL string) error {
 	session := m.getEmailSessionByEmailVerifyHash(verifyHash)
 	if session == nil {
 		return errEmailVerifyHashExists
@@ -147,14 +148,14 @@ func (m *backendMemory) DeleteEmailSession(emailVerifyHash string) error {
 	return nil
 }
 
-func (m *backendMemory) AddUser(email string) (int, error) {
+func (m *backendMemory) AddUser(email string) (string, error) {
 	u := m.getUserByEmail(email)
 	if u != nil {
-		return -1, errUserAlreadyExists
+		return "", errUserAlreadyExists
 	}
 	m.LastUserID++
-	m.Users = append(m.Users, &user{m.LastUserID, "", email, nil, 0})
-	return m.LastUserID, nil
+	m.Users = append(m.Users, &user{strconv.Itoa(m.LastUserID), "", email, nil, 0})
+	return strconv.Itoa(m.LastUserID), nil
 }
 
 func (m *backendMemory) GetUser(email string) (*user, error) {
@@ -165,7 +166,7 @@ func (m *backendMemory) GetUser(email string) (*user, error) {
 	return u, nil
 }
 
-func (m *backendMemory) UpdateUser(userID int, fullname string, company string, pictureURL string) error {
+func (m *backendMemory) UpdateUser(userID, fullname string, company string, pictureURL string) error {
 	user := m.getUserByID(userID)
 	if user == nil {
 		return errUserNotFound
@@ -175,7 +176,7 @@ func (m *backendMemory) UpdateUser(userID int, fullname string, company string, 
 	return nil
 }
 
-func (m *backendMemory) CreateLogin(userID int, email, password, fullName string) (*UserLogin, error) {
+func (m *backendMemory) CreateLogin(userID, email, password, fullName string) (*UserLogin, error) {
 	passwordHash, err := m.c.Hash(password)
 	if err != nil {
 		return nil, err
@@ -272,7 +273,7 @@ func (m *backendMemory) getLoginByEmail(email string) *userLoginMemory {
 	return nil
 }
 
-func (m *backendMemory) getUserByID(userID int) *user {
+func (m *backendMemory) getUserByID(userID string) *user {
 	for _, user := range m.Users {
 		if user.UserID == userID {
 			return user

@@ -21,7 +21,7 @@ func NewBackendRedisSession(server string, port int, password string, maxIdle, m
 
 // need to first check that this emailVerifyHash isn't being used, otherwise we'll clobber existing
 func (r *backendRedisSession) CreateEmailSession(email, emailVerifyHash, destinationURL string) error {
-	return r.UpdateEmailSession(emailVerifyHash, -1, email, destinationURL)
+	return r.UpdateEmailSession(emailVerifyHash, "", email, destinationURL)
 }
 
 func (r *backendRedisSession) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
@@ -29,7 +29,7 @@ func (r *backendRedisSession) GetEmailSession(emailVerifyHash string) (*emailSes
 	return session, r.db.QueryStructRow(onedb.NewRedisGetCommand(r.getEmailSessionKey(emailVerifyHash)), session)
 }
 
-func (r *backendRedisSession) UpdateEmailSession(emailVerifyHash string, userID int, email, destinationURL string) error {
+func (r *backendRedisSession) UpdateEmailSession(emailVerifyHash string, userID, email, destinationURL string) error {
 	return r.saveEmailSession(&emailSession{userID, email, emailVerifyHash, destinationURL})
 }
 
@@ -37,7 +37,7 @@ func (r *backendRedisSession) DeleteEmailSession(emailVerifyHash string) error {
 	return nil
 }
 
-func (r *backendRedisSession) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
+func (r *backendRedisSession) CreateSession(userID, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
 	includeRememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
 	session := LoginSession{userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
 	err := r.saveSession(&session)

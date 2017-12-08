@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"strconv"
+
 	"github.com/EndFirstCorp/onedb"
 	"github.com/pkg/errors"
 )
@@ -15,7 +17,7 @@ type backendDbUser struct {
 }
 
 // NewBackendDbUser creates a Postgres-based UserBackender
-func NewBackendDbUser(server string, port int, username, password, database string, addUserQuery, getUserQuery, updateUserQuery string) (userBackender, error) {
+func NewBackendDbUser(server string, port int, username, password, database string, addUserQuery, getUserQuery, updateUserQuery string) (UserBackender, error) {
 	db, err := onedb.NewPgx(server, uint16(port), username, password, database)
 	if err != nil {
 		return nil, err
@@ -26,9 +28,9 @@ func NewBackendDbUser(server string, port int, username, password, database stri
 		UpdateUserQuery: updateUserQuery}, nil
 }
 
-func (u *backendDbUser) AddUser(email string) (int, error) {
+func (u *backendDbUser) AddUser(email string) (string, error) {
 	var userID int32 = -1
-	return int(userID), u.Db.QueryValues(onedb.NewSqlQuery(u.AddUserQuery, email), &userID)
+	return strconv.Itoa(int(userID)), u.Db.QueryValues(onedb.NewSqlQuery(u.AddUserQuery, email), &userID)
 }
 
 func (u *backendDbUser) GetUser(email string) (*user, error) {
@@ -40,7 +42,7 @@ func (u *backendDbUser) GetUser(email string) (*user, error) {
 	return r, err
 }
 
-func (u *backendDbUser) UpdateUser(userID int, fullname string, company string, pictureURL string) error {
+func (u *backendDbUser) UpdateUser(userID string, fullname string, company string, pictureURL string) error {
 	return u.Db.Execute(onedb.NewSqlQuery(u.UpdateUserQuery, userID, fullname))
 }
 
