@@ -288,7 +288,7 @@ func TestCreateSession(t *testing.T) {
 	for i, test := range createSessionTests {
 		backend := &mockBackend{CreateSessionReturn: test.CreateSessionReturn}
 		store := getAuthStore(nil, test.SessionCookie, test.RememberMeCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		val, err := store.createSession(nil, &http.Request{}, "test@test.com", 1, "fullname", test.RememberMe)
+		val, err := store.createSession(nil, &http.Request{}, "test@test.com", "1", "fullname", test.RememberMe)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {

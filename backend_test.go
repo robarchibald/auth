@@ -31,7 +31,7 @@ func TestBackendLogin(t *testing.T) {
 func TestBackendCreateSession(t *testing.T) {
 	m := &mockBackend{CreateSessionReturn: sessionRemember(time.Now(), time.Now())}
 	b := backend{u: m, l: m, s: m}
-	b.CreateSession(1, "test@test.com", "fullname", "hash", time.Now(), time.Now(), false, "", "", time.Now(), time.Now())
+	b.CreateSession("1", "test@test.com", "fullname", "hash", time.Now(), time.Now(), false, "", "", time.Now(), time.Now())
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "CreateSession" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
@@ -94,7 +94,7 @@ func TestBackendGetEmailSession(t *testing.T) {
 func TestBackendUpdateUser(t *testing.T) {
 	m := &mockBackend{}
 	b := backend{u: m, l: m, s: m}
-	b.UpdateUser(1, "name", "company", "url")
+	b.UpdateUser("1", "name", "company", "url")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "UpdateUser" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
@@ -262,7 +262,7 @@ func (b *mockBackend) GetSession(sessionHash string) (*LoginSession, error) {
 	return b.GetSessionReturn.Session, b.GetSessionReturn.Err
 }
 
-func (b *mockBackend) CreateSession(userID int, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
+func (b *mockBackend) CreateSession(userID, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateSession")
 	if b.CreateSessionReturn == nil {
 		return nil, nil, errors.New("CreateSessionReturn not initialized")
@@ -291,9 +291,9 @@ func (b *mockBackend) RenewRememberMe(selector string, renewTimeUTC time.Time) (
 	}
 	return b.RenewRememberMeReturn.RememberMe, b.RenewRememberMeReturn.Err
 }
-func (b *mockBackend) AddUser(email string) (int, error) {
+func (b *mockBackend) AddUser(email string) (string, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "AddUser")
-	return 1, b.AddUserReturn
+	return "1", b.AddUserReturn
 }
 
 func (b *mockBackend) CreateEmailSession(email, emailVerifyHash, destinationURL string) error {
@@ -309,7 +309,7 @@ func (b *mockBackend) GetEmailSession(emailVerifyHash string) (*emailSession, er
 	return b.getEmailSessionReturn.Session, b.getEmailSessionReturn.Err
 }
 
-func (b *mockBackend) UpdateEmailSession(emailVerifyHash string, userID int, email, destinationURL string) error {
+func (b *mockBackend) UpdateEmailSession(emailVerifyHash string, userID, email, destinationURL string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdateEmailSession")
 	return b.UpdateEmailSessionReturn
 }
@@ -327,12 +327,12 @@ func (b *mockBackend) GetUser(email string) (*user, error) {
 	return b.GetUserReturn.User, b.GetUserReturn.Err
 }
 
-func (b *mockBackend) UpdateUser(userID int, fullname, company, pictureURL string) error {
+func (b *mockBackend) UpdateUser(userID, fullname, company, pictureURL string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdateUser")
 	return b.ErrReturn
 }
 
-func (b *mockBackend) CreateLogin(userID int, email, password, fullName string) (*UserLogin, error) {
+func (b *mockBackend) CreateLogin(userID, email, password, fullName string) (*UserLogin, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateLogin")
 	if b.CreateLoginReturn == nil {
 		return nil, errors.New("CreateLoginReturn not initialized")
@@ -340,7 +340,7 @@ func (b *mockBackend) CreateLogin(userID int, email, password, fullName string) 
 	return b.CreateLoginReturn.Login, b.CreateLoginReturn.Err
 }
 
-func (b *mockBackend) UpdateEmail(email string, password string, newEmail string) (*LoginSession, error) {
+func (b *mockBackend) UpdateEmail(email, password, newEmail string) (*LoginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdateEmail")
 	if b.UpdateEmailReturn == nil {
 		return nil, errors.New("UpdateEmailReturn not initialized")
@@ -348,7 +348,7 @@ func (b *mockBackend) UpdateEmail(email string, password string, newEmail string
 	return b.UpdateEmailReturn.Session, b.UpdateEmailReturn.Err
 }
 
-func (b *mockBackend) UpdatePassword(email string, oldPassword string, newPassword string) (*LoginSession, error) {
+func (b *mockBackend) UpdatePassword(email, oldPassword, newPassword string) (*LoginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdatePassword")
 	if b.UpdatePasswordReturn == nil {
 		return nil, errors.New("UpdatePasswordReturn not initialized")
@@ -385,7 +385,7 @@ func loginErr() *LoginReturn {
 }
 
 func sessionSuccess(renewTimeUTC, expireTimeUTC time.Time) *SessionReturn {
-	return &SessionReturn{&LoginSession{1, "test@test.com", "fullname", "sessionHash", renewTimeUTC, expireTimeUTC}, nil}
+	return &SessionReturn{&LoginSession{"1", "test@test.com", "fullname", "sessionHash", renewTimeUTC, expireTimeUTC}, nil}
 }
 
 func sessionErr() *SessionReturn {
@@ -401,7 +401,7 @@ func rememberErr() *RememberMeReturn {
 }
 
 func sessionRemember(renewTimeUTC, expireTimeUTC time.Time) *SessionRememberReturn {
-	return &SessionRememberReturn{&LoginSession{1, "test@test.com", "fullname", "sessionHash", renewTimeUTC, expireTimeUTC}, &rememberMeSession{TokenHash: "PEaenWxYddN6Q_NT1PiOYfz4EsZu7jRXRlpAsNpBU-A=", ExpireTimeUTC: expireTimeUTC, RenewTimeUTC: renewTimeUTC}, nil}
+	return &SessionRememberReturn{&LoginSession{"1", "test@test.com", "fullname", "sessionHash", renewTimeUTC, expireTimeUTC}, &rememberMeSession{TokenHash: "PEaenWxYddN6Q_NT1PiOYfz4EsZu7jRXRlpAsNpBU-A=", ExpireTimeUTC: expireTimeUTC, RenewTimeUTC: renewTimeUTC}, nil}
 }
 
 func sessionRememberErr() *SessionRememberReturn {

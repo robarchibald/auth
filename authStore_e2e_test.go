@@ -2,6 +2,7 @@ package auth
 
 import (
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -136,8 +137,8 @@ func _verify(verifyCode string, b *backendMemory, m *TextMailer) (*emailCookie, 
 	if len(b.Users) != +lenUsers+1 || len(b.EmailSessions) != lenEmailSessions {
 		return nil, errors.Errorf("expected to add user and update existing session: %v, %v", len(b.Users) != lenUsers+1, len(b.EmailSessions) != lenEmailSessions)
 	}
-	if b.Users[lenUsers].UserID != b.LastUserID || emailSession == nil || b.Users[lenUsers].PrimaryEmail != emailSession.Email {
-		return nil, errors.Errorf("expected user to be added with new UserID and correct email: %v, %s, %s", b.Users[lenUsers].UserID != b.LastUserID, b.Users[lenUsers].PrimaryEmail, emailSession.Email)
+	if b.Users[lenUsers].UserID != strconv.Itoa(b.LastUserID) || emailSession == nil || b.Users[lenUsers].PrimaryEmail != emailSession.Email {
+		return nil, errors.Errorf("expected user to be added with new UserID and correct email: %v, %s, %s", b.Users[lenUsers].UserID != strconv.Itoa(b.LastUserID), b.Users[lenUsers].PrimaryEmail, emailSession.Email)
 	}
 
 	emailCookie, ok := c.cookies["Email"].(*emailCookie)
