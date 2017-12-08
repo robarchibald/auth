@@ -10,22 +10,23 @@ import (
 type backendDbUser struct {
 	Db onedb.DBer
 
-	AddUserQuery     string
-	GetUserQuery     string
-	UpdateUserQuery  string
-	CreateLoginQuery string
+	AddUserQuery              string
+	GetUserQuery              string
+	UpdateUserQuery           string
+	CreateSecondaryEmailQuery string
 }
 
 // NewBackendDbUser creates a Postgres-based UserBackender
-func NewBackendDbUser(server string, port int, username, password, database string, addUserQuery, getUserQuery, updateUserQuery string) (UserBackender, error) {
+func NewBackendDbUser(server string, port int, username, password, database string, addUserQuery, getUserQuery, updateUserQuery, createSecondaryEmailQuery string) (UserBackender, error) {
 	db, err := onedb.NewPgx(server, uint16(port), username, password, database)
 	if err != nil {
 		return nil, err
 	}
 	return &backendDbUser{Db: db,
-		GetUserQuery:    getUserQuery,
-		AddUserQuery:    addUserQuery,
-		UpdateUserQuery: updateUserQuery}, nil
+		GetUserQuery:              getUserQuery,
+		AddUserQuery:              addUserQuery,
+		UpdateUserQuery:           updateUserQuery,
+		CreateSecondaryEmailQuery: createSecondaryEmailQuery}, nil
 }
 
 func (u *backendDbUser) AddUser(email string) (string, error) {
@@ -44,6 +45,10 @@ func (u *backendDbUser) GetUser(email string) (*user, error) {
 
 func (u *backendDbUser) UpdateUser(userID string, fullname string, company string, pictureURL string) error {
 	return u.Db.Execute(onedb.NewSqlQuery(u.UpdateUserQuery, userID, fullname))
+}
+
+func (u *backendDbUser) CreateSecondaryEmail(userID, secondaryEmail string) error {
+	return u.Db.Execute(onedb.NewSqlQuery(u.CreateSecondaryEmailQuery, userID, secondaryEmail))
 }
 
 func (u *backendDbUser) Close() error {

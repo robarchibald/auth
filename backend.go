@@ -27,13 +27,14 @@ type Backender interface {
 	AddUser(email string) (string, error)
 	GetUser(email string) (*user, error)
 	UpdateUser(userID, fullname string, company string, pictureURL string) error
+	CreateSecondaryEmail(userID, secondaryEmail string) error
 
 	// LoginBackender. Write out since it contains duplicate BackendCloser
 	CreateLogin(userID, email, password, fullName string) (*UserLogin, error)
 	GetLogin(email string) (*UserLogin, error)
 	Login(email, password string) (*UserLogin, error)
-	UpdateEmail(email string, password string, newEmail string) (*LoginSession, error)
-	UpdatePassword(email string, oldPassword string, newPassword string) (*LoginSession, error)
+	SetPrimaryEmail(userID, newPrimaryEmail string) error
+	UpdatePassword(userID, newPassword string) error
 
 	sessionBackender
 }
@@ -47,6 +48,7 @@ type UserBackender interface {
 	AddUser(email string) (string, error)
 	GetUser(email string) (*user, error)
 	UpdateUser(userID, fullname string, company string, pictureURL string) error
+	CreateSecondaryEmail(userID, secondaryEmail string) error
 	backendCloser
 }
 
@@ -54,8 +56,8 @@ type loginBackender interface {
 	CreateLogin(userID, email, password, fullName string) (*UserLogin, error)
 	GetLogin(email string) (*UserLogin, error)
 	Login(email, password string) (*UserLogin, error)
-	UpdateEmail(email string, password string, newEmail string) (*LoginSession, error)
-	UpdatePassword(email string, oldPassword string, newPassword string) (*LoginSession, error)
+	SetPrimaryEmail(userID, newPrimaryEmail string) error
+	UpdatePassword(userID, newPassword string) error
 	backendCloser
 }
 
@@ -234,12 +236,16 @@ func (b *backend) CreateLogin(userID, email, password, fullName string) (*UserLo
 	return b.l.CreateLogin(userID, email, password, fullName)
 }
 
-func (b *backend) UpdateEmail(email string, password string, newEmail string) (*LoginSession, error) {
-	return b.l.UpdateEmail(email, password, newEmail)
+func (b *backend) CreateSecondaryEmail(userID string, secondaryEmail string) error {
+	return b.u.CreateSecondaryEmail(userID, secondaryEmail)
 }
 
-func (b *backend) UpdatePassword(email string, oldPassword string, newPassword string) (*LoginSession, error) {
-	return b.l.UpdatePassword(email, oldPassword, newPassword)
+func (b *backend) SetPrimaryEmail(userID, secondaryEmail string) error {
+	return b.l.SetPrimaryEmail(userID, secondaryEmail)
+}
+
+func (b *backend) UpdatePassword(userID, password string) error {
+	return b.l.UpdatePassword(userID, password)
 }
 
 func (b *backend) InvalidateSession(sessionHash string) error {

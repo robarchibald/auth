@@ -114,12 +114,22 @@ func TestCreateProfile(t *testing.T) {
 	}
 }
 
-func TestUpdateEmail(t *testing.T) {
+func TestSetPrimaryEmail(t *testing.T) {
 	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
 	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
-	updateEmail(storer, w, nil)
-	if w.Body.String() != "failed\n" || storer.LastRun != "UpdateEmail" {
+	setPrimaryEmail(storer, w, nil)
+	if w.Body.String() != "failed\n" || storer.LastRun != "SetPrimaryEmail" {
+		t.Error("expected to fail", w.Body.String(), storer.LastRun)
+	}
+}
+
+func TestCreateSecondaryEmail(t *testing.T) {
+	log.SetOutput(&nilWriter{})
+	w := httptest.NewRecorder()
+	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
+	createSecondaryEmail(storer, w, nil)
+	if w.Body.String() != "failed\n" || storer.LastRun != "CreateSecondaryEmail" {
 		t.Error("expected to fail", w.Body.String(), storer.LastRun)
 	}
 }
@@ -190,8 +200,12 @@ func (s *mockAuthStorer) VerifyEmail(w http.ResponseWriter, r *http.Request) (st
 	s.LastRun = "VerifyEmail"
 	return s.DestinationURLReturn, s.ErrReturn
 }
-func (s *mockAuthStorer) UpdateEmail(w http.ResponseWriter, r *http.Request) error {
-	s.LastRun = "UpdateEmail"
+func (s *mockAuthStorer) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error {
+	s.LastRun = "CreateSecondaryEmail"
+	return s.ErrReturn
+}
+func (s *mockAuthStorer) SetPrimaryEmail(w http.ResponseWriter, r *http.Request) error {
+	s.LastRun = "SetPrimaryEmail"
 	return s.ErrReturn
 }
 func (s *mockAuthStorer) UpdatePassword(w http.ResponseWriter, r *http.Request) error {

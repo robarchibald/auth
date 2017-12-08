@@ -59,17 +59,23 @@ func TestLdapLogin(t *testing.T) {
 }
 
 // replace with test that does something when code does something
-func TestLdapUpdateEmail(t *testing.T) {
+func TestLdapCreateSecondaryEmail(t *testing.T) {
 	m := onedb.NewMock(nil, nil, nil)
 	l := backendLDAPLogin{db: m}
-	l.UpdateEmail("email", "password", "newEmail")
+	l.CreateSecondaryEmail("userID", "secondaryEmail")
+}
+
+func TestLdapSetPrimaryEmail(t *testing.T) {
+	m := onedb.NewMock(nil, nil, nil)
+	l := backendLDAPLogin{db: m}
+	l.SetPrimaryEmail("userID", "newPrimaryEmail")
 }
 
 // replace with test that does something when code does something
 func TestLdapUpdatePassword(t *testing.T) {
 	m := onedb.NewMock(nil, nil, nil)
 	l := backendLDAPLogin{db: m}
-	l.UpdatePassword("email", "oldPassword", "newPassword")
+	l.UpdatePassword("userID", "newPassword")
 }
 
 func TestLdapClose(t *testing.T) {

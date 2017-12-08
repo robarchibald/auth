@@ -37,7 +37,8 @@ type AuthStorer interface {
 	Register(w http.ResponseWriter, r *http.Request) error
 	CreateProfile(w http.ResponseWriter, r *http.Request) error
 	VerifyEmail(w http.ResponseWriter, r *http.Request) (string, error)
-	UpdateEmail(w http.ResponseWriter, r *http.Request) error
+	CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error
+	SetPrimaryEmail(w http.ResponseWriter, r *http.Request) error
 	UpdatePassword(w http.ResponseWriter, r *http.Request) error
 }
 
@@ -481,9 +482,25 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, emailVer
 	return session.DestinationURL, nil
 }
 
-func (s *authStore) UpdateEmail(w http.ResponseWriter, r *http.Request) error { return nil }
+func (s *authStore) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error {
+	// steps to set new primary email address:
+	// 1. create new secondary email (this step)
+	// 2. send verification email
+	// 3. user verifies email
+	// 4. user sets email to primary email
+	return nil
+}
+
+func (s *authStore) SetPrimaryEmail(w http.ResponseWriter, r *http.Request) error {
+	// be sure to require current email and password (i.e. require login) to change primary email
+	// invalidate old sessions?
+	return nil
+}
 
 func (s *authStore) UpdatePassword(w http.ResponseWriter, r *http.Request) error {
+	// login to see if email and password is correct
+	// then update password
+	// then create session
 	return nil
 }
 

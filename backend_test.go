@@ -100,20 +100,29 @@ func TestBackendUpdateUser(t *testing.T) {
 	}
 }
 
-func TestBackendUpdateEmail(t *testing.T) {
-	m := &mockBackend{UpdateEmailReturn: sessionErr()}
+func TestBackendSetPrimaryEmail(t *testing.T) {
+	m := &mockBackend{SetPrimaryEmailErr: errors.New("fail")}
 	b := backend{u: m, l: m, s: m}
-	b.UpdateEmail("email", "password", "newEmail")
-	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "UpdateEmail" {
+	b.SetPrimaryEmail("userID", "newEmail")
+	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "SetPrimaryEmail" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
 }
 
 func TestBackendUpdatePassword(t *testing.T) {
-	m := &mockBackend{UpdatePasswordReturn: sessionErr()}
+	m := &mockBackend{UpdatePasswordErr: errors.New("fail")}
 	b := backend{u: m, l: m, s: m}
-	b.UpdatePassword("email", "oldPassword", "newPassword")
+	b.UpdatePassword("userID", "newPassword")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "UpdatePassword" {
+		t.Error("Expected it would call backend", m.MethodsCalled)
+	}
+}
+
+func TestBackendCreateSecondaryEmail(t *testing.T) {
+	m := &mockBackend{CreateSecondaryEmailErr: errors.New("fail")}
+	b := backend{u: m, l: m, s: m}
+	b.CreateSecondaryEmail("userID", "secondaryEmail@test.com")
+	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "CreateSecondaryEmail" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
 }
@@ -229,8 +238,9 @@ type mockBackend struct {
 	GetUserReturn            *GetUserReturn
 	getEmailSessionReturn    *getEmailSessionReturn
 	CreateLoginReturn        *LoginReturn
-	UpdateEmailReturn        *SessionReturn
-	UpdatePasswordReturn     *SessionReturn
+	CreateSecondaryEmailErr  error
+	SetPrimaryEmailErr       error
+	UpdatePasswordErr        error
 	GetRememberMeReturn      *RememberMeReturn
 	RenewRememberMeReturn    *RememberMeReturn
 	RememberMeReturn         *RememberMeReturn
@@ -340,20 +350,18 @@ func (b *mockBackend) CreateLogin(userID, email, password, fullName string) (*Us
 	return b.CreateLoginReturn.Login, b.CreateLoginReturn.Err
 }
 
-func (b *mockBackend) UpdateEmail(email, password, newEmail string) (*LoginSession, error) {
-	b.MethodsCalled = append(b.MethodsCalled, "UpdateEmail")
-	if b.UpdateEmailReturn == nil {
-		return nil, errors.New("UpdateEmailReturn not initialized")
-	}
-	return b.UpdateEmailReturn.Session, b.UpdateEmailReturn.Err
+func (b *mockBackend) CreateSecondaryEmail(userID, secondaryEmail string) error {
+	b.MethodsCalled = append(b.MethodsCalled, "CreateSecondaryEmail")
+	return b.CreateSecondaryEmailErr
 }
+func (b *mockBackend) SetPrimaryEmail(userID, newPrimaryEmail string) error {
+	b.MethodsCalled = append(b.MethodsCalled, "SetPrimaryEmail")
+	return b.SetPrimaryEmailErr
 
-func (b *mockBackend) UpdatePassword(email, oldPassword, newPassword string) (*LoginSession, error) {
+}
+func (b *mockBackend) UpdatePassword(userID, newPassword string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdatePassword")
-	if b.UpdatePasswordReturn == nil {
-		return nil, errors.New("UpdatePasswordReturn not initialized")
-	}
-	return b.UpdatePasswordReturn.Session, b.UpdatePasswordReturn.Err
+	return b.UpdatePasswordErr
 }
 
 func (b *mockBackend) InvalidateSession(sessionHash string) error {

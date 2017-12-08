@@ -151,14 +151,19 @@ func TestMemoryUpdateUser(t *testing.T) {
 	}
 }
 
-func TestMemoryUpdateEmail(t *testing.T) {
+func TestMemoryCreateSecondaryEmail(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
-	backend.UpdateEmail("email", "password", "newEmail")
+	backend.CreateSecondaryEmail("userID", "secondaryEmail")
+}
+
+func TestMemorySetPrimaryEmail(t *testing.T) {
+	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
+	backend.SetPrimaryEmail("userID", "newPrimaryEmail")
 }
 
 func TestMemoryUpdatePassword(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
-	backend.UpdatePassword("email", "oldPassword", "newPassword")
+	backend.UpdatePassword("userID", "newPassword")
 }
 
 func TestMemoryInvalidateSession(t *testing.T) {

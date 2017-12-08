@@ -186,13 +186,16 @@ func (m *backendMemory) CreateLogin(userID, email, password, fullName string) (*
 
 	return &UserLogin{userID, email, fullName}, nil
 }
-
-func (m *backendMemory) UpdateEmail(email string, password string, newEmail string) (*LoginSession, error) {
-	return nil, nil
+func (m *backendMemory) CreateSecondaryEmail(userID, secondaryEmail string) error {
+	return nil
 }
 
-func (m *backendMemory) UpdatePassword(email string, oldPassword string, newPassword string) (*LoginSession, error) {
-	return nil, nil
+func (m *backendMemory) SetPrimaryEmail(userID, newPrimaryEmail string) error {
+	return nil
+}
+
+func (m *backendMemory) UpdatePassword(userID string, newPassword string) error {
+	return nil
 }
 
 func (m *backendMemory) InvalidateSession(sessionHash string) error {

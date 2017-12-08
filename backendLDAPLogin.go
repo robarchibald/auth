@@ -76,12 +76,15 @@ func (l *backendLDAPLogin) CreateLogin(userID, email, password, fullName string)
 	return &UserLogin{}, err
 }*/
 
-func (l *backendLDAPLogin) UpdateEmail(email string, password string, newEmail string) (*LoginSession, error) {
-	return nil, nil
+func (l *backendLDAPLogin) CreateSecondaryEmail(userID, secondaryEmail string) error {
+	return nil
 }
 
-func (l *backendLDAPLogin) UpdatePassword(email string, oldPassword string, newPassword string) (*LoginSession, error) {
-	return nil, nil
+func (l *backendLDAPLogin) SetPrimaryEmail(userID, newPrimaryEmail string) error {
+	return nil
+}
+func (l *backendLDAPLogin) UpdatePassword(userID, newPassword string) error {
+	return nil
 }
 
 func (l *backendLDAPLogin) Close() error {

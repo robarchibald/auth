@@ -37,6 +37,7 @@ type authConf struct {
 	AddUserQuery                             string
 	GetUserQuery                             string
 	UpdateUserQuery                          string
+	CreateSecondaryEmailQuery                string
 	CreateLoginQuery                         string
 	UpdateEmailAndInvalidateSessionsQuery    string
 	UpdatePasswordAndInvalidateSessionsQuery string
@@ -110,7 +111,7 @@ func newNginxAuth(configFle, logfile string) (*nginxauth, error) {
 	if err != nil {
 		return nil, err
 	}
-	u, err := auth.NewBackendDbUser(config.DbServer, config.DbPort, config.DbUser, config.DbPassword, config.DbDatabase, config.AddUserQuery, config.GetUserQuery, config.UpdateUserQuery)
+	u, err := auth.NewBackendDbUser(config.DbServer, config.DbPort, config.DbUser, config.DbPassword, config.DbDatabase, config.AddUserQuery, config.GetUserQuery, config.UpdateUserQuery, config.CreateSecondaryEmailQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +163,8 @@ func (s *nginxauth) serve(port int) {
 	http.HandleFunc("/oauth", s.method("GET", oauthLogin))
 	http.HandleFunc("/register", s.method("POST", register))
 	http.HandleFunc("/verifyEmail", s.method("POST", verifyEmail))
-	http.HandleFunc("/updateEmail", s.method("POST", updateEmail))
+	http.HandleFunc("/createSecondaryEmail", s.method("POST", createSecondaryEmail))
+	http.HandleFunc("/setPrimaryEmail", s.method("POST", setPrimaryEmail))
 	http.HandleFunc("/updatePassword", s.method("POST", updatePassword))
 
 	http.ListenAndServe(fmt.Sprintf(":%d", port), handlers.CompressHandler(http.DefaultServeMux))
@@ -245,8 +247,12 @@ func createProfile(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Req
 	run("createProfile", authStore.CreateProfile, w, r)
 }
 
-func updateEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("updateEmail", authStore.UpdateEmail, w, r)
+func createSecondaryEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
+	run("createSecondaryEmail", authStore.CreateSecondaryEmail, w, r)
+}
+
+func setPrimaryEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
+	run("setPrimaryEmail", authStore.SetPrimaryEmail, w, r)
 }
 
 func updatePassword(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
