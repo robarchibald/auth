@@ -5,6 +5,8 @@ import (
 	"html/template"
 	"path/filepath"
 
+	"github.com/sendgrid/sendgrid-go"
+	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"gopkg.in/gomail.v2"
 )
 
@@ -46,6 +48,20 @@ type SmtpSender struct {
 	SMTPFromEmail        string
 	SMTPPassword         string
 	EmailFromDisplayName string
+}
+
+type SendGridSender struct {
+	APIKey               string
+	EmailFromDisplayName string
+	EmailFromAddress     string
+}
+
+func (s *SendGridSender) Send(to, subject, body string) error {
+	from := mail.NewEmail(s.EmailFromDisplayName, s.EmailFromAddress)
+	message := mail.NewSingleEmail(from, subject, mail.NewEmail("", to), body, body)
+	client := sendgrid.NewSendClient(s.APIKey)
+	_, err := client.Send(message)
+	return err
 }
 
 func (s *SmtpSender) Send(to, subject, body string) error {
