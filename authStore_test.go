@@ -698,7 +698,7 @@ func TestGetProfile(t *testing.T) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	w.WriteField("fullName", "name")
-	w.WriteField("Organization", "org")
+	w.WriteField("organization", "org")
 	w.WriteField("password", "pass")
 	w.WriteField("mailQuota", "1")
 	w.WriteField("fileQuota", "1")
