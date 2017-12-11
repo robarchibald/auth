@@ -14,13 +14,13 @@ type backendMongo struct {
 }
 
 type mongoUser struct {
-	ID                string     `bson:"_id"               json:"id"`
-	PrimaryEmail      string     `bson:"primaryEmail"      json:"primaryEmail"`
-	SecondaryEmails   []email    `bson:"secondaryEmails"   json:"secondaryEmails"`
-	FullName          string     `bson:"fullName"          json:"fullName"`
-	PasswordHash      string     `bson:"passwordHash"      json:"passwordHash"`
-	LockoutEndTimeUTC *time.Time `bson:"lockoutEndTimeUTC" json:"lockoutEndTimeUTC"`
-	AccessFailedCount int        `bson:"accessFailedCount" json:"accessFailedCount"`
+	ID                bson.ObjectId `bson:"_id"               json:"id"`
+	PrimaryEmail      string        `bson:"primaryEmail"      json:"primaryEmail"`
+	SecondaryEmails   []email       `bson:"secondaryEmails"   json:"secondaryEmails"`
+	FullName          string        `bson:"fullName"          json:"fullName"`
+	PasswordHash      string        `bson:"passwordHash"      json:"passwordHash"`
+	LockoutEndTimeUTC *time.Time    `bson:"lockoutEndTimeUTC" json:"lockoutEndTimeUTC"`
+	AccessFailedCount int           `bson:"accessFailedCount" json:"accessFailedCount"`
 }
 
 type email struct {
@@ -38,12 +38,12 @@ func NewBackendMongo(url string, c Crypter) (Backender, error) {
 func (b *backendMongo) AddUser(email string) (string, error) {
 	u, err := b.getUser(email)
 	if err == nil {
-		return u.ID, errors.New("user already exists")
+		return u.ID.Hex(), errors.New("user already exists")
 	}
 
 	m := b.m.Clone()
 	id := bson.NewObjectId()
-	return string(id), m.DB("users").C("users").Insert(mongoUser{ID: string(id), PrimaryEmail: email})
+	return id.Hex(), m.DB("users").C("users").Insert(mongoUser{ID: id, PrimaryEmail: email})
 }
 
 func (b *backendMongo) getUser(email string) (*mongoUser, error) {
@@ -57,12 +57,12 @@ func (b *backendMongo) GetUser(email string) (*user, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &user{UserID: u.ID, FullName: u.FullName, PrimaryEmail: u.PrimaryEmail, AccessFailedCount: u.AccessFailedCount, LockoutEndTimeUTC: u.LockoutEndTimeUTC}, nil
+	return &user{UserID: u.ID.Hex(), FullName: u.FullName, PrimaryEmail: u.PrimaryEmail, AccessFailedCount: u.AccessFailedCount, LockoutEndTimeUTC: u.LockoutEndTimeUTC}, nil
 }
 
 func (b *backendMongo) UpdateUser(userID string, fullname string, company string, pictureURL string) error {
 	m := b.m.Clone()
-	return m.DB("users").C("users").UpdateId(userID, bson.M{"$set": bson.M{"fullName": fullname}})
+	return m.DB("users").C("users").UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"fullName": fullname}})
 }
 
 func (b *backendMongo) Close() error {
@@ -78,7 +78,7 @@ func (b *backendMongo) Login(email, password string) (*UserLogin, error) {
 	if err := b.c.HashEquals(password, u.PasswordHash); err != nil {
 		return nil, err
 	}
-	return &UserLogin{UserID: u.ID, FullName: u.FullName, Email: u.PrimaryEmail}, nil
+	return &UserLogin{UserID: u.ID.Hex(), FullName: u.FullName, Email: u.PrimaryEmail}, nil
 }
 
 func (b *backendMongo) GetLogin(email string) (*UserLogin, error) {
@@ -86,7 +86,7 @@ func (b *backendMongo) GetLogin(email string) (*UserLogin, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &UserLogin{UserID: u.ID, FullName: u.FullName, Email: u.PrimaryEmail}, nil
+	return &UserLogin{UserID: u.ID.Hex(), FullName: u.FullName, Email: u.PrimaryEmail}, nil
 }
 
 func (b *backendMongo) CreateLogin(userID, email, password, fullName string) (*UserLogin, error) {
@@ -96,7 +96,7 @@ func (b *backendMongo) CreateLogin(userID, email, password, fullName string) (*U
 		return nil, err
 	}
 	return &UserLogin{UserID: userID, FullName: fullName, Email: email},
-		m.DB("users").C("users").UpdateId(userID, bson.M{"$set": bson.M{"email": email, "passwordHash": passwordHash, "fullName": fullName}})
+		m.DB("users").C("users").UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"email": email, "passwordHash": passwordHash, "fullName": fullName}})
 }
 
 func (b *backendMongo) CreateSecondaryEmail(userID, secondaryEmail string) error {

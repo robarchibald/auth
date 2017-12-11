@@ -25,9 +25,6 @@ type CryptoHashStore struct {
 }
 
 func (c *CryptoHashStore) HashEquals(token, tokenHash string) error {
-	if len(tokenHash) > 7 && tokenHash[0:7] == "{CRYPT}" {
-		tokenHash = tokenHash[7:]
-	}
 	hashed, err := cryptoHashWSalt(token, tokenHash) // sha512_crypt will strip out salt from hash
 	if err != nil {
 		return err
@@ -156,10 +153,5 @@ func getRandomSalt(length, iterations int) (string, error) {
 }
 
 func cryptoHashWSalt(in, salt string) (string, error) {
-	gocrypt := sha512_crypt.New()
-	hash, err := gocrypt.Generate([]byte(in), []byte(salt))
-	if err != nil {
-		return "", err
-	}
-	return "{CRYPT}" + hash, nil
+	return sha512_crypt.New().Generate([]byte(in), []byte(salt))
 }

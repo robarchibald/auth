@@ -627,7 +627,7 @@ func getProfile(r *http.Request) (*profile, error) {
 	// **************  TODO: change to generic way to get other parameters *******************
 
 	profile.FullName = r.FormValue("fullName")
-	profile.Organization = r.FormValue("Organization")
+	profile.Organization = r.FormValue("organization")
 	profile.Password = r.FormValue("password")
 	profile.PicturePath = handler.Filename
 

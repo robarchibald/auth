@@ -25,3 +25,19 @@ func TestHash(t *testing.T) {
 		t.Error("expected hash to match back to original", err)
 	}
 }
+
+func TestCryptoHash(t *testing.T) {
+	hash := "$6$rounds=50000$wBYJoagrGVp3mDVC$j3JiX5bOUETQF7LFhU8YZRYmOIbt.9bdL0Uh6q5JYmn4CTpqhpTY2QnnDkAzT2FlnZPQdQ8ZZ.2eqas.ECzCP/"
+	password := "MyLamePassword"
+	s := &CryptoHashStore{}
+	crypt, err := s.Hash(password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.HashEquals(password, crypt); err != nil {
+		t.Fatal("should be able to hash and verify self:", err)
+	}
+	if err := s.HashEquals(password, hash); err != nil {
+		t.Fatal("should match known hash:", err)
+	}
+}
