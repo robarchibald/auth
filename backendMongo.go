@@ -96,7 +96,7 @@ func (b *backendMongo) CreateLogin(userID, email, password, fullName string) (*U
 		return nil, err
 	}
 	return &UserLogin{UserID: userID, FullName: fullName, Email: email},
-		m.DB("users").C("users").UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"email": email, "passwordHash": passwordHash, "fullName": fullName}})
+		m.DB("users").C("users").UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"passwordHash": passwordHash}})
 }
 
 func (b *backendMongo) CreateSecondaryEmail(userID, secondaryEmail string) error {
@@ -106,7 +106,12 @@ func (b *backendMongo) SetPrimaryEmail(userID, secondaryEmail string) error {
 	return nil
 }
 func (b *backendMongo) UpdatePassword(userID, newPassword string) error {
-	return nil
+	m := b.m.Clone()
+	passwordHash, err := b.c.Hash(newPassword)
+	if err != nil {
+		return err
+	}
+	return m.DB("users").C("users").UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"passwordHash": passwordHash}})
 }
 func (b *backendMongo) CreateEmailSession(email, emailVerifyHash, destinationURL string) error {
 	return nil
