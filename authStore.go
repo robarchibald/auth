@@ -650,24 +650,23 @@ func getProfile(r *http.Request) (*profile, error) {
 	profile := &profile{}
 	r.ParseMultipartForm(32 << 20) // 32 MB file
 	file, handler, err := r.FormFile("file")
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+	if err == nil { // received the file, so save it
+		defer file.Close()
 
-	f, err := os.OpenFile(handler.Filename, os.O_WRONLY|os.O_CREATE, 0666)
-	if err != nil {
-		return nil, err
+		f, err := os.OpenFile(handler.Filename, os.O_WRONLY|os.O_CREATE, 0666)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		io.Copy(f, file)
+		profile.PicturePath = handler.Filename
 	}
-	defer f.Close()
-	io.Copy(f, file)
 
 	// **************  TODO: change to generic way to get other parameters *******************
 
 	profile.FullName = r.FormValue("fullName")
 	profile.Organization = r.FormValue("organization")
 	profile.Password = r.FormValue("password")
-	profile.PicturePath = handler.Filename
 
 	return profile, nil
 }
