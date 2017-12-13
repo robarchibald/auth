@@ -188,17 +188,17 @@ func (s *mockAuthStorer) Login(w http.ResponseWriter, r *http.Request) (string, 
 	s.LastRun = "Login"
 	return "csrfToken", s.ErrReturn
 }
-func (s *mockAuthStorer) Register(w http.ResponseWriter, r *http.Request) (string, error) {
+func (s *mockAuthStorer) Register(w http.ResponseWriter, r *http.Request) error {
 	s.LastRun = "Register"
-	return "csrfToken", s.ErrReturn
+	return s.ErrReturn
 }
 func (s *mockAuthStorer) CreateProfile(w http.ResponseWriter, r *http.Request) (string, error) {
 	s.LastRun = "CreateProfile"
 	return "csrfToken", s.ErrReturn
 }
-func (s *mockAuthStorer) VerifyEmail(w http.ResponseWriter, r *http.Request) (string, error) {
+func (s *mockAuthStorer) VerifyEmail(w http.ResponseWriter, r *http.Request) (string, string, error) {
 	s.LastRun = "VerifyEmail"
-	return s.DestinationURLReturn, s.ErrReturn
+	return "csrfToken", s.DestinationURLReturn, s.ErrReturn
 }
 func (s *mockAuthStorer) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error {
 	s.LastRun = "CreateSecondaryEmail"

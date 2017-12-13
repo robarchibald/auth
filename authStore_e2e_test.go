@@ -14,21 +14,21 @@ func TestAuthStoreEndToEnd(t *testing.T) {
 	m := &TextMailer{}
 
 	// Register emails
-	csrfToken, verifyCode, err := _register("test@test.com", b, m)
+	verifyCode, err := _register("test@test.com", b, m)
 	if err != nil {
 		t.Fatal("Register:", err)
 	}
-	csrfToken2, verifyCode2, err := _register("test2@test.com", b, m)
+	verifyCode2, err := _register("test2@test.com", b, m)
 	if err != nil {
 		t.Fatal("Register2", err)
 	}
 
 	// Verify emails
-	emailCookie, err := _verify(verifyCode, b, m, csrfToken)
+	csrfToken, emailCookie, err := _verify(verifyCode, b, m)
 	if err != nil {
 		t.Fatal("Verify:", err)
 	}
-	emailCookie2, err := _verify(verifyCode2, b, m, csrfToken2)
+	csrfToken2, emailCookie2, err := _verify(verifyCode2, b, m)
 	if err != nil {
 		t.Fatal("Verify2:", err)
 	}
@@ -92,7 +92,7 @@ func TestAuthStoreEndToEnd(t *testing.T) {
 	}
 }
 
-func _register(email string, b *backendMemory, m *TextMailer) (string, string, error) {
+func _register(email string, b *backendMemory, m *TextMailer) (string, error) {
 	r := &http.Request{Header: http.Header{}}
 	c := NewMockCookieStore(nil, false, false)
 	s := &authStore{b, m, c}
@@ -100,24 +100,24 @@ func _register(email string, b *backendMemory, m *TextMailer) (string, string, e
 
 	// register new user
 	// adds to users, logins and sessions
-	csrfToken, err := s.register(r, email, "returnURL")
+	err := s.register(r, email, "returnURL")
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	if len(b.EmailSessions) != lenSessions+1 {
-		return "", "", errors.New("expected to add a new Email session")
+		return "", errors.New("expected to add a new Email session")
 	}
 	// get code from "email"
 	data := m.MessageData.(*sendVerifyParams)
 	emailVerifyHash, _ := decodeStringToHash(data.VerificationCode + "=")
 	if b.EmailSessions[lenSessions].Email != email || b.EmailSessions[lenSessions].EmailVerifyHash != emailVerifyHash || b.EmailSessions[lenSessions].DestinationURL != "returnURL" {
-		return "", "", errors.Errorf("expected to have valid session: %s, %v, %v", b.EmailSessions[lenSessions].Email, b.EmailSessions[lenSessions].EmailVerifyHash != emailVerifyHash, b.EmailSessions[lenSessions].DestinationURL != "returnURL")
+		return "", errors.Errorf("expected to have valid session: %s, %v, %v", b.EmailSessions[lenSessions].Email, b.EmailSessions[lenSessions].EmailVerifyHash != emailVerifyHash, b.EmailSessions[lenSessions].DestinationURL != "returnURL")
 	}
 
-	return csrfToken, data.VerificationCode, nil
+	return data.VerificationCode, nil
 }
 
-func _verify(verifyCode string, b *backendMemory, m *TextMailer, csrfToken string) (*emailCookie, error) {
+func _verify(verifyCode string, b *backendMemory, m *TextMailer) (string, *emailCookie, error) {
 	r := &http.Request{Header: http.Header{}}
 	c := NewMockCookieStore(nil, false, false)
 	s := &authStore{b, m, c}
@@ -127,29 +127,29 @@ func _verify(verifyCode string, b *backendMemory, m *TextMailer, csrfToken strin
 	emailSession := b.getEmailSessionByEmailVerifyHash(emailVerifyHash)
 
 	// verify Email. Should 1. add user to b.Users, 2. set UserID in EmailSession, 3. add session
-	destinationURL, err := s.verifyEmail(nil, r, verifyCode, csrfToken)
+	csrfToken, destinationURL, err := s.verifyEmail(nil, r, verifyCode)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if destinationURL != "returnURL" {
-		return nil, errors.Errorf("expected to get back destinationURL that we entered during register phase")
+		return "", nil, errors.Errorf("expected to get back destinationURL that we entered during register phase")
 	}
 	if len(b.Users) != +lenUsers+1 || len(b.EmailSessions) != lenEmailSessions {
-		return nil, errors.Errorf("expected to add user and update existing session: %v, %v", len(b.Users) != lenUsers+1, len(b.EmailSessions) != lenEmailSessions)
+		return "", nil, errors.Errorf("expected to add user and update existing session: %v, %v", len(b.Users) != lenUsers+1, len(b.EmailSessions) != lenEmailSessions)
 	}
 	if b.Users[lenUsers].UserID != strconv.Itoa(b.LastUserID) || emailSession == nil || b.Users[lenUsers].PrimaryEmail != emailSession.Email {
-		return nil, errors.Errorf("expected user to be added with new UserID and correct email: %v, %s, %s", b.Users[lenUsers].UserID != strconv.Itoa(b.LastUserID), b.Users[lenUsers].PrimaryEmail, emailSession.Email)
+		return "", nil, errors.Errorf("expected user to be added with new UserID and correct email: %v, %s, %s", b.Users[lenUsers].UserID != strconv.Itoa(b.LastUserID), b.Users[lenUsers].PrimaryEmail, emailSession.Email)
 	}
 
 	emailCookie, ok := c.cookies["Email"].(*emailCookie)
 	if !ok {
-		return nil, nil
+		return "", nil, nil
 	}
 	if emailCookie.EmailVerificationCode != verifyCode+"=" {
-		return nil, errors.Errorf("expected cookie Code to be correct: %s, %s", emailCookie.EmailVerificationCode, verifyCode+"=")
+		return "", nil, errors.Errorf("expected cookie Code to be correct: %s, %s", emailCookie.EmailVerificationCode, verifyCode+"=")
 	}
 
-	return emailCookie, nil
+	return csrfToken, emailCookie, nil
 }
 
 func _createProfile(fullName, password string, emailCookie *emailCookie, b *backendMemory, m *TextMailer, csrfToken string) (string, *sessionCookie, error) {

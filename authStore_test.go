@@ -405,7 +405,7 @@ func TestAuthRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &mockBackend{ErrReturn: test.CreateEmailSessionReturn, GetUserReturn: test.GetUserReturn}
 		store := getAuthStore(nil, nil, nil, false, false, test.MailErr, backend)
-		_, err := store.register(&http.Request{}, test.Email, "destinationURL")
+		err := store.register(&http.Request{}, test.Email, "destinationURL")
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -519,7 +519,6 @@ func TestAuthCreateProfile(t *testing.T) {
 var verifyEmailTests = []struct {
 	Scenario                 string
 	EmailVerificationCode    string
-	CSRFToken                string
 	HasCookiePutError        bool
 	getEmailSessionReturn    *getEmailSessionReturn
 	AddUserReturn            error
@@ -543,16 +542,7 @@ var verifyEmailTests = []struct {
 		ExpectedErr:           "Failed to verify email",
 	},
 	{
-		Scenario:              "Invalid CSRF token",
-		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
-		getEmailSessionReturn: getEmailSessionSuccess(),
-		AddUserReturn:         errors.New("fail"),
-		MethodsCalled:         []string{"GetEmailSession"},
-		ExpectedErr:           "Invalid CSRF token",
-	},
-	{
 		Scenario:              "Add User fail",
-		CSRFToken:             "csrfToken",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		AddUserReturn:         errors.New("fail"),
@@ -561,7 +551,6 @@ var verifyEmailTests = []struct {
 	},
 	{
 		Scenario:                 "Email session update fail",
-		CSRFToken:                "csrfToken",
 		EmailVerificationCode:    "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn:    getEmailSessionSuccess(),
 		UpdateEmailSessionReturn: errors.New("fail"),
@@ -570,7 +559,6 @@ var verifyEmailTests = []struct {
 	},
 	{
 		Scenario:              "Cookie Save Error",
-		CSRFToken:             "csrfToken",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		HasCookiePutError:     true,
@@ -579,7 +567,6 @@ var verifyEmailTests = []struct {
 	},
 	{
 		Scenario:              "Mail Error",
-		CSRFToken:             "csrfToken",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		MethodsCalled:         []string{"GetEmailSession", "AddUser", "UpdateEmailSession"},
@@ -588,7 +575,6 @@ var verifyEmailTests = []struct {
 	},
 	{
 		Scenario:              "Email sent",
-		CSRFToken:             "csrfToken",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		DestinatinURL:         "destinationURL",
@@ -600,7 +586,7 @@ func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &mockBackend{getEmailSessionReturn: test.getEmailSessionReturn, AddUserReturn: test.AddUserReturn, UpdateEmailSessionReturn: test.UpdateEmailSessionReturn}
 		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
-		destinationURL, err := store.verifyEmail(nil, &http.Request{}, test.EmailVerificationCode, test.CSRFToken)
+		_, destinationURL, err := store.verifyEmail(nil, &http.Request{}, test.EmailVerificationCode)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) || test.DestinatinURL != destinationURL {
@@ -679,13 +665,13 @@ func TestRegisterPub(t *testing.T) {
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &mockBackend{}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	_, err := store.Register(nil, r)
+	err := store.Register(nil, r)
 	if err == nil || err.Error() != "Invalid email" {
 		t.Error("expected error from child register method", err)
 	}
 
 	buf.WriteString("b")
-	_, err = store.Register(nil, r)
+	err = store.Register(nil, r)
 	if err == nil || !strings.HasPrefix(err.Error(), "Unable to get email") {
 		t.Error("expected error from parent Register method", err)
 	}
@@ -708,13 +694,13 @@ func TestVerifyEmailPub(t *testing.T) {
 	r.Header.Add("X-CSRF-Token", "token")
 	backend := &mockBackend{getEmailSessionReturn: getEmailSessionErr()}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	_, err := store.VerifyEmail(nil, r)
+	_, _, err := store.VerifyEmail(nil, r)
 	if err == nil || err.Error() != "Failed to verify email" {
 		t.Error("expected error from child verifyEmail method", err)
 	}
 
 	buf.WriteString("b")
-	_, err = store.VerifyEmail(nil, r)
+	_, _, err = store.VerifyEmail(nil, r)
 	if err == nil || err.Error() != "Unable to get verification email from JSON" {
 		t.Error("expected error from VerifyEmail method", err)
 	}
@@ -794,7 +780,7 @@ func TestCreateProfilePub(t *testing.T) {
 
 	r = &http.Request{Body: ioutil.NopCloser(&buf)}
 	_, err = store.CreateProfile(nil, r)
-	if err == nil || err.Error() != "Unable to get profile information from form" {
+	if err == nil || err.Error() != "Missing CSRF token" {
 		t.Error("expected error from CreateProfile method", err)
 	}
 }

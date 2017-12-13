@@ -240,7 +240,7 @@ func login(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
 }
 
 func register(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	runWithCSRF("register", authStore.Register, w, r)
+	run("register", authStore.Register, w, r)
 }
 
 func createProfile(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
@@ -260,8 +260,8 @@ func updatePassword(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Re
 }
 
 func verifyEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	destinationURL, err := authStore.VerifyEmail(w, r)
-	writeOutput(w, fmt.Sprintf("{ \"result\": \"Success\", \"destinationURL\": \"%s\" }", destinationURL), err)
+	csrfToken, destinationURL, err := authStore.VerifyEmail(w, r)
+	writeOutput(w, fmt.Sprintf(`{ "result": "Success", "destinationURL": "%s", "csrfToken": "%s" }`, destinationURL, csrfToken), err)
 }
 
 func run(name string, method func(http.ResponseWriter, *http.Request) error, w http.ResponseWriter, r *http.Request) {
