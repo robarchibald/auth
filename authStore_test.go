@@ -39,38 +39,56 @@ var getSessionTests = []struct {
 	GetSessionReturn    *SessionReturn
 	RenewSessionReturn  *SessionReturn
 	GetRememberMeReturn *RememberMeReturn
+	CSRFToken           string
 	MethodsCalled       []string
 	ExpectedResult      *rememberMeSession
 	ExpectedErr         string
 }{
 	{
 		Scenario:         "Get Session Valid",
+		CSRFToken:        "csrfToken",
 		SessionCookie:    sessionCookieGood(futureTime, futureTime),
 		GetSessionReturn: sessionSuccess(futureTime, futureTime),
 		MethodsCalled:    []string{"GetSession"},
 	},
 	{
+		Scenario:    "No CSRFToken",
+		ExpectedErr: "Missing CSRF token",
+	},
+	{
 		Scenario:          "Get Session Cookie Error",
+		CSRFToken:         "token",
 		HasCookieGetError: true,
 		ExpectedErr:       "Session cookie not found",
 	},
 	{
 		Scenario:      "Get Session Invalid Cookie Error",
+		CSRFToken:     "token",
 		SessionCookie: sessionCookieBogus(futureTime, futureTime),
 		ExpectedErr:   "Unable to decode session cookie",
 	},
 	{
 		Scenario:         "Get Session Error",
+		CSRFToken:        "token",
 		SessionCookie:    sessionCookieGood(futureTime, futureTime),
 		GetSessionReturn: &SessionReturn{&LoginSession{}, errSessionNotFound},
 		MethodsCalled:    []string{"GetSession"},
 		ExpectedErr:      "Failed to verify session",
 	},
 	{
-		Scenario:           "Get Session Renew",
-		SessionCookie:      sessionCookieGood(pastTime, futureTime),
-		RenewSessionReturn: sessionSuccess(futureTime, futureTime),
-		MethodsCalled:      []string{"RenewSession"},
+		Scenario:         "Get Session, invalid CSRF",
+		CSRFToken:        "token",
+		SessionCookie:    sessionCookieGood(futureTime, futureTime),
+		GetSessionReturn: sessionSuccess(futureTime, futureTime),
+		MethodsCalled:    []string{"GetSession"},
+		ExpectedErr:      "Invalid CSRF token",
+	},
+	{
+		Scenario:         "Get Session Renew",
+		CSRFToken:        "csrfToken",
+		SessionCookie:    sessionCookieGood(futureTime, futureTime),
+		GetSessionReturn: sessionSuccess(futureTime, futureTime),
+		MethodsCalled:    []string{"GetSession"},
 	},
 }
 
@@ -79,7 +97,12 @@ func TestGetSession(t *testing.T) {
 		backend := &mockBackend{GetSessionReturn: test.GetSessionReturn, RenewSessionReturn: test.RenewSessionReturn}
 		store := getAuthStore(nil, test.SessionCookie, nil, false, false, nil, backend)
 		//store := getSessionStore(nil, test.SessionCookie, nil, test.HasCookieGetError, test.HasCookiePutError, backend)
-		val, err := store.GetSession(nil, &http.Request{})
+		h := http.Header{}
+		if test.CSRFToken != "" {
+			h.Add("X-CSRF-Token", test.CSRFToken)
+		}
+		val, err := store.GetSession(nil, &http.Request{Header: h})
+
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -300,7 +323,9 @@ func TestCreateSession(t *testing.T) {
 func TestAuthGetBasicAuth(t *testing.T) {
 	// found session
 	store := getAuthStore(nil, sessionCookieGood(futureTime, futureTime), nil, false, false, nil, &mockBackend{GetSessionReturn: sessionSuccess(futureTime, futureTime)})
-	if _, err := store.GetBasicAuth(nil, &http.Request{}); err != nil {
+	r := &http.Request{Header: http.Header{}}
+	r.Header.Add("X-CSRF-Token", "csrfToken")
+	if _, err := store.GetBasicAuth(nil, r); err != nil {
 		t.Error("expected success", err)
 	}
 
@@ -380,7 +405,7 @@ func TestAuthRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &mockBackend{ErrReturn: test.CreateEmailSessionReturn, GetUserReturn: test.GetUserReturn}
 		store := getAuthStore(nil, nil, nil, false, false, test.MailErr, backend)
-		err := store.register(&http.Request{}, test.Email, "destinationURL")
+		_, err := store.register(&http.Request{}, test.Email, "destinationURL")
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -395,6 +420,7 @@ var createProfileTests = []struct {
 	HasCookiePutError        bool
 	getEmailSessionReturn    *getEmailSessionReturn
 	EmailCookie              *emailCookie
+	CSRFToken                string
 	LoginReturn              *LoginReturn
 	UpdateUserReturn         error
 	DeleteEmailSessionReturn error
@@ -420,7 +446,16 @@ var createProfileTests = []struct {
 		ExpectedErr:           "Invalid email verification",
 	},
 	{
+		Scenario:              "Invalid CSRF token",
+		CSRFToken:             "token",
+		EmailCookie:           &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
+		getEmailSessionReturn: getEmailSessionSuccess(),
+		MethodsCalled:         []string{"GetEmailSession"},
+		ExpectedErr:           "Invalid CSRF token",
+	},
+	{
 		Scenario:              "Error Updating user",
+		CSRFToken:             "csrfToken",
 		EmailCookie:           &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		UpdateUserReturn:      errors.New("failed"),
@@ -430,6 +465,7 @@ var createProfileTests = []struct {
 	},
 	{
 		Scenario:                 "Error Deleting Email Session",
+		CSRFToken:                "csrfToken",
 		EmailCookie:              &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
 		getEmailSessionReturn:    getEmailSessionSuccess(),
 		DeleteEmailSessionReturn: errors.New("failed"),
@@ -439,6 +475,7 @@ var createProfileTests = []struct {
 	},
 	{
 		Scenario:              "Error Creating login",
+		CSRFToken:             "csrfToken",
 		EmailCookie:           &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		LoginReturn:           loginErr(),
@@ -447,6 +484,7 @@ var createProfileTests = []struct {
 	},
 	{
 		Scenario:              "Error creating session",
+		CSRFToken:             "csrfToken",
 		EmailCookie:           &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		LoginReturn:           loginSuccess(),
@@ -456,6 +494,7 @@ var createProfileTests = []struct {
 	},
 	{
 		Scenario:              "Success",
+		CSRFToken:             "csrfToken",
 		EmailCookie:           &emailCookie{EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0=", ExpireTimeUTC: time.Now()},
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		LoginReturn:           loginSuccess(),
@@ -468,7 +507,7 @@ func TestAuthCreateProfile(t *testing.T) {
 	for i, test := range createProfileTests {
 		backend := &mockBackend{ErrReturn: test.UpdateUserReturn, getEmailSessionReturn: test.getEmailSessionReturn, CreateLoginReturn: test.LoginReturn, CreateSessionReturn: test.CreateSessionReturn, DeleteEmailSessionReturn: test.DeleteEmailSessionReturn}
 		store := getAuthStore(test.EmailCookie, nil, nil, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		err := store.createProfile(nil, &http.Request{}, "name", "organization", "password", "path")
+		_, err := store.createProfile(nil, &http.Request{}, test.CSRFToken, "name", "organization", "password", "path")
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -480,6 +519,7 @@ func TestAuthCreateProfile(t *testing.T) {
 var verifyEmailTests = []struct {
 	Scenario                 string
 	EmailVerificationCode    string
+	CSRFToken                string
 	HasCookiePutError        bool
 	getEmailSessionReturn    *getEmailSessionReturn
 	AddUserReturn            error
@@ -503,7 +543,16 @@ var verifyEmailTests = []struct {
 		ExpectedErr:           "Failed to verify email",
 	},
 	{
+		Scenario:              "Invalid CSRF token",
+		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
+		getEmailSessionReturn: getEmailSessionSuccess(),
+		AddUserReturn:         errors.New("fail"),
+		MethodsCalled:         []string{"GetEmailSession"},
+		ExpectedErr:           "Invalid CSRF token",
+	},
+	{
 		Scenario:              "Add User fail",
+		CSRFToken:             "csrfToken",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		AddUserReturn:         errors.New("fail"),
@@ -512,6 +561,7 @@ var verifyEmailTests = []struct {
 	},
 	{
 		Scenario:                 "Email session update fail",
+		CSRFToken:                "csrfToken",
 		EmailVerificationCode:    "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn:    getEmailSessionSuccess(),
 		UpdateEmailSessionReturn: errors.New("fail"),
@@ -520,6 +570,7 @@ var verifyEmailTests = []struct {
 	},
 	{
 		Scenario:              "Cookie Save Error",
+		CSRFToken:             "csrfToken",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		HasCookiePutError:     true,
@@ -528,6 +579,7 @@ var verifyEmailTests = []struct {
 	},
 	{
 		Scenario:              "Mail Error",
+		CSRFToken:             "csrfToken",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		MethodsCalled:         []string{"GetEmailSession", "AddUser", "UpdateEmailSession"},
@@ -536,6 +588,7 @@ var verifyEmailTests = []struct {
 	},
 	{
 		Scenario:              "Email sent",
+		CSRFToken:             "csrfToken",
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		DestinatinURL:         "destinationURL",
@@ -547,7 +600,7 @@ func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &mockBackend{getEmailSessionReturn: test.getEmailSessionReturn, AddUserReturn: test.AddUserReturn, UpdateEmailSessionReturn: test.UpdateEmailSessionReturn}
 		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
-		destinationURL, err := store.verifyEmail(nil, &http.Request{}, test.EmailVerificationCode)
+		destinationURL, err := store.verifyEmail(nil, &http.Request{}, test.EmailVerificationCode, test.CSRFToken)
 		methods := store.backend.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) || test.DestinatinURL != destinationURL {
@@ -626,13 +679,13 @@ func TestRegisterPub(t *testing.T) {
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &mockBackend{}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	err := store.Register(nil, r)
+	_, err := store.Register(nil, r)
 	if err == nil || err.Error() != "Invalid email" {
 		t.Error("expected error from child register method", err)
 	}
 
 	buf.WriteString("b")
-	err = store.Register(nil, r)
+	_, err = store.Register(nil, r)
 	if err == nil || !strings.HasPrefix(err.Error(), "Unable to get email") {
 		t.Error("expected error from parent Register method", err)
 	}
@@ -651,7 +704,8 @@ func TestGetVerificationCode(t *testing.T) {
 func TestVerifyEmailPub(t *testing.T) {
 	var buf bytes.Buffer
 	buf.WriteString(`{"EmailVerificationCode":"nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0"}`) // random valid base64 encoded data
-	r := &http.Request{Body: ioutil.NopCloser(&buf)}
+	r := &http.Request{Body: ioutil.NopCloser(&buf), Header: http.Header{}}
+	r.Header.Add("X-CSRF-Token", "token")
 	backend := &mockBackend{getEmailSessionReturn: getEmailSessionErr()}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
 	_, err := store.VerifyEmail(nil, r)
@@ -682,13 +736,14 @@ func TestLoginJson(t *testing.T) {
 	r := &http.Request{Body: ioutil.NopCloser(&buf)}
 	backend := &mockBackend{LoginReturn: loginErr()}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	err := store.Login(nil, r).(*AuthError).innerError
+	_, lErr := store.Login(nil, r)
+	err := lErr.(*AuthError).innerError
 	if err == nil || err.Error() != "failed" {
 		t.Error("expected error from login method", err)
 	}
 
 	buf.WriteString("b")
-	err = store.Login(nil, r)
+	_, err = store.Login(nil, r)
 	if err == nil || err.Error() != "Unable to get credentials" {
 		t.Error("expected error from login method", err)
 	}
@@ -729,15 +784,16 @@ func TestCreateProfilePub(t *testing.T) {
 
 	r, _ := http.NewRequest("PUT", "url", &buf)
 	r.Header.Add("Content-Type", w.FormDataContentType())
+	r.Header.Add("X-CSRF-Token", "token")
 	backend := &mockBackend{}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	err := store.CreateProfile(nil, r)
+	_, err := store.CreateProfile(nil, r)
 	if err == nil || err.Error() != "Unable to get email verification cookie" {
 		t.Error("expected error from CreateProfile method", err)
 	}
 
 	r = &http.Request{Body: ioutil.NopCloser(&buf)}
-	err = store.CreateProfile(nil, r)
+	_, err = store.CreateProfile(nil, r)
 	if err == nil || err.Error() != "Unable to get profile information from form" {
 		t.Error("expected error from CreateProfile method", err)
 	}

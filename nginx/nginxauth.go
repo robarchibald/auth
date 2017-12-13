@@ -232,19 +232,19 @@ func basicErr(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func oauthLogin(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("oauthLogin", authStore.OAuthLogin, w, r)
+	runWithCSRF("oauthLogin", authStore.OAuthLogin, w, r)
 }
 
 func login(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("login", authStore.Login, w, r)
+	runWithCSRF("login", authStore.Login, w, r)
 }
 
 func register(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("register", authStore.Register, w, r)
+	runWithCSRF("register", authStore.Register, w, r)
 }
 
 func createProfile(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("createProfile", authStore.CreateProfile, w, r)
+	runWithCSRF("createProfile", authStore.CreateProfile, w, r)
 }
 
 func createSecondaryEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
@@ -265,7 +265,12 @@ func verifyEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Reque
 }
 
 func run(name string, method func(http.ResponseWriter, *http.Request) error, w http.ResponseWriter, r *http.Request) {
-	writeOutput(w, "{ \"result\": \"Success\" }", method(w, r))
+	writeOutput(w, `{ "result": "Success" }`, method(w, r))
+}
+
+func runWithCSRF(name string, method func(http.ResponseWriter, *http.Request) (string, error), w http.ResponseWriter, r *http.Request) {
+	csrfToken, err := method(w, r)
+	writeOutput(w, fmt.Sprintf(`{ "result": "Success", "csrfToken": "%s" }`, csrfToken), err)
 }
 
 func writeOutput(w http.ResponseWriter, message string, err error) {

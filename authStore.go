@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/pkg/errors"
 )
 
 var emailCookieName = "Email"
@@ -28,14 +29,17 @@ const rememberMeRenewDuration time.Duration = time.Hour
 const rememberMeExpireDuration time.Duration = time.Hour * 24 * 30 // 30 days
 const passwordValidationMessage string = "Password must be between 7 and 20 characters"
 
+var errInvalidCSRF = errors.New("Invalid CSRF token")
+var errMissingCSRF = errors.New("Missing CSRF token")
+
 // AuthStorer interface provides the necessary functionality to get and store authentication information
 type AuthStorer interface {
 	GetSession(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	GetBasicAuth(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
-	OAuthLogin(w http.ResponseWriter, r *http.Request) error
-	Login(w http.ResponseWriter, r *http.Request) error
-	Register(w http.ResponseWriter, r *http.Request) error
-	CreateProfile(w http.ResponseWriter, r *http.Request) error
+	OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error)
+	Login(w http.ResponseWriter, r *http.Request) (string, error)
+	Register(w http.ResponseWriter, r *http.Request) (string, error)
+	CreateProfile(w http.ResponseWriter, r *http.Request) (string, error)
 	VerifyEmail(w http.ResponseWriter, r *http.Request) (string, error)
 	CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error
 	SetPrimaryEmail(w http.ResponseWriter, r *http.Request) error
@@ -74,6 +78,10 @@ func NewAuthStore(b Backender, mailer Mailer, customPrefix string, cookieKey []b
 }
 
 func (s *authStore) GetSession(w http.ResponseWriter, r *http.Request) (*LoginSession, error) {
+	csrfToken := r.Header.Get("X-CSRF-Token")
+	if csrfToken == "" {
+		return nil, errMissingCSRF
+	}
 	cookie, err := s.getSessionCookie(w, r)
 	if err != nil || cookie.SessionID == "" { // impossible to get the session if there is no cookie
 		return nil, newAuthError("Session cookie not found", err)
@@ -93,6 +101,9 @@ func (s *authStore) GetSession(w http.ResponseWriter, r *http.Request) (*LoginSe
 			s.deleteSessionCookie(w)
 		}
 		return nil, newLoggedError("Failed to verify session", err)
+	}
+	if session.CSRFToken != csrfToken {
+		return nil, errInvalidCSRF
 	}
 	return session, nil
 }
@@ -172,13 +183,16 @@ func (s *authStore) renewSession(w http.ResponseWriter, r *http.Request, session
 }
 
 /******************************** Login ***********************************************/
-func (s *authStore) Login(w http.ResponseWriter, r *http.Request) error {
+func (s *authStore) Login(w http.ResponseWriter, r *http.Request) (string, error) {
 	credentials, err := getCredentials(r)
 	if err != nil {
-		return newAuthError("Unable to get credentials", err)
+		return "", newAuthError("Unable to get credentials", err)
 	}
-	_, err = s.login(w, r, credentials.Email, credentials.Password, credentials.RememberMe)
-	return err
+	session, err := s.login(w, r, credentials.Email, credentials.Password, credentials.RememberMe)
+	if err != nil {
+		return "", err
+	}
+	return session.CSRFToken, err
 }
 
 func (s *authStore) login(w http.ResponseWriter, r *http.Request, email, password string, rememberMe bool) (*LoginSession, error) {
@@ -199,26 +213,26 @@ func (s *authStore) login(w http.ResponseWriter, r *http.Request, email, passwor
 	return s.createSession(w, r, email, login.UserID, login.FullName, rememberMe)
 }
 
-func (s *authStore) OAuthLogin(w http.ResponseWriter, r *http.Request) error {
+func (s *authStore) OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error) {
 	email, fullname, err := getOAuthCredentials(r)
 	if err != nil {
-		return err
+		return "", err
 	}
 	return s.oauthLogin(w, r, email, fullname)
 }
 
-func (s *authStore) oauthLogin(w http.ResponseWriter, r *http.Request, email, fullname string) error {
+func (s *authStore) oauthLogin(w http.ResponseWriter, r *http.Request, email, fullname string) (string, error) {
 	var userID string
 	user, err := s.backend.GetUser(email)
 	if user == nil || err != nil {
 		userID, err = s.backend.AddUser(email)
 		if err != nil {
-			return newLoggedError("Failed to create new user in database", err)
+			return "", newLoggedError("Failed to create new user in database", err)
 		}
 
 		err = s.backend.UpdateUser(userID, fullname, "", "")
 		if err != nil {
-			return newLoggedError("Unable to update user", err)
+			return "", newLoggedError("Unable to update user", err)
 		}
 	} else {
 		userID = user.UserID
@@ -227,15 +241,15 @@ func (s *authStore) oauthLogin(w http.ResponseWriter, r *http.Request, email, fu
 	if _, err := s.backend.GetLogin(email); err != nil {
 		_, err = s.backend.CreateLogin(userID, email, "", fullname)
 		if err != nil {
-			return newLoggedError("Unable to create login", err)
+			return "", newLoggedError("Unable to create login", err)
 		}
 	}
 
-	_, err = s.createSession(w, r, email, userID, fullname, false)
+	session, err := s.createSession(w, r, email, userID, fullname, false)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return nil
+	return session.CSRFToken, nil
 }
 
 func getOAuthCredentials(r *http.Request) (string, string, error) {
@@ -290,7 +304,12 @@ func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, email,
 		return nil, newLoggedError("Problem generating sessionId", nil)
 	}
 
-	session, remember, err := s.backend.CreateSession(userID, email, fullname, sessionHash, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
+	csrfToken, err := generateRandomString()
+	if err != nil {
+		return nil, newLoggedError("Problem generating csrf token", nil)
+	}
+
+	session, remember, err := s.backend.CreateSession(userID, email, fullname, sessionHash, csrfToken, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
 	if err != nil {
 		return nil, newLoggedError("Unable to create new session", err)
 	}
@@ -332,35 +351,35 @@ type sendVerifyParams struct {
 	RefererBaseURL   string
 }
 
-func (s *authStore) Register(w http.ResponseWriter, r *http.Request) error {
+func (s *authStore) Register(w http.ResponseWriter, r *http.Request) (string, error) { // no CSRF check here. This is the first API call
 	registration, err := getRegistration(r)
 	if err != nil {
-		return newAuthError("Unable to get email", err)
+		return "", newAuthError("Unable to get email", err)
 	}
 	return s.register(r, registration.Email, registration.DestinationURL)
 }
 
-func (s *authStore) register(r *http.Request, email, destinationURL string) error {
+func (s *authStore) register(r *http.Request, email, destinationURL string) (string, error) {
 	if !isValidEmail(email) {
-		return newAuthError("Invalid email", nil)
+		return "", newAuthError("Invalid email", nil)
 	}
 
 	user, err := s.backend.GetUser(email)
 	if user != nil {
-		return newAuthError("User already registered", err)
+		return "", newAuthError("User already registered", err)
 	}
 
-	verifyCode, err := s.addEmailSession(email, destinationURL)
+	verifyCode, csrfToken, err := s.addEmailSession(email, destinationURL)
 	if err != nil {
-		return newLoggedError("Unable to save user", err)
+		return "", newLoggedError("Unable to save user", err)
 	}
 
 	code := verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
 	if err := s.mailer.SendVerify(email, &sendVerifyParams{code, email, getBaseURL(r.Referer())}); err != nil {
-		return newLoggedError("Unable to send verification email", err)
+		return "", newLoggedError("Unable to send verification email", err)
 	}
 
-	return nil
+	return csrfToken, nil
 }
 
 func getBaseURL(url string) string {
@@ -375,66 +394,78 @@ func getBaseURL(url string) string {
 	return url[:protoIndex+3+firstSlash]
 }
 
-func (s *authStore) addEmailSession(email, destinationURL string) (string, error) {
+func (s *authStore) addEmailSession(email, destinationURL string) (string, string, error) {
 	verifyCode, verifyHash, err := generateStringAndHash()
 	if err != nil {
-		return "", newLoggedError("Problem generating email confirmation code", err)
+		return "", "", newLoggedError("Problem generating email confirmation code", err)
 	}
 
-	err = s.backend.CreateEmailSession(email, verifyHash, destinationURL)
+	csrfToken, err := generateRandomString()
 	if err != nil {
-		return "", newLoggedError("Problem adding user to database", err)
+		return "", "", newLoggedError("Problem generating csrf token", err)
 	}
 
-	return verifyCode, nil
+	err = s.backend.CreateEmailSession(email, verifyHash, csrfToken, destinationURL)
+	if err != nil {
+		return "", "", newLoggedError("Problem adding user to database", err)
+	}
+
+	return verifyCode, csrfToken, nil
 }
 
-func (s *authStore) CreateProfile(w http.ResponseWriter, r *http.Request) error {
+func (s *authStore) CreateProfile(w http.ResponseWriter, r *http.Request) (string, error) {
 	profile, err := getProfile(r)
 	if err != nil {
-		return newAuthError("Unable to get profile information from form", err)
+		return "", newAuthError("Unable to get profile information from form", err)
 	}
-	return s.createProfile(w, r, profile.FullName, profile.Organization, profile.Password, profile.PicturePath)
+	csrfToken := r.Header.Get("X-CSRF-Token")
+	if csrfToken == "" {
+		return "", errMissingCSRF
+	}
+	return s.createProfile(w, r, csrfToken, profile.FullName, profile.Organization, profile.Password, profile.PicturePath)
 }
 
-func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, fullName, organization, password, picturePath string) error {
+func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, csrfToken, fullName, organization, password, picturePath string) (string, error) {
 	emailCookie, err := s.getEmailCookie(w, r)
 	if err != nil || emailCookie.EmailVerificationCode == "" {
-		return newLoggedError("Unable to get email verification cookie", err)
+		return "", newLoggedError("Unable to get email verification cookie", err)
 	}
 
 	emailVerifyHash, err := decodeStringToHash(emailCookie.EmailVerificationCode) // base64 decode and hash
 	if err != nil {
-		return newLoggedError("Invalid email verification cookie", err)
+		return "", newLoggedError("Invalid email verification cookie", err)
 	}
 
 	session, err := s.backend.GetEmailSession(emailVerifyHash)
 	if err != nil {
-		return newLoggedError("Invalid email verification", err)
+		return "", newLoggedError("Invalid email verification", err)
+	}
+	if session.CSRFToken != csrfToken {
+		return "", errInvalidCSRF
 	}
 
 	err = s.backend.UpdateUser(session.UserID, fullName, organization, picturePath)
 	if err != nil {
-		return newLoggedError("Unable to update user", err)
+		return "", newLoggedError("Unable to update user", err)
 	}
 
 	err = s.backend.DeleteEmailSession(session.EmailVerifyHash)
 	if err != nil {
-		return newLoggedError("Error while creating profile", err)
+		return "", newLoggedError("Error while creating profile", err)
 	}
 
 	_, err = s.backend.CreateLogin(session.UserID, session.Email, password, fullName)
 	if err != nil {
-		return newLoggedError("Unable to create login", err)
+		return "", newLoggedError("Unable to create login", err)
 	}
 
-	_, err = s.createSession(w, r, session.Email, session.UserID, fullName, false)
+	ls, err := s.createSession(w, r, session.Email, session.UserID, fullName, false)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	s.deleteEmailCookie(w)
-	return nil
+	return ls.CSRFToken, nil
 }
 
 // move to sessionStore
@@ -443,10 +474,14 @@ func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request) (string,
 	if err != nil {
 		return "", newAuthError("Unable to get verification email from JSON", err)
 	}
-	return s.verifyEmail(w, r, verify.EmailVerificationCode)
+	csrfToken := r.Header.Get("X-CSRF-Token")
+	if csrfToken == "" {
+		return "", errMissingCSRF
+	}
+	return s.verifyEmail(w, r, verify.EmailVerificationCode, csrfToken)
 }
 
-func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode string) (string, error) {
+func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, csrfToken string) (string, error) {
 	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
 		emailVerificationCode = emailVerificationCode + "="
 	}
@@ -459,13 +494,16 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, emailVer
 	if err != nil {
 		return "", newLoggedError("Failed to verify email", err)
 	}
+	if session.CSRFToken != csrfToken {
+		return "", errInvalidCSRF
+	}
 
 	userID, err := s.backend.AddUser(session.Email)
 	if err != nil {
 		return "", newLoggedError("Failed to create new user in database", err)
 	}
 
-	err = s.backend.UpdateEmailSession(emailVerifyHash, userID, session.Email, session.DestinationURL)
+	err = s.backend.UpdateEmailSession(emailVerifyHash, userID)
 	if err != nil {
 		return "", newLoggedError("Failed to update email session", err)
 	}
@@ -551,8 +589,8 @@ func (s *authStore) saveRememberMeCookie(w http.ResponseWriter, r *http.Request,
 }
 
 type registration struct {
-	Email          string
-	DestinationURL string
+	Email          string `json:"email"`
+	DestinationURL string `json:"destinationURL"`
 }
 
 func getRegistration(r *http.Request) (*registration, error) {
@@ -561,7 +599,7 @@ func getRegistration(r *http.Request) (*registration, error) {
 }
 
 type emailVerificationCode struct {
-	EmailVerificationCode string
+	EmailVerificationCode string `json:"emailVerificationCode"`
 }
 
 func getVerificationCode(r *http.Request) (*emailVerificationCode, error) {

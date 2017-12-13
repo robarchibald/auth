@@ -62,12 +62,12 @@ type loginBackender interface {
 }
 
 type sessionBackender interface {
-	CreateEmailSession(email, emailVerifyHash, destinationURL string) error
+	CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL string) error
 	GetEmailSession(verifyHash string) (*emailSession, error)
-	UpdateEmailSession(verifyHash string, userID, email, destinationURL string) error
+	UpdateEmailSession(verifyHash string, userID string) error
 	DeleteEmailSession(verifyHash string) error
 
-	CreateSession(userID, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error)
+	CreateSession(userID, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error)
 	GetSession(sessionHash string) (*LoginSession, error)
 	RenewSession(sessionHash string, renewTimeUTC time.Time) (*LoginSession, error)
 	InvalidateSession(sessionHash string) error
@@ -83,6 +83,7 @@ type emailSession struct {
 	UserID          string
 	Email           string
 	EmailVerifyHash string
+	CSRFToken       string
 	DestinationURL  string
 }
 
@@ -107,6 +108,7 @@ type LoginSession struct {
 	Email         string
 	FullName      string
 	SessionHash   string
+	CSRFToken     string
 	RenewTimeUTC  time.Time
 	ExpireTimeUTC time.Time
 }
@@ -184,8 +186,8 @@ func (b *backend) Login(email, password string) (*UserLogin, error) {
 	return b.l.Login(email, password)
 }
 
-func (b *backend) CreateSession(userID string, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
-	return b.s.CreateSession(userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC, rememberMe, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC)
+func (b *backend) CreateSession(userID string, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
+	return b.s.CreateSession(userID, email, fullname, sessionHash, csrfToken, sessionRenewTimeUTC, sessionExpireTimeUTC, rememberMe, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC)
 }
 
 func (b *backend) GetSession(sessionHash string) (*LoginSession, error) {
@@ -204,16 +206,16 @@ func (b *backend) RenewRememberMe(selector string, renewTimeUTC time.Time) (*rem
 	return b.s.RenewRememberMe(selector, renewTimeUTC)
 }
 
-func (b *backend) CreateEmailSession(email, emailVerifyHash, destinationURL string) error {
-	return b.s.CreateEmailSession(email, emailVerifyHash, destinationURL)
+func (b *backend) CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL string) error {
+	return b.s.CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL)
 }
 
 func (b *backend) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
 	return b.s.GetEmailSession(emailVerifyHash)
 }
 
-func (b *backend) UpdateEmailSession(emailVerifyHash string, userID, email, destinationURL string) error {
-	return b.s.UpdateEmailSession(emailVerifyHash, userID, email, destinationURL)
+func (b *backend) UpdateEmailSession(emailVerifyHash string, userID string) error {
+	return b.s.UpdateEmailSession(emailVerifyHash, userID)
 }
 
 func (b *backend) DeleteEmailSession(emailVerifyHash string) error {

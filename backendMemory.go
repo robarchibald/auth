@@ -53,13 +53,13 @@ func (m *backendMemory) Login(email, password string) (*UserLogin, error) {
 	return &UserLogin{login.UserID, login.Email, login.FullName}, nil
 }
 
-func (m *backendMemory) CreateSession(userID, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
+func (m *backendMemory) CreateSession(userID, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
 	session := m.getSessionByHash(sessionHash)
 	if session != nil {
 		return nil, nil, errSessionAlreadyExists
 	}
 
-	session = &LoginSession{userID, email, fullname, sessionHash, sessionRenewTimeUTC, sessionExpireTimeUTC}
+	session = &LoginSession{userID, email, fullname, sessionHash, csrfToken, sessionRenewTimeUTC, sessionExpireTimeUTC}
 	m.Sessions = append(m.Sessions, session)
 	var rememberItem *rememberMeSession
 	if rememberMe {
@@ -111,7 +111,7 @@ func (m *backendMemory) RenewRememberMe(selector string, renewTimeUTC time.Time)
 	return rememberMe, nil
 }
 
-func (m *backendMemory) CreateEmailSession(email, emailVerifyHash, destinationURL string) error {
+func (m *backendMemory) CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL string) error {
 	if m.getUserByEmail(email) != nil {
 		return errUserAlreadyExists
 	}
@@ -119,7 +119,7 @@ func (m *backendMemory) CreateEmailSession(email, emailVerifyHash, destinationUR
 		return errEmailVerifyHashExists
 	}
 
-	m.EmailSessions = append(m.EmailSessions, &emailSession{"", email, emailVerifyHash, destinationURL})
+	m.EmailSessions = append(m.EmailSessions, &emailSession{"", email, emailVerifyHash, csrfToken, destinationURL})
 
 	return nil
 }
@@ -133,7 +133,7 @@ func (m *backendMemory) GetEmailSession(emailVerifyHash string) (*emailSession, 
 	return session, nil
 }
 
-func (m *backendMemory) UpdateEmailSession(verifyHash string, userID, email, destinationURL string) error {
+func (m *backendMemory) UpdateEmailSession(verifyHash, userID string) error {
 	session := m.getEmailSessionByEmailVerifyHash(verifyHash)
 	if session == nil {
 		return errEmailVerifyHashExists

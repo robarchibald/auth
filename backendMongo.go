@@ -49,7 +49,7 @@ func (b *backendMongo) AddUser(email string) (string, error) {
 func (b *backendMongo) getUser(email string) (*mongoUser, error) {
 	u := &mongoUser{}
 	m := b.m.Clone()
-	return u, m.DB("users").C("users").Find(bson.M{"email": email}).One(u)
+	return u, m.DB("users").C("users").Find(bson.M{"primaryEmail": email}).One(u)
 }
 
 func (b *backendMongo) GetUser(email string) (*user, error) {
@@ -113,19 +113,19 @@ func (b *backendMongo) UpdatePassword(userID, newPassword string) error {
 	}
 	return m.DB("users").C("users").UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"passwordHash": passwordHash}})
 }
-func (b *backendMongo) CreateEmailSession(email, emailVerifyHash, destinationURL string) error {
+func (b *backendMongo) CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL string) error {
 	return nil
 }
 func (b *backendMongo) GetEmailSession(verifyHash string) (*emailSession, error) {
 	return nil, nil
 }
-func (b *backendMongo) UpdateEmailSession(verifyHash string, userID, email, destinationURL string) error {
+func (b *backendMongo) UpdateEmailSession(verifyHash, userID string) error {
 	return nil
 }
 func (b *backendMongo) DeleteEmailSession(verifyHash string) error {
 	return nil
 }
-func (b *backendMongo) CreateSession(userID, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
+func (b *backendMongo) CreateSession(userID, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
 	return nil, nil, nil
 }
 func (b *backendMongo) GetSession(sessionHash string) (*LoginSession, error) {

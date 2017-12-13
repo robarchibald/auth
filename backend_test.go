@@ -31,7 +31,7 @@ func TestBackendLogin(t *testing.T) {
 func TestBackendCreateSession(t *testing.T) {
 	m := &mockBackend{CreateSessionReturn: sessionRemember(time.Now(), time.Now())}
 	b := backend{u: m, l: m, s: m}
-	b.CreateSession("1", "test@test.com", "fullname", "hash", time.Now(), time.Now(), false, "", "", time.Now(), time.Now())
+	b.CreateSession("1", "test@test.com", "fullname", "hash", "csrfToken", time.Now(), time.Now(), false, "", "", time.Now(), time.Now())
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "CreateSession" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
@@ -272,7 +272,7 @@ func (b *mockBackend) GetSession(sessionHash string) (*LoginSession, error) {
 	return b.GetSessionReturn.Session, b.GetSessionReturn.Err
 }
 
-func (b *mockBackend) CreateSession(userID, email, fullname, sessionHash string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
+func (b *mockBackend) CreateSession(userID, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateSession")
 	if b.CreateSessionReturn == nil {
 		return nil, nil, errors.New("CreateSessionReturn not initialized")
@@ -306,7 +306,7 @@ func (b *mockBackend) AddUser(email string) (string, error) {
 	return "1", b.AddUserReturn
 }
 
-func (b *mockBackend) CreateEmailSession(email, emailVerifyHash, destinationURL string) error {
+func (b *mockBackend) CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateEmailSession")
 	return b.ErrReturn
 }
@@ -319,7 +319,7 @@ func (b *mockBackend) GetEmailSession(emailVerifyHash string) (*emailSession, er
 	return b.getEmailSessionReturn.Session, b.getEmailSessionReturn.Err
 }
 
-func (b *mockBackend) UpdateEmailSession(emailVerifyHash string, userID, email, destinationURL string) error {
+func (b *mockBackend) UpdateEmailSession(emailVerifyHash, userID string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdateEmailSession")
 	return b.UpdateEmailSessionReturn
 }
@@ -393,7 +393,7 @@ func loginErr() *LoginReturn {
 }
 
 func sessionSuccess(renewTimeUTC, expireTimeUTC time.Time) *SessionReturn {
-	return &SessionReturn{&LoginSession{"1", "test@test.com", "fullname", "sessionHash", renewTimeUTC, expireTimeUTC}, nil}
+	return &SessionReturn{&LoginSession{"1", "test@test.com", "fullname", "sessionHash", "csrfToken", renewTimeUTC, expireTimeUTC}, nil}
 }
 
 func sessionErr() *SessionReturn {
@@ -409,7 +409,7 @@ func rememberErr() *RememberMeReturn {
 }
 
 func sessionRemember(renewTimeUTC, expireTimeUTC time.Time) *SessionRememberReturn {
-	return &SessionRememberReturn{&LoginSession{"1", "test@test.com", "fullname", "sessionHash", renewTimeUTC, expireTimeUTC}, &rememberMeSession{TokenHash: "PEaenWxYddN6Q_NT1PiOYfz4EsZu7jRXRlpAsNpBU-A=", ExpireTimeUTC: expireTimeUTC, RenewTimeUTC: renewTimeUTC}, nil}
+	return &SessionRememberReturn{&LoginSession{"1", "test@test.com", "fullname", "sessionHash", "csrfToken", renewTimeUTC, expireTimeUTC}, &rememberMeSession{TokenHash: "PEaenWxYddN6Q_NT1PiOYfz4EsZu7jRXRlpAsNpBU-A=", ExpireTimeUTC: expireTimeUTC, RenewTimeUTC: renewTimeUTC}, nil}
 }
 
 func sessionRememberErr() *SessionRememberReturn {
@@ -417,7 +417,7 @@ func sessionRememberErr() *SessionRememberReturn {
 }
 
 func getEmailSessionSuccess() *getEmailSessionReturn {
-	return &getEmailSessionReturn{&emailSession{Email: "email@test.com", EmailVerifyHash: "hash", DestinationURL: "destinationURL"}, nil}
+	return &getEmailSessionReturn{&emailSession{Email: "email@test.com", EmailVerifyHash: "hash", DestinationURL: "destinationURL", CSRFToken: "csrfToken"}, nil}
 }
 func getEmailSessionErr() *getEmailSessionReturn {
 	return &getEmailSessionReturn{nil, errors.New("failed")}

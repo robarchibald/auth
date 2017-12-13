@@ -180,21 +180,21 @@ func (s *mockAuthStorer) GetBasicAuth(w http.ResponseWriter, r *http.Request) (*
 	s.LastRun = "GetBasicAuth"
 	return s.SessionReturn, s.ErrReturn
 }
-func (s *mockAuthStorer) OAuthLogin(w http.ResponseWriter, r *http.Request) error {
+func (s *mockAuthStorer) OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error) {
 	s.LastRun = "OAuthLogin"
-	return s.ErrReturn
+	return "csrfToken", s.ErrReturn
 }
-func (s *mockAuthStorer) Login(w http.ResponseWriter, r *http.Request) error {
+func (s *mockAuthStorer) Login(w http.ResponseWriter, r *http.Request) (string, error) {
 	s.LastRun = "Login"
-	return s.ErrReturn
+	return "csrfToken", s.ErrReturn
 }
-func (s *mockAuthStorer) Register(w http.ResponseWriter, r *http.Request) error {
+func (s *mockAuthStorer) Register(w http.ResponseWriter, r *http.Request) (string, error) {
 	s.LastRun = "Register"
-	return s.ErrReturn
+	return "csrfToken", s.ErrReturn
 }
-func (s *mockAuthStorer) CreateProfile(w http.ResponseWriter, r *http.Request) error {
+func (s *mockAuthStorer) CreateProfile(w http.ResponseWriter, r *http.Request) (string, error) {
 	s.LastRun = "CreateProfile"
-	return s.ErrReturn
+	return "csrfToken", s.ErrReturn
 }
 func (s *mockAuthStorer) VerifyEmail(w http.ResponseWriter, r *http.Request) (string, error) {
 	s.LastRun = "VerifyEmail"
