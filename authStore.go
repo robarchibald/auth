@@ -493,7 +493,11 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, emailVer
 
 	userID, err := s.backend.AddUser(session.Email)
 	if err != nil {
-		return "", "", newLoggedError("Failed to create new user in database", err)
+		user, err := s.backend.GetUser(session.Email)
+		if err != nil {
+			return "", "", newLoggedError("Failed to get user in database", err)
+		}
+		userID = user.UserID
 	}
 
 	err = s.backend.UpdateEmailSession(emailVerifyHash, userID)
