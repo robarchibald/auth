@@ -546,8 +546,8 @@ var verifyEmailTests = []struct {
 		EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 		getEmailSessionReturn: getEmailSessionSuccess(),
 		AddUserReturn:         errors.New("fail"),
-		MethodsCalled:         []string{"GetEmailSession", "AddUser"},
-		ExpectedErr:           "Failed to create new user in database",
+		MethodsCalled:         []string{"GetEmailSession", "AddUser", "GetUser"},
+		ExpectedErr:           "Failed to get user in database",
 	},
 	{
 		Scenario:                 "Email session update fail",
