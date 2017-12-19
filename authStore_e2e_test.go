@@ -167,7 +167,7 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 	}
 
 	// create profile
-	newToken, err := s.createProfile(nil, r, csrfToken, fullName, "company", password, "picturePath")
+	newSession, err := s.createProfile(nil, r, csrfToken, fullName, "company", password, "picturePath")
 	if err != nil {
 		return "", nil, err
 	}
@@ -198,7 +198,7 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 	if session == nil || session.SessionHash != sessionHash || session.Email != oldEmailSession.Email || session.UserID != oldEmailSession.UserID || session.FullName != fullName {
 		return "", nil, errors.Errorf("expected session to be created, %v", session)
 	}
-	return newToken, sessionCookie, nil
+	return newSession.CSRFToken, sessionCookie, nil
 }
 
 func _login(email, password string, remember bool, clientSessionCookie *sessionCookie, rememberCookie *rememberMeCookie, b *backendMemory, m *TextMailer) (string, *sessionCookie, *rememberMeCookie, error) {

@@ -97,9 +97,9 @@ type user struct {
 
 // UserLogin is the struct which holds login information
 type UserLogin struct {
-	UserID   string
-	Email    string
-	FullName string
+	UserID   string `json:"userID"`
+	Email    string `json:"email"`
+	FullName string `json:"fullName"`
 }
 
 // LoginSession is the struct which holds session information

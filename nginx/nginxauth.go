@@ -236,7 +236,7 @@ func oauthLogin(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Reques
 }
 
 func login(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	runWithCSRF("login", authStore.Login, w, r)
+	runWithProfile(authStore.Login, w, r)
 }
 
 func register(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
@@ -244,7 +244,7 @@ func register(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request)
 }
 
 func createProfile(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	runWithCSRF("createProfile", authStore.CreateProfile, w, r)
+	runWithProfile(authStore.CreateProfile, w, r)
 }
 
 func createSecondaryEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
@@ -266,6 +266,22 @@ func verifyEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Reque
 
 func run(name string, method func(http.ResponseWriter, *http.Request) error, w http.ResponseWriter, r *http.Request) {
 	writeOutput(w, `{ "result": "Success" }`, method(w, r))
+}
+
+func runWithProfile(method func(http.ResponseWriter, *http.Request) (*auth.LoginSession, error), w http.ResponseWriter, r *http.Request) {
+	s, err := method(w, r)
+	if err != nil {
+		authErr(w, r, err)
+		return
+	}
+
+	user, err := json.Marshal(&auth.UserLogin{Email: s.Email, UserID: s.UserID, FullName: s.FullName})
+	if err != nil {
+		authErr(w, r, err)
+		return
+	}
+
+	writeOutput(w, string(user), nil)
 }
 
 func runWithCSRF(name string, method func(http.ResponseWriter, *http.Request) (string, error), w http.ResponseWriter, r *http.Request) {
