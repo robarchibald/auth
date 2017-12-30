@@ -42,24 +42,14 @@ func (r *backendRedisSession) DeleteEmailSession(emailVerifyHash string) error {
 	return nil
 }
 
-func (r *backendRedisSession) CreateSession(userID, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time,
-	includeRememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
-	session := LoginSession{userID, email, fullname, sessionHash, csrfToken, sessionRenewTimeUTC, sessionExpireTimeUTC}
-	err := r.saveSession(&session)
-	if err != nil {
-		return nil, nil, err
-	}
+func (r *backendRedisSession) CreateSession(userID, email, fullname, sessionHash, csrfToken string, renewTimeUTC, expireTimeUTC time.Time) (*LoginSession, error) {
+	session := LoginSession{userID, email, fullname, sessionHash, csrfToken, renewTimeUTC, expireTimeUTC}
+	return &session, r.saveSession(&session)
+}
 
-	var rememberMe rememberMeSession
-	if includeRememberMe {
-		rememberMe = rememberMeSession{userID, email, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC}
-		err = r.saveRememberMe(&rememberMe)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return &session, &rememberMe, nil
+func (r *backendRedisSession) CreateRememberMe(userID, email, selector, tokenHash string, renewTimeUTC, expireTimeUTC time.Time) (*rememberMeSession, error) {
+	rememberMe := rememberMeSession{userID, email, selector, tokenHash, renewTimeUTC, expireTimeUTC}
+	return &rememberMe, r.saveRememberMe(&rememberMe)
 }
 
 func (r *backendRedisSession) GetSession(sessionHash string) (*LoginSession, error) {
@@ -67,22 +57,17 @@ func (r *backendRedisSession) GetSession(sessionHash string) (*LoginSession, err
 	return session, r.db.QueryStructRow(onedb.NewRedisGetCommand(r.getSessionKey(sessionHash)), session)
 }
 
-func (r *backendRedisSession) RenewSession(sessionHash string, renewTimeUTC time.Time) (*LoginSession, error) {
+func (r *backendRedisSession) UpdateSession(sessionHash string, renewTimeUTC, expireTimeUTC time.Time) error {
 	session, err := r.GetSession(sessionHash)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if session.ExpireTimeUTC.Before(time.Now().UTC()) {
-		session.ExpireTimeUTC = time.Now().UTC().Add(sessionExpireDuration)
-	}
+	session.ExpireTimeUTC = expireTimeUTC
 	session.RenewTimeUTC = renewTimeUTC
-	if err := r.saveSession(session); err != nil {
-		return nil, err
-	}
-	return session, nil
+	return r.saveSession(session)
 }
 
-func (r *backendRedisSession) InvalidateSession(sessionHash string) error {
+func (r *backendRedisSession) DeleteSession(sessionHash string) error {
 	return r.db.Execute(onedb.NewRedisDelCommand(r.getSessionKey(sessionHash)))
 }
 
@@ -95,19 +80,16 @@ func (r *backendRedisSession) GetRememberMe(selector string) (*rememberMeSession
 	return rememberMe, r.db.QueryStructRow(onedb.NewRedisGetCommand(r.getRememberMeKey(selector)), rememberMe)
 }
 
-func (r *backendRedisSession) RenewRememberMe(selector string, renewTimeUTC time.Time) (*rememberMeSession, error) {
+func (r *backendRedisSession) UpdateRememberMe(selector string, renewTimeUTC time.Time) error {
 	rememberMe, err := r.GetRememberMe(selector)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	rememberMe.RenewTimeUTC = renewTimeUTC
-	if err := r.saveRememberMe(rememberMe); err != nil {
-		return nil, err
-	}
-	return rememberMe, nil
+	return r.saveRememberMe(rememberMe)
 }
 
-func (r *backendRedisSession) InvalidateRememberMe(selector string) error {
+func (r *backendRedisSession) DeleteRememberMe(selector string) error {
 	return r.db.Execute(onedb.NewRedisDelCommand(r.getRememberMeKey(selector)))
 }
 

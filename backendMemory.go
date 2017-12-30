@@ -53,25 +53,26 @@ func (m *backendMemory) Login(email, password string) (*UserLogin, error) {
 	return &UserLogin{login.UserID, login.Email, login.FullName}, nil
 }
 
-func (m *backendMemory) CreateSession(userID, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
+func (m *backendMemory) CreateSession(userID, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*LoginSession, error) {
 	session := m.getSessionByHash(sessionHash)
 	if session != nil {
-		return nil, nil, errSessionAlreadyExists
+		return nil, errSessionAlreadyExists
 	}
 
 	session = &LoginSession{userID, email, fullname, sessionHash, csrfToken, sessionRenewTimeUTC, sessionExpireTimeUTC}
 	m.Sessions = append(m.Sessions, session)
-	var rememberItem *rememberMeSession
-	if rememberMe {
-		rememberItem = m.getRememberMe(rememberMeSelector)
-		if rememberItem != nil {
-			return nil, nil, errRememberMeSelectorExists
-		}
+	return session, nil
+}
 
-		rememberItem = &rememberMeSession{userID, email, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC}
-		m.RememberMes = append(m.RememberMes, rememberItem)
+func (m *backendMemory) CreateRememberMe(userID, email, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*rememberMeSession, error) {
+	rememberItem := m.getRememberMe(rememberMeSelector)
+	if rememberItem != nil {
+		return nil, errRememberMeSelectorExists
 	}
-	return session, rememberItem, nil
+
+	rememberItem = &rememberMeSession{userID, email, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC}
+	m.RememberMes = append(m.RememberMes, rememberItem)
+	return rememberItem, nil
 }
 
 func (m *backendMemory) GetSession(sessionHash string) (*LoginSession, error) {
@@ -82,16 +83,14 @@ func (m *backendMemory) GetSession(sessionHash string) (*LoginSession, error) {
 	return session, nil
 }
 
-func (m *backendMemory) RenewSession(sessionHash string, renewTimeUTC time.Time) (*LoginSession, error) {
+func (m *backendMemory) UpdateSession(sessionHash string, renewTimeUTC, expireTimeUTC time.Time) error {
 	session := m.getSessionByHash(sessionHash)
 	if session == nil {
-		return nil, errSessionNotFound
+		return errSessionNotFound
 	}
-	if session.ExpireTimeUTC.Before(time.Now().UTC()) {
-		session.ExpireTimeUTC = time.Now().UTC().Add(sessionExpireDuration)
-	}
+	session.ExpireTimeUTC = expireTimeUTC
 	session.RenewTimeUTC = renewTimeUTC
-	return session, nil
+	return nil
 }
 
 func (m *backendMemory) GetRememberMe(selector string) (*rememberMeSession, error) {
@@ -102,13 +101,13 @@ func (m *backendMemory) GetRememberMe(selector string) (*rememberMeSession, erro
 	return rememberMe, nil
 }
 
-func (m *backendMemory) RenewRememberMe(selector string, renewTimeUTC time.Time) (*rememberMeSession, error) {
+func (m *backendMemory) UpdateRememberMe(selector string, renewTimeUTC time.Time) error {
 	rememberMe := m.getRememberMe(selector)
 	if rememberMe == nil {
-		return nil, errRememberMeNotFound
+		return errRememberMeNotFound
 	}
 	rememberMe.RenewTimeUTC = renewTimeUTC
-	return rememberMe, nil
+	return nil
 }
 
 func (m *backendMemory) CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL string) error {
@@ -198,7 +197,7 @@ func (m *backendMemory) UpdatePassword(userID string, newPassword string) error 
 	return nil
 }
 
-func (m *backendMemory) InvalidateSession(sessionHash string) error {
+func (m *backendMemory) DeleteSession(sessionHash string) error {
 	m.removeSession(sessionHash)
 	return nil
 }
@@ -207,7 +206,7 @@ func (m *backendMemory) InvalidateSessions(email string) error {
 	return nil
 }
 
-func (m *backendMemory) InvalidateRememberMe(selector string) error {
+func (m *backendMemory) DeleteRememberMe(selector string) error {
 	m.removeRememberMe(selector)
 	return nil
 }
