@@ -91,10 +91,6 @@ func (s *authStore) GetSession(w http.ResponseWriter, r *http.Request) (*LoginSe
 		return nil, newAuthError("Unable to decode session cookie", err)
 	}
 
-	if cookie.RenewTimeUTC.Before(time.Now().UTC()) || cookie.ExpireTimeUTC.Before(time.Now().UTC()) {
-		return s.renewSession(w, r, cookie.SessionID, sessionHash, &cookie.RenewTimeUTC, &cookie.ExpireTimeUTC)
-	}
-
 	session, err := s.backend.GetSession(sessionHash)
 	if err != nil {
 		if err == errSessionNotFound {
@@ -102,6 +98,12 @@ func (s *authStore) GetSession(w http.ResponseWriter, r *http.Request) (*LoginSe
 		}
 		return nil, newLoggedError("Failed to verify session", err)
 	}
+	if session.RenewTimeUTC.Before(time.Now().UTC()) || session.ExpireTimeUTC.Before(time.Now().UTC()) {
+		if err := s.renewSession(w, r, cookie.SessionID, session); err != nil {
+			return nil, err
+		}
+	}
+
 	if session.CSRFToken != csrfToken {
 		return nil, errInvalidCSRF
 	}
@@ -146,40 +148,42 @@ func (s *authStore) getRememberMe(w http.ResponseWriter, r *http.Request) (*reme
 		return nil, newLoggedError("RememberMe cookie doesn't match backend token", err)
 	}
 	if rememberMe.RenewTimeUTC.Before(time.Now().UTC()) {
-		rememberMe, err = s.backend.RenewRememberMe(cookie.Selector, time.Now().UTC().Add(rememberMeRenewDuration))
+		renewTimeUTC := time.Now().UTC().Add(rememberMeRenewDuration)
+		err = s.backend.UpdateRememberMe(cookie.Selector, renewTimeUTC)
 		if err != nil {
 			if err == errRememberMeNotFound {
 				s.deleteRememberMeCookie(w)
 			}
 			return nil, newLoggedError("Unable to renew RememberMe", err)
 		}
+		rememberMe.RenewTimeUTC = renewTimeUTC
 	}
 	return rememberMe, nil
 }
 
-func (s *authStore) renewSession(w http.ResponseWriter, r *http.Request, sessionID, sessionHash string, renewTimeUTC, expireTimeUTC *time.Time) (*LoginSession, error) {
+func (s *authStore) renewSession(w http.ResponseWriter, r *http.Request, sessionID string, session *LoginSession) error {
 	// expired so check for valid rememberMe for renewal
-	if expireTimeUTC.Before(time.Now().UTC()) {
-		_, err := s.getRememberMe(w, r)
+	if session.ExpireTimeUTC.Before(time.Now().UTC()) {
+		r, err := s.getRememberMe(w, r)
 		if err != nil {
-			return nil, newAuthError("Unable to renew session", err)
+			return newAuthError("Unable to renew session", err)
 		}
-	}
-	// TODO: may want to change to add logic to ensure that we don't renew past the expire date
-	// and so that we can't exceed the rememberMe expire time. Then, again, it may not matter much
-	// with just a 5 minute renew time.
-	session, err := s.backend.RenewSession(sessionHash, time.Now().UTC().Add(sessionRenewDuration))
-	if err != nil {
-		if err == errSessionNotFound {
-			s.deleteSessionCookie(w)
+		session.ExpireTimeUTC = time.Now().UTC().Add(sessionExpireDuration) // renew for sessionExpireDuration like we just typed in password again
+		if session.ExpireTimeUTC.After(r.ExpireTimeUTC) {                   // don't exceed rememberMe expiration time
+			session.ExpireTimeUTC = r.ExpireTimeUTC
 		}
-		return nil, newLoggedError("Problem renewing session", err)
 	}
 
-	if err = s.saveSessionCookie(w, r, sessionID, session.RenewTimeUTC, session.ExpireTimeUTC); err != nil {
-		return nil, err
+	session.RenewTimeUTC = time.Now().UTC().Add(sessionRenewDuration)
+	if session.RenewTimeUTC.After(session.ExpireTimeUTC) {
+		session.RenewTimeUTC = session.ExpireTimeUTC
 	}
-	return session, nil
+
+	err := s.backend.UpdateSession(session.SessionHash, session.RenewTimeUTC, session.ExpireTimeUTC)
+	if err != nil {
+		return newLoggedError("Problem updating session", err)
+	}
+	return s.saveSessionCookie(w, r, sessionID, session.RenewTimeUTC, session.ExpireTimeUTC)
 }
 
 /******************************** Login ***********************************************/
@@ -309,22 +313,30 @@ func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, email,
 		return nil, newLoggedError("Problem generating csrf token", nil)
 	}
 
-	session, remember, err := s.backend.CreateSession(userID, email, fullname, sessionHash, csrfToken, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration), rememberMe, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
+	session, err := s.backend.CreateSession(userID, email, fullname, sessionHash, csrfToken, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration))
 	if err != nil {
 		return nil, newLoggedError("Unable to create new session", err)
 	}
 
+	var remember *rememberMeSession
+	if rememberMe {
+		remember, err = s.backend.CreateRememberMe(userID, email, selector, tokenHash, time.Now().UTC().Add(rememberMeRenewDuration), time.Now().UTC().Add(rememberMeExpireDuration))
+		if err != nil {
+			return nil, newLoggedError("Unable to create rememberMe session", err)
+		}
+	}
+
 	sessionCookie, err := s.getSessionCookie(w, r)
-	if err == nil {
+	if err == nil && sessionCookie.SessionID != "" {
 		oldSessionHash, err := decodeStringToHash(sessionCookie.SessionID)
 		if err == nil {
-			s.backend.InvalidateSession(oldSessionHash)
+			s.backend.DeleteSession(oldSessionHash)
 		}
 	}
 
 	rememberCookie, err := s.getRememberMeCookie(w, r)
-	if err == nil {
-		s.backend.InvalidateRememberMe(rememberCookie.Selector)
+	if err == nil && rememberCookie.Selector != "" {
+		s.backend.DeleteRememberMe(rememberCookie.Selector)
 		s.deleteRememberMeCookie(w)
 	}
 

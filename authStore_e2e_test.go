@@ -56,6 +56,8 @@ func TestAuthStoreEndToEnd(t *testing.T) {
 
 	sessionHash, _ := decodeStringToHash(sessionCookie.SessionID)
 	session := b.getSessionByHash(sessionHash)
+	session2Hash, _ := decodeStringToHash(sessionCookie2.SessionID)
+	session2 := b.getSessionByHash(session2Hash)
 	// authenticate. Both should work
 	err = _auth(sessionCookie, rememberCookie, b, m, csrfToken)
 	if err != nil {
@@ -73,19 +75,19 @@ func TestAuthStoreEndToEnd(t *testing.T) {
 		t.Fatal("Auth:", err)
 	}
 	// authenticate, expired session, but should renew due to rememberMe
-	sessionCookie.ExpireTimeUTC = time.Now().AddDate(0, 0, -1)
+	session.ExpireTimeUTC = time.Now().AddDate(0, 0, -1)
 	err = _auth(sessionCookie, rememberCookie, b, m, csrfToken)
 	if err != nil {
 		t.Fatal("Auth:", err)
 	}
 	// non-expired, but requires renewal
-	sessionCookie2.RenewTimeUTC = time.Now().Add(-5 * time.Minute)
+	session2.RenewTimeUTC = time.Now().Add(-5 * time.Minute)
 	err = _auth(sessionCookie2, rememberCookie2, b, m, csrfToken2)
 	if err != nil {
 		t.Fatal("Auth:", err)
 	}
 	// expired session, but can't renew due to no remember me
-	sessionCookie2.ExpireTimeUTC = time.Now().AddDate(0, 0, -1)
+	session2.ExpireTimeUTC = time.Now().AddDate(0, 0, -1)
 	err = _auth(sessionCookie2, rememberCookie2, b, m, csrfToken2)
 	if err == nil || err.Error() != "Unable to renew session" {
 		t.Fatal("Auth:", err)

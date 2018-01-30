@@ -67,24 +67,25 @@ type sessionBackender interface {
 	UpdateEmailSession(verifyHash string, userID string) error
 	DeleteEmailSession(verifyHash string) error
 
-	CreateSession(userID, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error)
+	CreateSession(userID, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*LoginSession, error)
 	GetSession(sessionHash string) (*LoginSession, error)
-	RenewSession(sessionHash string, renewTimeUTC time.Time) (*LoginSession, error)
-	InvalidateSession(sessionHash string) error
+	UpdateSession(sessionHash string, renewTimeUTC, expireTimeUTC time.Time) error
+	DeleteSession(sessionHash string) error
 	InvalidateSessions(email string) error
 
+	CreateRememberMe(userID, email string, rememberMeSelector, rememberMeTokenHash string, renewTimeUTC, expireTimeUTC time.Time) (*rememberMeSession, error)
 	GetRememberMe(selector string) (*rememberMeSession, error)
-	RenewRememberMe(selector string, renewTimeUTC time.Time) (*rememberMeSession, error)
-	InvalidateRememberMe(selector string) error
+	UpdateRememberMe(selector string, renewTimeUTC time.Time) error
+	DeleteRememberMe(selector string) error
 	backendCloser
 }
 
 type emailSession struct {
-	UserID          string
-	Email           string
-	EmailVerifyHash string
-	CSRFToken       string
-	DestinationURL  string
+	UserID          string `bson:"userID"         json:"userID"`
+	Email           string `bson:"email"          json:"email"`
+	EmailVerifyHash string `bson:"_id"            json:"emailVerifyHash"`
+	CSRFToken       string `bson:"csrfToken"      json:"csrfToken"`
+	DestinationURL  string `bson:"destinationURL" json:"destinationURL"`
 }
 
 type user struct {
@@ -104,22 +105,22 @@ type UserLogin struct {
 
 // LoginSession is the struct which holds session information
 type LoginSession struct {
-	UserID        string
-	Email         string
-	FullName      string
-	SessionHash   string
-	CSRFToken     string
-	RenewTimeUTC  time.Time
-	ExpireTimeUTC time.Time
+	UserID        string    `bson:"userID"        json:"userID"`
+	Email         string    `bson:"email"         json:"email"`
+	FullName      string    `bson:"fullName"      json:"fullName"`
+	SessionHash   string    `bson:"_id"           json:"sessionHash"`
+	CSRFToken     string    `bson:"csrfToken"     json:"csrfToken"`
+	RenewTimeUTC  time.Time `bson:"renewTimeUTC"  json:"renewTimeUTC"`
+	ExpireTimeUTC time.Time `bson:"expireTimeUTC" json:"expireTimeUTC"`
 }
 
 type rememberMeSession struct {
-	UserID        string
-	Email         string
-	Selector      string
-	TokenHash     string
-	RenewTimeUTC  time.Time
-	ExpireTimeUTC time.Time
+	UserID        string    `bson:"userID"        json:"userID"`
+	Email         string    `bson:"email"         json:"email"`
+	Selector      string    `bson:"_id"           json:"selector"`
+	TokenHash     string    `bson:"tokenHash"     json:"tokenHash"`
+	RenewTimeUTC  time.Time `bson:"renewTimeUTC"  json:"renewTimeUTC"`
+	ExpireTimeUTC time.Time `bson:"expireTimeUTC" json:"expireTimeUTC"`
 }
 
 type loginProvider struct {
@@ -186,24 +187,28 @@ func (b *backend) Login(email, password string) (*UserLogin, error) {
 	return b.l.Login(email, password)
 }
 
-func (b *backend) CreateSession(userID string, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time, rememberMe bool, rememberMeSelector, rememberMeTokenHash string, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC time.Time) (*LoginSession, *rememberMeSession, error) {
-	return b.s.CreateSession(userID, email, fullname, sessionHash, csrfToken, sessionRenewTimeUTC, sessionExpireTimeUTC, rememberMe, rememberMeSelector, rememberMeTokenHash, rememberMeRenewTimeUTC, rememberMeExpireTimeUTC)
+func (b *backend) CreateSession(userID string, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*LoginSession, error) {
+	return b.s.CreateSession(userID, email, fullname, sessionHash, csrfToken, sessionRenewTimeUTC, sessionExpireTimeUTC)
 }
 
 func (b *backend) GetSession(sessionHash string) (*LoginSession, error) {
 	return b.s.GetSession(sessionHash)
 }
 
-func (b *backend) RenewSession(sessionHash string, renewTimeUTC time.Time) (*LoginSession, error) {
-	return b.s.RenewSession(sessionHash, renewTimeUTC)
+func (b *backend) UpdateSession(sessionHash string, renewTimeUTC, expireTimeUTC time.Time) error {
+	return b.s.UpdateSession(sessionHash, renewTimeUTC, expireTimeUTC)
+}
+
+func (b *backend) CreateRememberMe(userID, email string, rememberMeSelector, rememberMeTokenHash string, renewTimeUTC, expireTimeUTC time.Time) (*rememberMeSession, error) {
+	return b.s.CreateRememberMe(userID, email, rememberMeSelector, rememberMeTokenHash, renewTimeUTC, expireTimeUTC)
 }
 
 func (b *backend) GetRememberMe(selector string) (*rememberMeSession, error) {
 	return b.s.GetRememberMe(selector)
 }
 
-func (b *backend) RenewRememberMe(selector string, renewTimeUTC time.Time) (*rememberMeSession, error) {
-	return b.s.RenewRememberMe(selector, renewTimeUTC)
+func (b *backend) UpdateRememberMe(selector string, renewTimeUTC time.Time) error {
+	return b.s.UpdateRememberMe(selector, renewTimeUTC)
 }
 
 func (b *backend) CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL string) error {
@@ -250,16 +255,16 @@ func (b *backend) UpdatePassword(userID, password string) error {
 	return b.l.UpdatePassword(userID, password)
 }
 
-func (b *backend) InvalidateSession(sessionHash string) error {
-	return b.s.InvalidateSession(sessionHash)
+func (b *backend) DeleteSession(sessionHash string) error {
+	return b.s.DeleteSession(sessionHash)
 }
 
 func (b *backend) InvalidateSessions(email string) error {
 	return b.s.InvalidateSessions(email)
 }
 
-func (b *backend) InvalidateRememberMe(selector string) error {
-	return b.s.InvalidateRememberMe(selector)
+func (b *backend) DeleteRememberMe(selector string) error {
+	return b.s.DeleteRememberMe(selector)
 }
 
 func (b *backend) Close() error {
@@ -269,8 +274,5 @@ func (b *backend) Close() error {
 	if err := b.u.Close(); err != nil {
 		return err
 	}
-	if err := b.l.Close(); err != nil {
-		return err
-	}
-	return nil
+	return b.l.Close()
 }
