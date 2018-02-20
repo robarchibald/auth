@@ -30,9 +30,8 @@ type email struct {
 }
 
 // NewBackendMongo creates a MongoDB-based Backender
-func NewBackendMongo(url string, c Crypter) (Backender, error) {
-	m, err := mgo.Dial(url)
-	return &backendMongo{m, c}, err
+func NewBackendMongo(m mgo.Sessioner, c Crypter) Backender {
+	return &backendMongo{m, c}
 }
 
 func (b *backendMongo) AddUser(email string) (string, error) {
