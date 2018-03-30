@@ -21,6 +21,7 @@ type mongoUser struct {
 	PasswordHash      string        `bson:"passwordHash"      json:"passwordHash"`
 	LockoutEndTimeUTC *time.Time    `bson:"lockoutEndTimeUTC" json:"lockoutEndTimeUTC"`
 	AccessFailedCount int           `bson:"accessFailedCount" json:"accessFailedCount"`
+	Roles             []string      `bson:"roles"             json:"roles"`
 }
 
 type email struct {
@@ -54,7 +55,7 @@ func (b *backendMongo) GetUser(email string) (*user, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &user{UserID: u.ID.Hex(), FullName: u.FullName, PrimaryEmail: u.PrimaryEmail, AccessFailedCount: u.AccessFailedCount, LockoutEndTimeUTC: u.LockoutEndTimeUTC}, nil
+	return &user{UserID: u.ID.Hex(), FullName: u.FullName, PrimaryEmail: u.PrimaryEmail, AccessFailedCount: u.AccessFailedCount, LockoutEndTimeUTC: u.LockoutEndTimeUTC, Roles: u.Roles}, nil
 }
 
 func (b *backendMongo) UpdateUser(userID string, fullname string, company string, pictureURL string) error {

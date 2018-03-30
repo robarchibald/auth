@@ -94,6 +94,7 @@ type user struct {
 	PrimaryEmail      string
 	LockoutEndTimeUTC *time.Time
 	AccessFailedCount int
+	Roles             []string
 }
 
 // UserLogin is the struct which holds login information

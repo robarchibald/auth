@@ -153,7 +153,7 @@ func (m *backendMemory) AddUser(email string) (string, error) {
 		return "", errUserAlreadyExists
 	}
 	m.LastUserID++
-	m.Users = append(m.Users, &user{strconv.Itoa(m.LastUserID), "", email, nil, 0})
+	m.Users = append(m.Users, &user{strconv.Itoa(m.LastUserID), "", email, nil, 0, nil})
 	return strconv.Itoa(m.LastUserID), nil
 }
 

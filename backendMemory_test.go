@@ -204,7 +204,7 @@ func TestToString(t *testing.T) {
 	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{})
 
 	actual := backend.ToString()
-	expected := "Users:\n     {   <nil> 0}\nLogins:\n     {   }\nSessions:\n     {     0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {    0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
+	expected := "Users:\n     {   <nil> 0 []}\nLogins:\n     {   }\nSessions:\n     {     0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {    0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
 	if actual != expected {
 		t.Error("expected different value", actual)
 	}
