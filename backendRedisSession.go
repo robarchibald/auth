@@ -42,8 +42,8 @@ func (r *backendRedisSession) DeleteEmailSession(emailVerifyHash string) error {
 	return nil
 }
 
-func (r *backendRedisSession) CreateSession(userID, email, fullname, sessionHash, csrfToken string, renewTimeUTC, expireTimeUTC time.Time) (*LoginSession, error) {
-	session := LoginSession{userID, email, fullname, sessionHash, csrfToken, renewTimeUTC, expireTimeUTC}
+func (r *backendRedisSession) CreateSession(userID, email, fullname, sessionHash, csrfToken string, roles []string, renewTimeUTC, expireTimeUTC time.Time) (*LoginSession, error) {
+	session := LoginSession{userID, email, fullname, sessionHash, csrfToken, roles, renewTimeUTC, expireTimeUTC}
 	return &session, r.saveSession(&session)
 }
 

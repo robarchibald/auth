@@ -214,7 +214,7 @@ func (s *authStore) login(w http.ResponseWriter, r *http.Request, email, passwor
 		return nil, newLoggedError("Invalid username or password", err)
 	}
 
-	return s.createSession(w, r, email, login.UserID, login.FullName, rememberMe)
+	return s.createSession(w, r, email, login.UserID, login.FullName, login.Roles, rememberMe)
 }
 
 func (s *authStore) OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error) {
@@ -226,30 +226,17 @@ func (s *authStore) OAuthLogin(w http.ResponseWriter, r *http.Request) (string, 
 }
 
 func (s *authStore) oauthLogin(w http.ResponseWriter, r *http.Request, email, fullname string) (string, error) {
-	var userID string
 	user, err := s.backend.GetUser(email)
 	if user == nil || err != nil {
-		userID, err = s.backend.AddUser(email)
+		user, err = s.backend.CreateLogin(userID, email, "", fullname)
 		if err != nil {
-			return "", newLoggedError("Failed to create new user in database", err)
-		}
-
-		err = s.backend.UpdateUser(userID, fullname, "", "")
-		if err != nil {
-			return "", newLoggedError("Unable to update user", err)
+			return "", newLoggedError("Unable to create login", err)
 		}
 	} else {
 		userID = user.UserID
 	}
 
-	if _, err := s.backend.GetLogin(email); err != nil {
-		_, err = s.backend.CreateLogin(userID, email, "", fullname)
-		if err != nil {
-			return "", newLoggedError("Unable to create login", err)
-		}
-	}
-
-	session, err := s.createSession(w, r, email, userID, fullname, false)
+	session, err := s.createSession(w, r, email, userID, fullname, user.Roles, false)
 	if err != nil {
 		return "", err
 	}
@@ -294,7 +281,7 @@ func getOAuthCredentials(r *http.Request) (string, string, error) {
 	return email, fullname, nil
 }
 
-func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, email, userID, fullname string, rememberMe bool) (*LoginSession, error) {
+func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, email, userID, fullname string, roles []string, rememberMe bool) (*LoginSession, error) {
 	var err error
 	var selector, token, tokenHash string
 	if rememberMe {
@@ -313,7 +300,7 @@ func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, email,
 		return nil, newLoggedError("Problem generating csrf token", nil)
 	}
 
-	session, err := s.backend.CreateSession(userID, email, fullname, sessionHash, csrfToken, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration))
+	session, err := s.backend.CreateSession(userID, email, fullname, sessionHash, csrfToken, roles, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration))
 	if err != nil {
 		return nil, newLoggedError("Unable to create new session", err)
 	}
@@ -461,17 +448,23 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, csrfTo
 		return nil, newLoggedError("Unable to update user", err)
 	}
 
+	/*
+		We are updating the user here twice. Once above, and then once below with CreateLogin. Not good.
+		The reason for this is because of the LDAP problem. Since we now are passing in the backendUser
+		to LDAP, this should just be handled by LDAP. When it is Mongo or memory backend, it all happens at the same time
+	*/
+
 	err = s.backend.DeleteEmailSession(session.EmailVerifyHash)
 	if err != nil {
 		return nil, newLoggedError("Error while creating profile", err)
 	}
 
-	_, err = s.backend.CreateLogin(session.UserID, session.Email, password, fullName)
+	login, err := s.backend.CreateLogin(session.UserID, session.Email, password, fullName)
 	if err != nil {
 		return nil, newLoggedError("Unable to create login", err)
 	}
 
-	ls, err := s.createSession(w, r, session.Email, session.UserID, fullName, false)
+	ls, err := s.createSession(w, r, session.Email, session.UserID, fullName, login.Roles, false)
 	if err != nil {
 		return nil, err
 	}

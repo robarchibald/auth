@@ -34,8 +34,8 @@ func (u *backendDbUser) AddUser(email string) (string, error) {
 	return strconv.Itoa(int(userID)), u.Db.QueryValues(onedb.NewSqlQuery(u.AddUserQuery, email), &userID)
 }
 
-func (u *backendDbUser) GetUser(email string) (*user, error) {
-	r := &user{}
+func (u *backendDbUser) GetUser(email string) (*User, error) {
+	r := &User{}
 	err := u.Db.QueryStructRow(onedb.NewSqlQuery(u.GetUserQuery, email), r)
 	if err != nil {
 		return nil, errors.New("Unable to get user: " + err.Error())

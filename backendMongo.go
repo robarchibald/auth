@@ -67,7 +67,7 @@ func (b *backendMongo) Close() error {
 	return nil
 }
 
-func (b *backendMongo) Login(email, password string) (*UserLogin, error) {
+func (b *backendMongo) Login(email, password string) (*User, error) {
 	u, err := b.getUser(email)
 	if err != nil {
 		return nil, err
@@ -75,23 +75,36 @@ func (b *backendMongo) Login(email, password string) (*UserLogin, error) {
 	if err := b.c.HashEquals(password, u.PasswordHash); err != nil {
 		return nil, err
 	}
-	return &UserLogin{UserID: u.ID.Hex(), FullName: u.FullName, Email: u.PrimaryEmail}, nil
+	return &User{UserID: u.ID.Hex(), FullName: u.FullName, Email: u.PrimaryEmail, Roles: u.Roles}, nil
 }
 
-func (b *backendMongo) GetLogin(email string) (*UserLogin, error) {
-	u, err := b.getUser(email)
-	if err != nil {
-		return nil, err
-	}
-	return &UserLogin{UserID: u.ID.Hex(), FullName: u.FullName, Email: u.PrimaryEmail}, nil
-}
+/***************
 
-func (b *backendMongo) CreateLogin(userID, email, password, fullName string) (*UserLogin, error) {
+How am I going to create roles? When & where?
+Calling CreateLogin is ALWAYS called on an existing user as I understand it. It would have to be since it is getting a userID passed in
+Should it then call getUser using the userId instead?
+
+**************/
+func (b *backendMongo) CreateLogin(userID, email, password, fullName string) (*User, error) {
 	passwordHash, err := b.c.Hash(password)
 	if err != nil {
 		return nil, err
 	}
-	return &UserLogin{UserID: userID, FullName: fullName, Email: email},
+	u, err := b.getUser(email)
+	/*
+
+	   This is probably wrong. If we're passing in an ID, we shouldn't be creating a new user ID
+	   On the other hand, if a userID isn't passed in, perhaps we should create one.
+	   Actually that should probably be a different method
+	   That would allow you to either create a user in one step or two.
+
+	*/
+	if err != nil {
+		id := bson.NewObjectId()
+		return &User{UserID: id.Hex(), Email: email, FullName: fullName, Roles: roles},
+			b.users().Insert(mongoUser{ID: bson.NewObject(), PrimaryEmail: email, PasswordHash: passwordHash, FullName: fullName, Roles: roles})
+	}
+	return &User{UserID: userID, FullName: fullName, Email: email, Roles: u.Roles},
 		b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"passwordHash": passwordHash}})
 }
 
@@ -128,8 +141,8 @@ func (b *backendMongo) UpdateEmailSession(verifyHash, userID string) error {
 func (b *backendMongo) DeleteEmailSession(verifyHash string) error {
 	return b.emailSessions().RemoveId(verifyHash)
 }
-func (b *backendMongo) CreateSession(userID, email, fullname, sessionHash, csrfToken string, renewTimeUTC, expireTimeUTC time.Time) (*LoginSession, error) {
-	s := LoginSession{userID, email, fullname, sessionHash, csrfToken, renewTimeUTC, expireTimeUTC}
+func (b *backendMongo) CreateSession(userID, email, fullname, sessionHash, csrfToken string, roles []string, renewTimeUTC, expireTimeUTC time.Time) (*LoginSession, error) {
+	s := LoginSession{userID, email, fullname, sessionHash, csrfToken, roles, renewTimeUTC, expireTimeUTC}
 	return &s, b.loginSessions().Insert(s)
 }
 
