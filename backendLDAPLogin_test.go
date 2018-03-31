@@ -18,9 +18,8 @@ func TestNewBackendLDAPLogin(t *testing.T) {
 	ldapBindDn := "uid=admin,ou=SystemAccounts,dc=example,dc=com"
 	ldapPassword := "secret"
 	ldapBaseDn := "ou=Users,dc=example,dc=com"
-	ldapUserFilter := "(&(objectClass=account)(uid=%s))"
 
-	l, err := NewBackendLDAPLogin(ldapServer, ldapPort, ldapBindDn, ldapPassword, ldapBaseDn, ldapUserFilter)
+	l, err := NewBackendLDAPLogin(ldapServer, ldapPort, ldapBindDn, ldapPassword, ldapBaseDn, nil)
 	if err != nil {
 		t.Fatal("unable to login", err)
 	}
@@ -35,7 +34,7 @@ func TestLdapLogin(t *testing.T) {
 	// success
 	data := ldapData{UID: "email", DbUserId: "1234"}
 	m := onedb.NewMock(nil, nil, data)
-	l := backendLDAPLogin{db: m, userLoginFilter: "%s"}
+	l := backendLDAPLogin{db: m, userBackend: &backendMemory{Users: []*user{&user{UserID: "1234", PrimaryEmail: "email"}}}}
 	login, err := l.Login("email", "password")
 	if err != nil || login.Email != "email" {
 		t.Error("expected to find data", login, err)
@@ -51,7 +50,7 @@ func TestLdapLogin(t *testing.T) {
 
 	// error
 	m = onedb.NewMock(nil, nil, nil)
-	l = backendLDAPLogin{db: m, userLoginFilter: "%s"}
+	l = backendLDAPLogin{db: m}
 	_, err = l.Login("email", "password")
 	if err == nil {
 		t.Error("expected error")

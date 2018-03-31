@@ -50,12 +50,12 @@ func (b *backendMongo) getUser(email string) (*mongoUser, error) {
 	return u, b.users().Find(bson.M{"primaryEmail": email}).One(u)
 }
 
-func (b *backendMongo) GetUser(email string) (*user, error) {
+func (b *backendMongo) GetUser(email string) (*User, error) {
 	u, err := b.getUser(email)
 	if err != nil {
 		return nil, err
 	}
-	return &user{UserID: u.ID.Hex(), FullName: u.FullName, PrimaryEmail: u.PrimaryEmail, AccessFailedCount: u.AccessFailedCount, LockoutEndTimeUTC: u.LockoutEndTimeUTC, Roles: u.Roles}, nil
+	return &User{UserID: u.ID.Hex(), FullName: u.FullName, Email: u.PrimaryEmail, Roles: u.Roles}, nil
 }
 
 func (b *backendMongo) UpdateUser(userID string, fullname string, company string, pictureURL string) error {
@@ -102,7 +102,7 @@ func (b *backendMongo) CreateLogin(userID, email, password, fullName string) (*U
 	if err != nil {
 		id := bson.NewObjectId()
 		return &User{UserID: id.Hex(), Email: email, FullName: fullName, Roles: roles},
-			b.users().Insert(mongoUser{ID: bson.NewObject(), PrimaryEmail: email, PasswordHash: passwordHash, FullName: fullName, Roles: roles})
+			b.users().Insert(mongoUser{ID: bson.NewObjectId(), PrimaryEmail: email, PasswordHash: passwordHash, FullName: fullName, Roles: roles})
 	}
 	return &User{UserID: userID, FullName: fullName, Email: email, Roles: u.Roles},
 		b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"passwordHash": passwordHash}})

@@ -162,10 +162,8 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 	emailVerifyHash, _ := decodeStringToHash(emailCookie.EmailVerificationCode)
 	oldEmailSession := b.getEmailSessionByEmailVerifyHash(emailVerifyHash)
 	var user *user
-	var oldLogin *userLoginMemory
 	if oldEmailSession != nil {
 		user = b.getUserByEmail(oldEmailSession.Email)
-		oldLogin = b.getLoginByEmail(oldEmailSession.Email)
 	}
 
 	// create profile
@@ -175,18 +173,13 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 	}
 	// check password was saved correctly
 	h := &hashStore{}
-	hashErr := h.HashEquals(password, b.Logins[0].PasswordHash)
-	if hashErr != nil {
+	passwordHash, err := h.Hash(password)
+	if err != nil {
 		return "", nil, err
 	}
 	// check user was saved correctly
-	if user == nil || user.FullName != fullName || oldEmailSession == nil || user.PrimaryEmail != oldEmailSession.Email || user.UserID != oldEmailSession.UserID {
+	if user == nil || user.FullName != fullName || oldEmailSession == nil || user.PrimaryEmail != oldEmailSession.Email || user.UserID != oldEmailSession.UserID || user.PasswordHash != passwordHash {
 		return "", nil, errors.Errorf("expected user to be updated with expected values: %v, %v", user, oldEmailSession)
-	}
-	// check login was saved correctly
-	login := b.getLoginByEmail(oldEmailSession.Email)
-	if oldLogin != nil || login == nil || login.UserID != user.UserID || login.FullName != fullName {
-		return "", nil, errors.Errorf("expected new login to be created with expected values: %v, %v", oldLogin, login)
 	}
 	// verify email session was deleted
 	if emailSession := b.getEmailSessionByEmailVerifyHash(emailVerifyHash); emailSession != nil {
@@ -207,7 +200,6 @@ func _login(email, password string, remember bool, clientSessionCookie *sessionC
 	r := &http.Request{Header: http.Header{}}
 	c := NewMockCookieStore(map[string]interface{}{"Session": clientSessionCookie, "RememberMe": rememberCookie}, false, false)
 	s := &authStore{b, m, c}
-	lenLogins := len(b.Logins)
 	lenUsers := len(b.Users)
 
 	// login
@@ -220,9 +212,9 @@ func _login(email, password string, remember bool, clientSessionCookie *sessionC
 	if session == nil || session.Email != email || session.FullName != user.FullName || session.UserID != user.UserID {
 		return "", nil, nil, errors.Errorf("session wasn't created correctly, %v", session)
 	}
-	// verify no logins, or users were created
-	if lenLogins != len(b.Logins) || lenUsers != len(b.Users) {
-		return "", nil, nil, errors.Errorf("expected no new users or logins to be created, %v, %v", lenLogins != len(b.Logins), lenUsers != len(b.Users))
+	// verify no users were created
+	if lenUsers != len(b.Users) {
+		return "", nil, nil, errors.Errorf("expected no new users to be created, %v", lenUsers != len(b.Users))
 	}
 	// verify old session and old remember me were deleted
 	if clientSessionCookie != nil {

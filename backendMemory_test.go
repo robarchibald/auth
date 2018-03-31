@@ -16,31 +16,32 @@ func TestMemoryLogin(t *testing.T) {
 	}
 
 	// invalid credentials
-	expected := &userLoginMemory{Email: "email", UserID: "1", FullName: "name", PasswordHash: "zVNfmBbTwQZwyMsAizV1Guh_j7kcFbyG7-LRJeeJfXc="}
-	backend.Logins = []*userLoginMemory{expected}
+	expected := &user{PrimaryEmail: "email", UserID: "1", FullName: "name", PasswordHash: "zVNfmBbTwQZwyMsAizV1Guh_j7kcFbyG7-LRJeeJfXc="}
+	backend.Users = []*user{expected}
 	if _, err := backend.Login("email", "wrongPassword"); err != nil && err.Error() != "supplied token and tokenHash do not match" {
 		t.Error("expected error", err)
 	}
 
 	// success
-	expected = &userLoginMemory{Email: "email", UserID: "1", FullName: "name", PasswordHash: "zVNfmBbTwQZwyMsAizV1Guh_j7kcFbyG7-LRJeeJfXc="} // hash of "correctPassword""
-	backend.Logins = []*userLoginMemory{expected}
-	if actual, err := backend.Login("email", "correctPassword"); err != nil || expected == nil || expected.Email != actual.Email || expected.FullName != actual.FullName || expected.UserID != actual.UserID {
+	expected = &user{PrimaryEmail: "email", UserID: "1", FullName: "name", PasswordHash: "zVNfmBbTwQZwyMsAizV1Guh_j7kcFbyG7-LRJeeJfXc="} // hash of "correctPassword""
+	backend.Users = []*user{expected}
+	if actual, err := backend.Login("email", "correctPassword"); err != nil || expected == nil || expected.PrimaryEmail != actual.Email || expected.FullName != actual.FullName || expected.UserID != actual.UserID {
 		t.Error("expected success", expected, actual, err)
 	}
 }
 
 func TestMemoryCreateSession(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
-	if session, _ := backend.CreateSession("1", "test@test.com", "fullname", "sessionHash", "csrfToken", in5Minutes, in1Hour); session.SessionHash != "sessionHash" || session.Email != "test@test.com" {
+	if session, _ := backend.CreateSession("1", "test@test.com", "fullname", "sessionHash", "csrfToken", []string{"role1", "role2"}, in5Minutes, in1Hour); session.SessionHash != "sessionHash" || session.Email != "test@test.com" ||
+		session.CSRFToken != "csrfToken" || session.FullName != "fullName" || session.UserID != "1" || session.ExpireTimeUTC != in1Hour || session.RenewTimeUTC != in5Minutes || len(session.Roles) != 2 || session.Roles[0] != "role1" || session.Roles[1] != "role2" {
 		t.Error("expected matching session", session)
 	}
 	// create again, should error
-	if _, err := backend.CreateSession("1", "test@test.com", "fullname", "sessionHash", "csrfToken", in5Minutes, in1Hour); err == nil {
+	if _, err := backend.CreateSession("1", "test@test.com", "fullname", "sessionHash", "csrfToken", []string{"role1", "role2"}, in5Minutes, in1Hour); err == nil {
 		t.Error("expected error since session exists", err)
 	}
 	// new session ID since it was generated when no cookie was found (e.g. on another computer or browser)
-	if session, _ := backend.CreateSession("1", "test@test.com", "fullname", "newSessionHash", "csrfToken", in5Minutes, in1Hour); session.SessionHash != "newSessionHash" || len(backend.Sessions) != 2 {
+	if session, _ := backend.CreateSession("1", "test@test.com", "fullname", "newSessionHash", "csrfToken", []string{"role1", "role2"}, in5Minutes, in1Hour); session.SessionHash != "newSessionHash" || len(backend.Sessions) != 2 {
 		t.Error("expected matching session", session)
 	}
 }
@@ -199,12 +200,11 @@ func TestMemoryClose(t *testing.T) {
 func TestToString(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
 	backend.Users = append(backend.Users, &user{})
-	backend.Logins = append(backend.Logins, &userLoginMemory{})
 	backend.Sessions = append(backend.Sessions, &LoginSession{})
 	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{})
 
 	actual := backend.ToString()
-	expected := "Users:\n     {   <nil> 0 []}\nLogins:\n     {   }\nSessions:\n     {     0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {    0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
+	expected := "Users:\n     {   <nil> 0 []}\nSessions:\n     {     0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {    0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
 	if actual != expected {
 		t.Error("expected different value", actual)
 	}

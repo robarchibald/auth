@@ -15,13 +15,13 @@ func TestRedisCreateSession(t *testing.T) {
 	// expired session error
 	m := onedb.NewMock(nil, nil, nil)
 	r := backendRedisSession{db: m, prefix: "test"}
-	_, err := r.CreateSession("1", "test@test.com", "fullname", "hash", "csrfToken", time.Now(), time.Now())
+	_, err := r.CreateSession("1", "test@test.com", "fullname", "hash", "csrfToken", []string{"role1", "role2"}, time.Now(), time.Now())
 	if err == nil || len(m.QueriesRun()) != 0 {
 		t.Error("expected error")
 	}
 
 	// success
-	session, err := r.CreateSession("1", "test@test.com", "fullname", "hash", "csrfToken", time.Now(), time.Now().AddDate(1, 0, 0))
+	session, err := r.CreateSession("1", "test@test.com", "fullname", "hash", "csrfToken", []string{"role1", "role2"}, time.Now(), time.Now().AddDate(1, 0, 0))
 	if q := m.QueriesRun(); err != nil || len(q) != 1 || q[0].(*onedb.RedisCommand).Command != "SETEX" || len(q[0].(*onedb.RedisCommand).Args) != 3 || q[0].(*onedb.RedisCommand).Args[0] != "test/session/hash" {
 		t.Error("expected success", len(q), q[0].(*onedb.RedisCommand))
 	}
