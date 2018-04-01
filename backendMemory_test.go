@@ -11,37 +11,41 @@ var in1Hour = time.Now().UTC().Add(time.Hour)
 func TestMemoryLogin(t *testing.T) {
 	// can't get login
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
-	if _, err := backend.Login("email", "password"); err != errLoginNotFound {
-		t.Error("expected no login since login not added yet", err)
+	if err := backend.Login("email", "password"); err != errUserNotFound {
+		t.Error("expected no login since user not added yet", err)
 	}
 
 	// invalid credentials
-	expected := &user{PrimaryEmail: "email", UserID: "1", FullName: "name", PasswordHash: "zVNfmBbTwQZwyMsAizV1Guh_j7kcFbyG7-LRJeeJfXc="}
+	expected := &user{PrimaryEmail: "email", UserID: "1", Info: map[string]interface{}{"key": "value"}, PasswordHash: "zVNfmBbTwQZwyMsAizV1Guh_j7kcFbyG7-LRJeeJfXc="}
 	backend.Users = []*user{expected}
-	if _, err := backend.Login("email", "wrongPassword"); err != nil && err.Error() != "supplied token and tokenHash do not match" {
+	if err := backend.Login("email", "wrongPassword"); err != nil && err.Error() != "supplied token and tokenHash do not match" {
 		t.Error("expected error", err)
 	}
 
 	// success
-	expected = &user{PrimaryEmail: "email", UserID: "1", FullName: "name", PasswordHash: "zVNfmBbTwQZwyMsAizV1Guh_j7kcFbyG7-LRJeeJfXc="} // hash of "correctPassword""
+	expected = &user{PrimaryEmail: "email", UserID: "1", Info: map[string]interface{}{"key": "value"}, PasswordHash: "zVNfmBbTwQZwyMsAizV1Guh_j7kcFbyG7-LRJeeJfXc="} // hash of "correctPassword""
 	backend.Users = []*user{expected}
-	if actual, err := backend.Login("email", "correctPassword"); err != nil || expected == nil || expected.PrimaryEmail != actual.Email || expected.FullName != actual.FullName || expected.UserID != actual.UserID {
-		t.Error("expected success", expected, actual, err)
+	if err := backend.Login("email", "correctPassword"); err != nil {
+		t.Error("expected success", err)
+	}
+	actual := backend.Users[0]
+	if expected.PrimaryEmail != actual.PrimaryEmail || expected.UserID != actual.UserID || actual.Info == nil || actual.Info["key"] != "value" {
+		t.Error("expected matching values", expected, actual)
 	}
 }
 
 func TestMemoryCreateSession(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
-	if session, _ := backend.CreateSession("1", "test@test.com", "fullname", "sessionHash", "csrfToken", []string{"role1", "role2"}, in5Minutes, in1Hour); session.SessionHash != "sessionHash" || session.Email != "test@test.com" ||
-		session.CSRFToken != "csrfToken" || session.FullName != "fullName" || session.UserID != "1" || session.ExpireTimeUTC != in1Hour || session.RenewTimeUTC != in5Minutes || len(session.Roles) != 2 || session.Roles[0] != "role1" || session.Roles[1] != "role2" {
+	if session, _ := backend.CreateSession("1", "test@test.com", map[string]interface{}{"key": "value"}, "sessionHash", "csrfToken", in5Minutes, in1Hour); session.SessionHash != "sessionHash" || session.Email != "test@test.com" ||
+		session.CSRFToken != "csrfToken" || session.Info == nil || session.Info["key"] != "value" || session.UserID != "1" || session.ExpireTimeUTC != in1Hour || session.RenewTimeUTC != in5Minutes {
 		t.Error("expected matching session", session)
 	}
 	// create again, should error
-	if _, err := backend.CreateSession("1", "test@test.com", "fullname", "sessionHash", "csrfToken", []string{"role1", "role2"}, in5Minutes, in1Hour); err == nil {
+	if _, err := backend.CreateSession("1", "test@test.com", map[string]interface{}{"key": "value"}, "sessionHash", "csrfToken", in5Minutes, in1Hour); err == nil {
 		t.Error("expected error since session exists", err)
 	}
 	// new session ID since it was generated when no cookie was found (e.g. on another computer or browser)
-	if session, _ := backend.CreateSession("1", "test@test.com", "fullname", "newSessionHash", "csrfToken", []string{"role1", "role2"}, in5Minutes, in1Hour); session.SessionHash != "newSessionHash" || len(backend.Sessions) != 2 {
+	if session, _ := backend.CreateSession("1", "test@test.com", map[string]interface{}{"key": "value"}, "newSessionHash", "csrfToken", in5Minutes, in1Hour); session.SessionHash != "newSessionHash" || len(backend.Sessions) != 2 {
 		t.Error("expected matching session", session)
 	}
 }
@@ -117,11 +121,11 @@ func TestMemoryRenewRememberMe(t *testing.T) {
 
 func TestMemoryAddUser(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
-	if userID, err := backend.AddUser("email"); err != nil || len(backend.Users) != 1 || userID != "1" {
+	if userID, err := backend.AddUser("email", map[string]interface{}{"key": "value"}); err != nil || len(backend.Users) != 1 || userID != "1" {
 		t.Error("expected valid session", err, backend.Users)
 	}
 
-	if userID, err := backend.AddUser("email"); err != errUserAlreadyExists || userID != "" {
+	if userID, err := backend.AddUser("email", map[string]interface{}{"key": "value"}); err != errUserAlreadyExists || userID != "" {
 		t.Error("expected user to already exist", err)
 	}
 }
@@ -141,14 +145,14 @@ func TestMemoryGetEmailSession(t *testing.T) {
 
 func TestMemoryUpdateUser(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
-	err := backend.UpdateUser("1", "fullname", "company", "pictureUrl")
+	err := backend.UpdateUser("1", "password", map[string]interface{}{"key": "value"})
 	if err != errUserNotFound {
 		t.Error("expected to be unable to update non-existant user")
 	}
 
 	backend = NewBackendMemory(&hashStore{}).(*backendMemory)
 	backend.Users = append(backend.Users, &user{UserID: "1", PrimaryEmail: "email"})
-	err = backend.UpdateUser("1", "fullname", "company", "pictureUrl")
+	err = backend.UpdateUser("1", "password", map[string]interface{}{"key": "value"})
 	if err != nil {
 		t.Error("expected success", err)
 	}
@@ -156,12 +160,12 @@ func TestMemoryUpdateUser(t *testing.T) {
 
 func TestMemoryCreateSecondaryEmail(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
-	backend.CreateSecondaryEmail("userID", "secondaryEmail")
+	backend.AddSecondaryEmail("userID", "secondaryEmail")
 }
 
 func TestMemorySetPrimaryEmail(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
-	backend.SetPrimaryEmail("userID", "newPrimaryEmail")
+	backend.UpdatePrimaryEmail("userID", "newPrimaryEmail")
 }
 
 func TestMemoryUpdatePassword(t *testing.T) {
@@ -204,8 +208,8 @@ func TestToString(t *testing.T) {
 	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{})
 
 	actual := backend.ToString()
-	expected := "Users:\n     {   <nil> 0 []}\nSessions:\n     {     0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {    0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
+	expected := "Users:\n     {   map[] <nil> 0}\nSessions:\n     {  map[]   0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {    0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
 	if actual != expected {
-		t.Error("expected different value", actual)
+		t.Error("expected different value", expected, "\n", actual)
 	}
 }

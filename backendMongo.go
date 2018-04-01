@@ -14,14 +14,13 @@ type backendMongo struct {
 }
 
 type mongoUser struct {
-	ID                bson.ObjectId `bson:"_id"               json:"id"`
-	PrimaryEmail      string        `bson:"primaryEmail"      json:"primaryEmail"`
-	SecondaryEmails   []email       `bson:"secondaryEmails"   json:"secondaryEmails"`
-	FullName          string        `bson:"fullName"          json:"fullName"`
-	PasswordHash      string        `bson:"passwordHash"      json:"passwordHash"`
-	LockoutEndTimeUTC *time.Time    `bson:"lockoutEndTimeUTC" json:"lockoutEndTimeUTC"`
-	AccessFailedCount int           `bson:"accessFailedCount" json:"accessFailedCount"`
-	Roles             []string      `bson:"roles"             json:"roles"`
+	ID                bson.ObjectId          `bson:"_id"               json:"id"`
+	PrimaryEmail      string                 `bson:"primaryEmail"      json:"primaryEmail"`
+	SecondaryEmails   []email                `bson:"secondaryEmails"   json:"secondaryEmails"`
+	PasswordHash      string                 `bson:"passwordHash"      json:"passwordHash"`
+	Info              map[string]interface{} `bson:"info"              json:"info"`
+	LockoutEndTimeUTC *time.Time             `bson:"lockoutEndTimeUTC" json:"lockoutEndTimeUTC"`
+	AccessFailedCount int                    `bson:"accessFailedCount" json:"accessFailedCount"`
 }
 
 type email struct {
@@ -35,14 +34,28 @@ func NewBackendMongo(m mgo.Sessioner, c Crypter) Backender {
 	return &backendMongo{m, c}
 }
 
-func (b *backendMongo) AddUser(email string) (string, error) {
+func (b *backendMongo) AddUser(email string, info map[string]interface{}) (string, error) {
 	u, err := b.getUser(email)
 	if err == nil {
 		return u.ID.Hex(), errors.New("user already exists")
 	}
 
 	id := bson.NewObjectId()
-	return id.Hex(), b.users().Insert(mongoUser{ID: id, PrimaryEmail: email})
+	return id.Hex(), b.users().Insert(mongoUser{ID: id, PrimaryEmail: email, Info: info})
+}
+
+func (b *backendMongo) AddUserFull(email, password string, info map[string]interface{}) (*User, error) {
+	passwordHash, err := b.c.Hash(password)
+	if err != nil {
+		return nil, err
+	}
+	_, err = b.getUser(email)
+	if err == nil {
+		return nil, errors.New("user already exists")
+	}
+
+	id := bson.NewObjectId()
+	return &User{id.Hex(), email, info}, b.users().Insert(mongoUser{ID: id, PrimaryEmail: email, PasswordHash: passwordHash, Info: info})
 }
 
 func (b *backendMongo) getUser(email string) (*mongoUser, error) {
@@ -55,11 +68,36 @@ func (b *backendMongo) GetUser(email string) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &User{UserID: u.ID.Hex(), FullName: u.FullName, Email: u.PrimaryEmail, Roles: u.Roles}, nil
+	return &User{u.ID.Hex(), u.PrimaryEmail, u.Info}, nil
 }
 
-func (b *backendMongo) UpdateUser(userID string, fullname string, company string, pictureURL string) error {
-	return b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"fullName": fullname}})
+func (b *backendMongo) UpdateUser(userID, password string, info map[string]interface{}) error {
+	passwordHash, err := b.c.Hash(password)
+	if err != nil {
+		return err
+	}
+	var set bson.M
+	for key := range info {
+		set["info."+key] = info[key]
+	}
+	set["passwordHash"] = passwordHash
+	return b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": set})
+}
+
+func (b *backendMongo) UpdatePassword(userID, password string) error {
+	passwordHash, err := b.c.Hash(password)
+	if err != nil {
+		return err
+	}
+	return b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"passwordHash": passwordHash}})
+}
+
+func (b *backendMongo) UpdateInfo(userID string, info map[string]interface{}) error {
+	var set bson.M
+	for key := range info {
+		set["info."+key] = info[key]
+	}
+	return b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": set})
 }
 
 func (b *backendMongo) Close() error {
@@ -67,7 +105,7 @@ func (b *backendMongo) Close() error {
 	return nil
 }
 
-func (b *backendMongo) Login(email, password string) (*User, error) {
+func (b *backendMongo) LoginAndGetUser(email, password string) (*User, error) {
 	u, err := b.getUser(email)
 	if err != nil {
 		return nil, err
@@ -75,59 +113,29 @@ func (b *backendMongo) Login(email, password string) (*User, error) {
 	if err := b.c.HashEquals(password, u.PasswordHash); err != nil {
 		return nil, err
 	}
-	return &User{UserID: u.ID.Hex(), FullName: u.FullName, Email: u.PrimaryEmail, Roles: u.Roles}, nil
+	return &User{u.ID.Hex(), u.PrimaryEmail, u.Info}, nil
 }
 
-/***************
-
-How am I going to create roles? When & where?
-Calling CreateLogin is ALWAYS called on an existing user as I understand it. It would have to be since it is getting a userID passed in
-Should it then call getUser using the userId instead?
-
-**************/
-func (b *backendMongo) CreateLogin(userID, email, password, fullName string) (*User, error) {
-	passwordHash, err := b.c.Hash(password)
-	if err != nil {
-		return nil, err
-	}
-	u, err := b.getUser(email)
-	/*
-
-	   This is probably wrong. If we're passing in an ID, we shouldn't be creating a new user ID
-	   On the other hand, if a userID isn't passed in, perhaps we should create one.
-	   Actually that should probably be a different method
-	   That would allow you to either create a user in one step or two.
-
-	*/
-	if err != nil {
-		id := bson.NewObjectId()
-		return &User{UserID: id.Hex(), Email: email, FullName: fullName, Roles: roles},
-			b.users().Insert(mongoUser{ID: bson.NewObjectId(), PrimaryEmail: email, PasswordHash: passwordHash, FullName: fullName, Roles: roles})
-	}
-	return &User{UserID: userID, FullName: fullName, Email: email, Roles: u.Roles},
-		b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"passwordHash": passwordHash}})
+func (b *backendMongo) Login(email, password string) error {
+	_, err := b.LoginAndGetUser(email, password)
+	return err
 }
 
-func (b *backendMongo) CreateSecondaryEmail(userID, secondaryEmail string) error {
+func (b *backendMongo) AddSecondaryEmail(userID, secondaryEmail string) error {
 	return nil
 }
-func (b *backendMongo) SetPrimaryEmail(userID, secondaryEmail string) error {
+
+func (b *backendMongo) UpdatePrimaryEmail(userID, secondaryEmail string) error {
 	return nil
 }
-func (b *backendMongo) UpdatePassword(userID, newPassword string) error {
-	passwordHash, err := b.c.Hash(newPassword)
-	if err != nil {
-		return err
-	}
-	return b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"passwordHash": passwordHash}})
-}
-func (b *backendMongo) CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL string) error {
+
+func (b *backendMongo) CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
 	s := b.emailSessions()
 	c, _ := s.FindId(emailVerifyHash).Count()
 	if c > 0 {
 		return errors.New("invalid emailVerifyHash")
 	}
-	return s.Insert(&emailSession{"", email, emailVerifyHash, csrfToken, destinationURL})
+	return s.Insert(&emailSession{"", email, info, emailVerifyHash, csrfToken})
 }
 
 func (b *backendMongo) GetEmailSession(verifyHash string) (*emailSession, error) {
@@ -141,8 +149,8 @@ func (b *backendMongo) UpdateEmailSession(verifyHash, userID string) error {
 func (b *backendMongo) DeleteEmailSession(verifyHash string) error {
 	return b.emailSessions().RemoveId(verifyHash)
 }
-func (b *backendMongo) CreateSession(userID, email, fullname, sessionHash, csrfToken string, roles []string, renewTimeUTC, expireTimeUTC time.Time) (*LoginSession, error) {
-	s := LoginSession{userID, email, fullname, sessionHash, csrfToken, roles, renewTimeUTC, expireTimeUTC}
+func (b *backendMongo) CreateSession(userID, email string, info map[string]interface{}, sessionHash, csrfToken string, renewTimeUTC, expireTimeUTC time.Time) (*LoginSession, error) {
+	s := LoginSession{userID, email, info, sessionHash, csrfToken, renewTimeUTC, expireTimeUTC}
 	return &s, b.loginSessions().Insert(s)
 }
 
