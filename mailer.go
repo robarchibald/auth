@@ -73,10 +73,7 @@ func (s *SmtpSender) Send(to, subject, body string) error {
 
 	d := gomail.NewPlainDialer(s.SMTPServer, s.SMTPPort, s.SMTPFromEmail, s.SMTPPassword)
 
-	if err := d.DialAndSend(m); err != nil {
-		return err
-	}
-	return nil
+	return d.DialAndSend(m)
 }
 
 func (e *Emailer) SendVerify(to string, data interface{}) error {
