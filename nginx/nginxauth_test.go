@@ -54,9 +54,9 @@ func TestAuth(t *testing.T) {
 	}
 
 	w = httptest.NewRecorder()
-	storer = &mockAuthStorer{SessionReturn: &auth.LoginSession{UserID: "1", Email: "test@test.com", FullName: "Name"}}
+	storer = &mockAuthStorer{SessionReturn: &auth.LoginSession{UserID: "1", Email: "test@test.com", Info: map[string]interface{}{"fullName": "Name"}}}
 	authCookie(storer, w, nil)
-	if w.Header().Get("X-User") != `{"userID":"1","email":"test@test.com","fullName":"Name"}` || storer.LastRun != "GetSession" {
+	if w.Header().Get("X-User") != `{"userID":"1","email":"test@test.com","info":{"fullName":"Name"}}` || storer.LastRun != "GetSession" {
 		t.Error("expected User header to be set", w.Header().Get("X-User"), storer.LastRun)
 	}
 }
@@ -73,7 +73,7 @@ func TestAuthBasic(t *testing.T) {
 	w = httptest.NewRecorder()
 	storer = &mockAuthStorer{SessionReturn: &auth.LoginSession{UserID: "0", Email: "test@test.com"}}
 	authBasic(storer, w, nil)
-	if w.Header().Get("X-User") != `{"userID":"0","email":"test@test.com","fullName":""}` || storer.LastRun != "GetBasicAuth" {
+	if w.Header().Get("X-User") != `{"userID":"0","email":"test@test.com","info":null}` || storer.LastRun != "GetBasicAuth" {
 		t.Error("expected User header to be set", w.Header().Get("X-User"), storer.LastRun)
 	}
 }
@@ -165,10 +165,10 @@ func TestAddUserHeader(t *testing.T) {
 
 /*******************************************************/
 type mockAuthStorer struct {
-	SessionReturn        *auth.LoginSession
-	DestinationURLReturn string
-	ErrReturn            error
-	LastRun              string
+	SessionReturn *auth.LoginSession
+	InfoReturn    map[string]interface{}
+	ErrReturn     error
+	LastRun       string
 }
 
 func (s *mockAuthStorer) GetSession(w http.ResponseWriter, r *http.Request) (*auth.LoginSession, error) {
@@ -196,9 +196,9 @@ func (s *mockAuthStorer) CreateProfile(w http.ResponseWriter, r *http.Request) (
 	s.LastRun = "CreateProfile"
 	return s.SessionReturn, s.ErrReturn
 }
-func (s *mockAuthStorer) VerifyEmail(w http.ResponseWriter, r *http.Request) (string, string, error) {
+func (s *mockAuthStorer) VerifyEmail(w http.ResponseWriter, r *http.Request) (string, map[string]interface{}, error) {
 	s.LastRun = "VerifyEmail"
-	return "csrfToken", s.DestinationURLReturn, s.ErrReturn
+	return "csrfToken", s.InfoReturn, s.ErrReturn
 }
 func (s *mockAuthStorer) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error {
 	s.LastRun = "CreateSecondaryEmail"
