@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -111,6 +112,38 @@ type LoginSession struct {
 	CSRFToken     string                 `bson:"csrfToken"     json:"csrfToken"`
 	RenewTimeUTC  time.Time              `bson:"renewTimeUTC"  json:"renewTimeUTC"`
 	ExpireTimeUTC time.Time              `bson:"expireTimeUTC" json:"expireTimeUTC"`
+}
+
+// GetInfo will return the named info as an interface{}
+func (l *LoginSession) GetInfo(name string) interface{} {
+	if l == nil || l.Info == nil {
+		return nil
+	}
+	return l.Info[name]
+}
+
+// GetInfoString will return the named info as a string
+func (l *LoginSession) GetInfoString(name string) string {
+	v := l.GetInfo(name)
+	if i, ok := v.(string); ok {
+		return i
+	}
+	return fmt.Sprint(v)
+}
+
+// GetInfoStrings will return the named info as an array of strings
+func (l *LoginSession) GetInfoStrings(name string) []string {
+	if strs, ok := l.GetInfo(name).([]string); ok {
+		return strs
+	}
+	if v, ok := l.GetInfo(name).([]interface{}); ok {
+		strArr := make([]string, len(v))
+		for i, str := range v {
+			strArr[i] = fmt.Sprint(str)
+		}
+		return strArr
+	}
+	return nil
 }
 
 type rememberMeSession struct {
