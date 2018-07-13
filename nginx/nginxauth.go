@@ -12,24 +12,14 @@ import (
 
 	"github.com/EndFirstCorp/auth"
 	"github.com/EndFirstCorp/configReader"
+	"github.com/EndFirstCorp/onedb/mgo"
 	"github.com/gorilla/handlers"
 )
 
 type authConf struct {
 	AuthServerListenPort                     int
 	StoragePrefix                            string
-	DbType                                   string
-	DbServer                                 string
-	DbPort                                   int
-	DbUser                                   string
-	DbDatabase                               string
-	DbPassword                               string
-	LdapServer                               string
-	LdapPort                                 int
-	LdapBindDn                               string
-	LdapPassword                             string
-	LdapBaseDn                               string
-	LdapUserFilter                           string
+	ConnectionURI                            string
 	GetSessionQuery                          string
 	RenewSessionQuery                        string
 	GetRememberMeQuery                       string
@@ -105,17 +95,13 @@ func newNginxAuth(configFle, logfile string) (*nginxauth, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	m, err := mgo.Dial(config.ConnectionURI)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	s := auth.NewBackendRedisSession(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections, config.StoragePrefix)
-	l, err := auth.NewBackendLDAPLogin(config.LdapServer, config.LdapPort, config.LdapBindDn, config.LdapPassword, config.LdapBaseDn, config.LdapUserFilter)
-	if err != nil {
-		return nil, err
-	}
-	u, err := auth.NewBackendDbUser(config.DbServer, config.DbPort, config.DbUser, config.DbPassword, config.DbDatabase, config.AddUserQuery, config.GetUserQuery, config.UpdateUserQuery, config.CreateSecondaryEmailQuery)
-	if err != nil {
-		return nil, err
-	}
-	b := auth.NewBackend(u, l, s)
+	b := auth.NewBackend(auth.NewBackendMongo(m, &auth.CryptoHashStore{}), s)
 
 	mailer, err := config.NewEmailer()
 	if err != nil {
@@ -187,7 +173,7 @@ func authCookie(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user, err := json.Marshal(&auth.UserLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
+	user, err := json.Marshal(&auth.User{Email: session.Email, UserID: session.UserID, Info: session.Info})
 	if err != nil {
 		authErr(w, r, err)
 		return
@@ -216,7 +202,7 @@ func authBasic(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	user, err := json.Marshal(&auth.UserLogin{Email: session.Email, UserID: session.UserID, FullName: session.FullName})
+	user, err := json.Marshal(&auth.User{Email: session.Email, UserID: session.UserID, Info: session.Info})
 	if err != nil {
 		basicErr(w, r, err)
 		return
@@ -275,7 +261,7 @@ func runWithProfile(method func(http.ResponseWriter, *http.Request) (*auth.Login
 		return
 	}
 
-	user, err := json.Marshal(&auth.UserLogin{Email: s.Email, UserID: s.UserID, FullName: s.FullName})
+	user, err := json.Marshal(&auth.User{Email: s.Email, UserID: s.UserID, Info: s.Info})
 	if err != nil {
 		authErr(w, r, err)
 		return

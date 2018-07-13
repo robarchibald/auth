@@ -20,8 +20,8 @@ func TestAuthError(t *testing.T) {
 }
 
 func TestBackendLogin(t *testing.T) {
-	m := &mockBackend{LoginReturn: loginSuccess()}
-	b := backend{u: m, l: m, s: m}
+	m := &mockBackend{}
+	b := backend{u: m, s: m}
 	b.Login("email", "password")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "Login" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
@@ -30,8 +30,8 @@ func TestBackendLogin(t *testing.T) {
 
 func TestBackendCreateSession(t *testing.T) {
 	m := &mockBackend{CreateSessionReturn: sessionSuccess(time.Now(), time.Now())}
-	b := backend{u: m, l: m, s: m}
-	b.CreateSession("1", "test@test.com", "fullname", "hash", "csrfToken", time.Now(), time.Now())
+	b := backend{u: m, s: m}
+	b.CreateSession("1", "test@test.com", map[string]interface{}{"info": "values"}, "hash", "csrfToken", time.Now(), time.Now())
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "CreateSession" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
@@ -39,7 +39,7 @@ func TestBackendCreateSession(t *testing.T) {
 
 func TestBackendCreateRemember(t *testing.T) {
 	m := &mockBackend{CreateRememberMeReturn: rememberMe(time.Now(), time.Now())}
-	b := backend{u: m, l: m, s: m}
+	b := backend{u: m, s: m}
 	b.CreateRememberMe("1", "test@test.com", "", "", time.Now(), time.Now())
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "CreateRememberMe" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
@@ -48,7 +48,7 @@ func TestBackendCreateRemember(t *testing.T) {
 
 func TestBackendGetSession(t *testing.T) {
 	m := &mockBackend{GetSessionReturn: sessionErr()}
-	b := backend{u: m, l: m, s: m}
+	b := backend{u: m, s: m}
 	b.GetSession("hash")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "GetSession" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
@@ -57,7 +57,7 @@ func TestBackendGetSession(t *testing.T) {
 
 func TestBackendUpdateSession(t *testing.T) {
 	m := &mockBackend{UpdateSessionErr: errors.New("failed")}
-	b := backend{u: m, l: m, s: m}
+	b := backend{u: m, s: m}
 	b.UpdateSession("hash", time.Now(), time.Now())
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "UpdateSession" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
@@ -66,7 +66,7 @@ func TestBackendUpdateSession(t *testing.T) {
 
 func TestBackendGetRememberMe(t *testing.T) {
 	m := &mockBackend{GetRememberMeReturn: rememberErr()}
-	b := backend{u: m, l: m, s: m}
+	b := backend{u: m, s: m}
 	b.GetRememberMe("selector")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "GetRememberMe" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
@@ -75,7 +75,7 @@ func TestBackendGetRememberMe(t *testing.T) {
 
 func TestBackendUpdateRememberMe(t *testing.T) {
 	m := &mockBackend{UpdateRememberMeErr: errors.New("failed")}
-	b := backend{u: m, l: m, s: m}
+	b := backend{u: m, s: m}
 	b.UpdateRememberMe("selector", time.Now())
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "UpdateRememberMe" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
@@ -84,8 +84,8 @@ func TestBackendUpdateRememberMe(t *testing.T) {
 
 func TestBackendAddUser(t *testing.T) {
 	m := &mockBackend{AddUserErr: nil}
-	b := backend{u: m, l: m, s: m}
-	b.AddUser("mail")
+	b := backend{u: m, s: m}
+	b.AddUser("mail", map[string]interface{}{"info": "value"})
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "AddUser" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
@@ -93,7 +93,7 @@ func TestBackendAddUser(t *testing.T) {
 
 func TestBackendGetEmailSession(t *testing.T) {
 	m := &mockBackend{getEmailSessionReturn: getEmailSessionErr()}
-	b := backend{u: m, l: m, s: m}
+	b := backend{u: m, s: m}
 	b.GetEmailSession("hash")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "GetEmailSession" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
@@ -102,43 +102,43 @@ func TestBackendGetEmailSession(t *testing.T) {
 
 func TestBackendUpdateUser(t *testing.T) {
 	m := &mockBackend{}
-	b := backend{u: m, l: m, s: m}
-	b.UpdateUser("1", "name", "company", "url")
+	b := backend{u: m, s: m}
+	b.UpdateUser("1", "password", map[string]interface{}{"fullName": "name", "company": "companyName"})
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "UpdateUser" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
 }
 
 func TestBackendSetPrimaryEmail(t *testing.T) {
-	m := &mockBackend{SetPrimaryEmailErr: errors.New("fail")}
-	b := backend{u: m, l: m, s: m}
-	b.SetPrimaryEmail("userID", "newEmail")
-	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "SetPrimaryEmail" {
+	m := &mockBackend{UpdatePrimaryEmailErr: errors.New("fail")}
+	b := backend{u: m, s: m}
+	b.UpdatePrimaryEmail("userID", "newEmail")
+	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "UpdatePrimaryEmail" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
 }
 
 func TestBackendUpdatePassword(t *testing.T) {
 	m := &mockBackend{UpdatePasswordErr: errors.New("fail")}
-	b := backend{u: m, l: m, s: m}
+	b := backend{u: m, s: m}
 	b.UpdatePassword("userID", "newPassword")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "UpdatePassword" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
 }
 
-func TestBackendCreateSecondaryEmail(t *testing.T) {
-	m := &mockBackend{CreateSecondaryEmailErr: errors.New("fail")}
-	b := backend{u: m, l: m, s: m}
-	b.CreateSecondaryEmail("userID", "secondaryEmail@test.com")
-	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "CreateSecondaryEmail" {
+func TestBackendAddSecondaryEmail(t *testing.T) {
+	m := &mockBackend{AddSecondaryEmailErr: errors.New("fail")}
+	b := backend{u: m, s: m}
+	b.AddSecondaryEmail("userID", "secondaryEmail@test.com")
+	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "AddSecondaryEmail" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
 }
 
 func TestBackendDeleteSession(t *testing.T) {
 	m := &mockBackend{}
-	b := backend{u: m, l: m, s: m}
+	b := backend{u: m, s: m}
 	b.DeleteSession("hash")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "DeleteSession" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
@@ -147,7 +147,7 @@ func TestBackendDeleteSession(t *testing.T) {
 
 func TestBackendInvalidateSessions(t *testing.T) {
 	m := &mockBackend{}
-	b := backend{u: m, l: m, s: m}
+	b := backend{u: m, s: m}
 	b.InvalidateSessions("email")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "InvalidateSessions" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
@@ -156,7 +156,7 @@ func TestBackendInvalidateSessions(t *testing.T) {
 
 func TestBackendDeleteRememberMe(t *testing.T) {
 	m := &mockBackend{}
-	b := backend{u: m, l: m, s: m}
+	b := backend{u: m, s: m}
 	b.DeleteRememberMe("selector")
 	if len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "DeleteRememberMe" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
@@ -166,16 +166,16 @@ func TestBackendDeleteRememberMe(t *testing.T) {
 func TestBackendClose(t *testing.T) {
 	// all succeed
 	m := &mockBackend{}
-	b := backend{u: m, l: m, s: m}
+	b := backend{u: m, s: m}
 	b.Close()
-	if len(m.MethodsCalled) != 3 || m.MethodsCalled[0] != "Close" || m.MethodsCalled[1] != "Close" || m.MethodsCalled[2] != "Close" {
+	if len(m.MethodsCalled) != 2 || m.MethodsCalled[0] != "Close" || m.MethodsCalled[1] != "Close" {
 		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
 
 	// error on session close
 	m = &mockBackend{}
 	e := &mockBackend{ErrReturn: errors.New("failed")}
-	b = backend{u: m, l: m, s: e}
+	b = backend{u: m, s: e}
 	b.Close()
 	if len(m.MethodsCalled) != 0 || len(e.MethodsCalled) != 1 || e.MethodsCalled[0] != "Close" {
 		t.Error("Expected fail on session close", m.MethodsCalled)
@@ -184,27 +184,18 @@ func TestBackendClose(t *testing.T) {
 	// error on user close
 	m = &mockBackend{}
 	e = &mockBackend{ErrReturn: errors.New("failed")}
-	b = backend{u: e, l: m, s: m}
+	b = backend{u: e, s: m}
 	b.Close()
 	if len(e.MethodsCalled) != 1 || len(m.MethodsCalled) != 1 || m.MethodsCalled[0] != "Close" || e.MethodsCalled[0] != "Close" {
 		t.Error("Expected fail on user close", m.MethodsCalled)
-	}
-
-	// error on login close
-	m = &mockBackend{}
-	e = &mockBackend{ErrReturn: errors.New("failed")}
-	b = backend{u: m, l: e, s: m}
-	b.Close()
-	if len(m.MethodsCalled) != 2 || len(e.MethodsCalled) != 1 || m.MethodsCalled[0] != "Close" || m.MethodsCalled[1] != "Close" || e.MethodsCalled[0] != "Close" {
-		t.Error("Expected it would call backend", m.MethodsCalled)
 	}
 }
 
 /***********************************************************************/
 
-type LoginReturn struct {
-	Login *UserLogin
-	Err   error
+type UserReturn struct {
+	User *User
+	Err  error
 }
 
 type SessionReturn struct {
@@ -217,54 +208,56 @@ type RememberMeReturn struct {
 	Err        error
 }
 
-type GetUserReturn struct {
-	User *user
-	Err  error
-}
-
-type getEmailSessionReturn struct {
+type EmailSessionReturn struct {
 	Session *emailSession
 	Err     error
 }
 
 type mockBackend struct {
 	Backender
-	GetLoginReturn          *LoginReturn
-	LoginReturn             *LoginReturn
-	ExpirationReturn        *time.Time
-	GetSessionReturn        *SessionReturn
-	CreateSessionReturn     *SessionReturn
-	CreateRememberMeReturn  *RememberMeReturn
-	UpdateSessionErr        error
-	AddUserErr              error
-	DeleteEmailSessionErr   error
-	UpdateEmailSessionErr   error
-	GetUserReturn           *GetUserReturn
-	getEmailSessionReturn   *getEmailSessionReturn
-	CreateLoginReturn       *LoginReturn
-	CreateSecondaryEmailErr error
-	SetPrimaryEmailErr      error
-	UpdatePasswordErr       error
-	GetRememberMeReturn     *RememberMeReturn
-	UpdateRememberMeErr     error
-	ErrReturn               error
-	MethodsCalled           []string
+	GetLoginReturn         *UserReturn
+	LoginAndGetUserReturn  *UserReturn
+	LoginErr               error
+	ExpirationReturn       *time.Time
+	GetSessionReturn       *SessionReturn
+	CreateSessionReturn    *SessionReturn
+	CreateRememberMeReturn *RememberMeReturn
+	UpdateSessionErr       error
+	AddUserErr             error
+	DeleteEmailSessionErr  error
+	UpdateEmailSessionErr  error
+	GetUserReturn          *UserReturn
+	getEmailSessionReturn  *EmailSessionReturn
+	AddSecondaryEmailErr   error
+	UpdatePrimaryEmailErr  error
+	UpdateUserErr          error
+	UpdatePasswordErr      error
+	UpdateInfoErr          error
+	GetRememberMeReturn    *RememberMeReturn
+	UpdateRememberMeErr    error
+	ErrReturn              error
+	MethodsCalled          []string
 }
 
-func (b *mockBackend) GetLogin(email string) (*UserLogin, error) {
+func (b *mockBackend) GetLogin(email string) (*User, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetLogin")
 	if b.GetLoginReturn == nil {
 		return nil, errors.New("GetLoginReturn not initialized")
 	}
-	return b.GetLoginReturn.Login, b.GetLoginReturn.Err
+	return b.GetLoginReturn.User, b.GetLoginReturn.Err
 }
 
-func (b *mockBackend) Login(email, password string) (*UserLogin, error) {
-	b.MethodsCalled = append(b.MethodsCalled, "Login")
-	if b.LoginReturn == nil {
-		return nil, errors.New("LoginReturn not initialized")
+func (b *mockBackend) LoginAndGetUser(email, password string) (*User, error) {
+	b.MethodsCalled = append(b.MethodsCalled, "LoginAndGetUser")
+	if b.LoginAndGetUserReturn == nil {
+		return nil, errors.New("LoginAndGetUserReturn not initialized")
 	}
-	return b.LoginReturn.Login, b.LoginReturn.Err
+	return b.LoginAndGetUserReturn.User, b.LoginAndGetUserReturn.Err
+}
+
+func (b *mockBackend) Login(email, password string) error {
+	b.MethodsCalled = append(b.MethodsCalled, "Login")
+	return b.LoginErr
 }
 
 func (b *mockBackend) GetSession(sessionHash string) (*LoginSession, error) {
@@ -275,7 +268,7 @@ func (b *mockBackend) GetSession(sessionHash string) (*LoginSession, error) {
 	return b.GetSessionReturn.Session, b.GetSessionReturn.Err
 }
 
-func (b *mockBackend) CreateSession(userID, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*LoginSession, error) {
+func (b *mockBackend) CreateSession(userID, email string, info map[string]interface{}, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*LoginSession, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateSession")
 	if b.CreateSessionReturn == nil {
 		return nil, errors.New("CreateSessionReturn not initialized")
@@ -306,12 +299,12 @@ func (b *mockBackend) UpdateRememberMe(selector string, renewTimeUTC time.Time) 
 	b.MethodsCalled = append(b.MethodsCalled, "UpdateRememberMe")
 	return b.UpdateRememberMeErr
 }
-func (b *mockBackend) AddUser(email string) (string, error) {
+func (b *mockBackend) AddUser(email string, info map[string]interface{}) (string, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "AddUser")
 	return "1", b.AddUserErr
 }
 
-func (b *mockBackend) CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL string) error {
+func (b *mockBackend) CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateEmailSession")
 	return b.ErrReturn
 }
@@ -334,7 +327,7 @@ func (b *mockBackend) DeleteEmailSession(emailVerifyHash string) error {
 	return b.DeleteEmailSessionErr
 }
 
-func (b *mockBackend) GetUser(email string) (*user, error) {
+func (b *mockBackend) GetUser(email string) (*User, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetUser")
 	if b.GetUserReturn == nil {
 		return nil, errors.New("GetUserReturn not initialized")
@@ -342,33 +335,30 @@ func (b *mockBackend) GetUser(email string) (*user, error) {
 	return b.GetUserReturn.User, b.GetUserReturn.Err
 }
 
-func (b *mockBackend) UpdateUser(userID, fullname, company, pictureURL string) error {
+func (b *mockBackend) UpdateUser(userID, password string, info map[string]interface{}) error {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdateUser")
-	return b.ErrReturn
+	return b.UpdateUserErr
 }
 
-func (b *mockBackend) CreateLogin(userID, email, password, fullName string) (*UserLogin, error) {
-	b.MethodsCalled = append(b.MethodsCalled, "CreateLogin")
-	if b.CreateLoginReturn == nil {
-		return nil, errors.New("CreateLoginReturn not initialized")
-	}
-	return b.CreateLoginReturn.Login, b.CreateLoginReturn.Err
-}
-
-func (b *mockBackend) CreateSecondaryEmail(userID, secondaryEmail string) error {
-	b.MethodsCalled = append(b.MethodsCalled, "CreateSecondaryEmail")
-	return b.CreateSecondaryEmailErr
-}
-func (b *mockBackend) SetPrimaryEmail(userID, newPrimaryEmail string) error {
-	b.MethodsCalled = append(b.MethodsCalled, "SetPrimaryEmail")
-	return b.SetPrimaryEmailErr
-
-}
-func (b *mockBackend) UpdatePassword(userID, newPassword string) error {
+func (b *mockBackend) UpdatePassword(userID, password string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "UpdatePassword")
 	return b.UpdatePasswordErr
 }
 
+func (b *mockBackend) UpdateInfo(userID string, info map[string]interface{}) error {
+	b.MethodsCalled = append(b.MethodsCalled, "UpdateInfo")
+	return b.UpdateInfoErr
+}
+
+func (b *mockBackend) AddSecondaryEmail(userID, secondaryEmail string) error {
+	b.MethodsCalled = append(b.MethodsCalled, "AddSecondaryEmail")
+	return b.AddSecondaryEmailErr
+}
+func (b *mockBackend) UpdatePrimaryEmail(userID, newPrimaryEmail string) error {
+	b.MethodsCalled = append(b.MethodsCalled, "UpdatePrimaryEmail")
+	return b.UpdatePrimaryEmailErr
+
+}
 func (b *mockBackend) DeleteSession(sessionHash string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "DeleteSession")
 	return b.ErrReturn
@@ -389,16 +379,16 @@ func (b *mockBackend) Close() error {
 	return b.ErrReturn
 }
 
-func loginSuccess() *LoginReturn {
-	return &LoginReturn{&UserLogin{Email: "test@test.com"}, nil}
+func userSuccess() *UserReturn {
+	return &UserReturn{&User{Email: "test@test.com"}, nil}
 }
 
-func loginErr() *LoginReturn {
-	return &LoginReturn{nil, errors.New("failed")}
+func userErr() *UserReturn {
+	return &UserReturn{nil, errors.New("failed")}
 }
 
 func sessionSuccess(renewTimeUTC, expireTimeUTC time.Time) *SessionReturn {
-	return &SessionReturn{&LoginSession{"1", "test@test.com", "fullname", "sessionHash", "csrfToken", renewTimeUTC, expireTimeUTC}, nil}
+	return &SessionReturn{&LoginSession{"1", "test@test.com", map[string]interface{}{"info": "values"}, "sessionHash", "csrfToken", renewTimeUTC, expireTimeUTC}, nil}
 }
 
 func sessionErr() *SessionReturn {
@@ -413,17 +403,9 @@ func rememberErr() *RememberMeReturn {
 	return &RememberMeReturn{&rememberMeSession{}, errors.New("failed")}
 }
 
-func getEmailSessionSuccess() *getEmailSessionReturn {
-	return &getEmailSessionReturn{&emailSession{Email: "email@test.com", EmailVerifyHash: "hash", DestinationURL: "destinationURL", CSRFToken: "csrfToken"}, nil}
+func getEmailSessionSuccess() *EmailSessionReturn {
+	return &EmailSessionReturn{&emailSession{Email: "email@test.com", EmailVerifyHash: "hash", Info: map[string]interface{}{"key": "value"}, CSRFToken: "csrfToken"}, nil}
 }
-func getEmailSessionErr() *getEmailSessionReturn {
-	return &getEmailSessionReturn{nil, errors.New("failed")}
-}
-
-func getUserSuccess() *GetUserReturn {
-	return &GetUserReturn{&user{FullName: "name", PrimaryEmail: "test@test.com"}, nil}
-}
-
-func getUserErr() *GetUserReturn {
-	return &GetUserReturn{nil, errors.New("failed")}
+func getEmailSessionErr() *EmailSessionReturn {
+	return &EmailSessionReturn{nil, errors.New("failed")}
 }

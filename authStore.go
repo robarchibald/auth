@@ -40,7 +40,7 @@ type AuthStorer interface {
 	Login(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	Register(w http.ResponseWriter, r *http.Request) error
 	CreateProfile(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
-	VerifyEmail(w http.ResponseWriter, r *http.Request) (string, string, error)
+	VerifyEmail(w http.ResponseWriter, r *http.Request) (string, map[string]interface{}, error)
 	CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error
 	SetPrimaryEmail(w http.ResponseWriter, r *http.Request) error
 	UpdatePassword(w http.ResponseWriter, r *http.Request) error
@@ -209,63 +209,49 @@ func (s *authStore) login(w http.ResponseWriter, r *http.Request, email, passwor
 
 	// add in check for DDOS attack. Slow down or lock out checks for same account
 	// or same IP with multiple failed attempts
-	login, err := s.backend.Login(email, password)
+	login, err := s.backend.LoginAndGetUser(email, password)
 	if err != nil {
 		return nil, newLoggedError("Invalid username or password", err)
 	}
 
-	return s.createSession(w, r, email, login.UserID, login.FullName, rememberMe)
+	return s.createSession(w, r, login.UserID, email, login.Info, rememberMe)
 }
 
 func (s *authStore) OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error) {
-	email, fullname, err := getOAuthCredentials(r)
+	email, info, err := getOAuthCredentials(r)
 	if err != nil {
 		return "", err
 	}
-	return s.oauthLogin(w, r, email, fullname)
+	return s.oauthLogin(w, r, email, info)
 }
 
-func (s *authStore) oauthLogin(w http.ResponseWriter, r *http.Request, email, fullname string) (string, error) {
-	var userID string
+func (s *authStore) oauthLogin(w http.ResponseWriter, r *http.Request, email string, info map[string]interface{}) (string, error) {
 	user, err := s.backend.GetUser(email)
 	if user == nil || err != nil {
-		userID, err = s.backend.AddUser(email)
-		if err != nil {
-			return "", newLoggedError("Failed to create new user in database", err)
-		}
-
-		err = s.backend.UpdateUser(userID, fullname, "", "")
-		if err != nil {
-			return "", newLoggedError("Unable to update user", err)
-		}
-	} else {
-		userID = user.UserID
-	}
-
-	if _, err := s.backend.GetLogin(email); err != nil {
-		_, err = s.backend.CreateLogin(userID, email, "", fullname)
+		user, err = s.backend.AddUserFull(email, "", info)
 		if err != nil {
 			return "", newLoggedError("Unable to create login", err)
 		}
 	}
 
-	session, err := s.createSession(w, r, email, userID, fullname, false)
+	session, err := s.createSession(w, r, user.UserID, email, info, false)
 	if err != nil {
 		return "", err
 	}
 	return session.CSRFToken, nil
 }
 
-func getOAuthCredentials(r *http.Request) (string, string, error) {
-	var fullname, email, email2 string
+func getOAuthCredentials(r *http.Request) (string, map[string]interface{}, error) {
+	var email, email2 string
+	info := make(map[string]interface{})
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		return "", "", fmt.Errorf("No authorization found")
+		return "", nil, fmt.Errorf("No authorization found")
 	}
 
 	authHeaderParts := strings.Split(authHeader, " ")
 	if len(authHeaderParts) != 2 || strings.ToLower(authHeaderParts[0]) != "bearer" {
-		return "", "", fmt.Errorf("Authorization header format must be Bearer {token}")
+		return "", nil, fmt.Errorf("Authorization header format must be Bearer {token}")
 	}
 
 	// need to actually parse here and handle error
@@ -282,19 +268,19 @@ func getOAuthCredentials(r *http.Request) (string, string, error) {
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if ok {
-		fullname = fmt.Sprintf("%v", claims["name"])
+		info["fullname"] = fmt.Sprintf("%v", claims["name"])
 		email = fmt.Sprintf("%v", claims["unique_name"])
 		fmt.Println("unique_name:", email)
 		email2 = fmt.Sprintf("%v", claims["email"])
 		fmt.Println("email:", email2)
-		if email == "" || fullname == "" {
-			return "", "", fmt.Errorf("expected email and fullname")
+		if email == "" || info["fullname"] == "" {
+			return "", nil, fmt.Errorf("expected email and fullname")
 		}
 	}
-	return email, fullname, nil
+	return email, info, nil
 }
 
-func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, email, userID, fullname string, rememberMe bool) (*LoginSession, error) {
+func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, userID, email string, info map[string]interface{}, rememberMe bool) (*LoginSession, error) {
 	var err error
 	var selector, token, tokenHash string
 	if rememberMe {
@@ -313,7 +299,7 @@ func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, email,
 		return nil, newLoggedError("Problem generating csrf token", nil)
 	}
 
-	session, err := s.backend.CreateSession(userID, email, fullname, sessionHash, csrfToken, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration))
+	session, err := s.backend.CreateSession(userID, email, info, sessionHash, csrfToken, time.Now().UTC().Add(sessionRenewDuration), time.Now().UTC().Add(sessionExpireDuration))
 	if err != nil {
 		return nil, newLoggedError("Unable to create new session", err)
 	}
@@ -368,10 +354,10 @@ func (s *authStore) Register(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return newAuthError("Unable to get email", err)
 	}
-	return s.register(r, registration.Email, registration.DestinationURL)
+	return s.register(r, registration.Email, registration.Info)
 }
 
-func (s *authStore) register(r *http.Request, email, destinationURL string) error {
+func (s *authStore) register(r *http.Request, email string, info map[string]interface{}) error {
 	if !isValidEmail(email) {
 		return newAuthError("Invalid email", nil)
 	}
@@ -381,7 +367,7 @@ func (s *authStore) register(r *http.Request, email, destinationURL string) erro
 		return newAuthError("User already registered", err)
 	}
 
-	verifyCode, err := s.addEmailSession(email, destinationURL)
+	verifyCode, err := s.addEmailSession(email, info)
 	if err != nil {
 		return newLoggedError("Unable to save user", err)
 	}
@@ -406,7 +392,7 @@ func getBaseURL(url string) string {
 	return url[:protoIndex+3+firstSlash]
 }
 
-func (s *authStore) addEmailSession(email, destinationURL string) (string, error) {
+func (s *authStore) addEmailSession(email string, info map[string]interface{}) (string, error) {
 	verifyCode, verifyHash, err := generateStringAndHash()
 	if err != nil {
 		return "", newLoggedError("Problem generating email confirmation code", err)
@@ -417,7 +403,7 @@ func (s *authStore) addEmailSession(email, destinationURL string) (string, error
 		return "", newLoggedError("Problem generating csrf token", err)
 	}
 
-	err = s.backend.CreateEmailSession(email, verifyHash, csrfToken, destinationURL)
+	err = s.backend.CreateEmailSession(email, info, verifyHash, csrfToken)
 	if err != nil {
 		return "", newLoggedError("Problem adding user to database", err)
 	}
@@ -434,10 +420,10 @@ func (s *authStore) CreateProfile(w http.ResponseWriter, r *http.Request) (*Logi
 	if csrfToken == "" {
 		return nil, errMissingCSRF
 	}
-	return s.createProfile(w, r, csrfToken, profile.FullName, profile.Organization, profile.Password, profile.PicturePath)
+	return s.createProfile(w, r, csrfToken, profile.Password, profile.Info)
 }
 
-func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, csrfToken, fullName, organization, password, picturePath string) (*LoginSession, error) {
+func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, csrfToken, password string, info map[string]interface{}) (*LoginSession, error) {
 	emailCookie, err := s.getEmailCookie(w, r)
 	if err != nil || emailCookie.EmailVerificationCode == "" {
 		return nil, newLoggedError("Unable to get email verification cookie", err)
@@ -456,7 +442,7 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, csrfTo
 		return nil, errInvalidCSRF
 	}
 
-	err = s.backend.UpdateUser(session.UserID, fullName, organization, picturePath)
+	err = s.backend.UpdateUser(session.UserID, password, info)
 	if err != nil {
 		return nil, newLoggedError("Unable to update user", err)
 	}
@@ -466,12 +452,7 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, csrfTo
 		return nil, newLoggedError("Error while creating profile", err)
 	}
 
-	_, err = s.backend.CreateLogin(session.UserID, session.Email, password, fullName)
-	if err != nil {
-		return nil, newLoggedError("Unable to create login", err)
-	}
-
-	ls, err := s.createSession(w, r, session.Email, session.UserID, fullName, false)
+	ls, err := s.createSession(w, r, session.UserID, session.Email, info, false)
 	if err != nil {
 		return nil, err
 	}
@@ -481,52 +462,52 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, csrfTo
 }
 
 // move to sessionStore
-func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request) (string, string, error) {
+func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request) (string, map[string]interface{}, error) {
 	verify, err := getVerificationCode(r)
 	if err != nil {
-		return "", "", newAuthError("Unable to get verification email from JSON", err)
+		return "", nil, newAuthError("Unable to get verification email from JSON", err)
 	}
 	return s.verifyEmail(w, r, verify.EmailVerificationCode)
 }
 
-func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode string) (string, string, error) {
+func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode string) (string, map[string]interface{}, error) {
 	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
 		emailVerificationCode = emailVerificationCode + "="
 	}
 	emailVerifyHash, err := decodeStringToHash(emailVerificationCode)
 	if err != nil {
-		return "", "", newLoggedError("Invalid verification code", err)
+		return "", nil, newLoggedError("Invalid verification code", err)
 	}
 
 	session, err := s.backend.GetEmailSession(emailVerifyHash)
 	if err != nil {
-		return "", "", newLoggedError("Failed to verify email", err)
+		return "", nil, newLoggedError("Failed to verify email", err)
 	}
 
-	userID, err := s.backend.AddUser(session.Email)
+	userID, err := s.backend.AddUser(session.Email, session.Info)
 	if err != nil {
 		user, err := s.backend.GetUser(session.Email)
 		if err != nil {
-			return "", "", newLoggedError("Failed to get user in database", err)
+			return "", nil, newLoggedError("Failed to get user in database", err)
 		}
 		userID = user.UserID
 	}
 
 	err = s.backend.UpdateEmailSession(emailVerifyHash, userID)
 	if err != nil {
-		return "", "", newLoggedError("Failed to update email session", err)
+		return "", nil, newLoggedError("Failed to update email session", err)
 	}
 
 	err = s.saveEmailCookie(w, r, emailVerificationCode, time.Now().UTC().Add(emailExpireDuration))
 	if err != nil {
-		return "", "", newLoggedError("Failed to save email cookie", err)
+		return "", nil, newLoggedError("Failed to save email cookie", err)
 	}
 
 	err = s.mailer.SendWelcome(session.Email, nil)
 	if err != nil {
-		return "", "", newLoggedError("Failed to send welcome email", err)
+		return "", nil, newLoggedError("Failed to send welcome email", err)
 	}
-	return session.CSRFToken, session.DestinationURL, nil
+	return session.CSRFToken, session.Info, nil
 }
 
 func (s *authStore) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error {
@@ -598,8 +579,8 @@ func (s *authStore) saveRememberMeCookie(w http.ResponseWriter, r *http.Request,
 }
 
 type registration struct {
-	Email          string `json:"email"`
-	DestinationURL string `json:"destinationURL"`
+	Email string                 `json:"email"`
+	Info  map[string]interface{} `json:"info"`
 }
 
 func getRegistration(r *http.Request) (*registration, error) {
@@ -649,15 +630,14 @@ func generateThumbnail(filename string) (string, error) {
 }
 
 type profile struct {
-	FullName     string
-	Organization string
-	Password     string
-	PicturePath  string
+	Password string
+	Info     map[string]interface{}
 }
 
 func getProfile(r *http.Request) (*profile, error) {
-	profile := &profile{}
+	profile := &profile{Info: make(map[string]interface{})}
 	r.ParseMultipartForm(32 << 20) // 32 MB file
+
 	file, handler, err := r.FormFile("file")
 	if err == nil { // received the file, so save it
 		defer file.Close()
@@ -668,14 +648,16 @@ func getProfile(r *http.Request) (*profile, error) {
 		}
 		defer f.Close()
 		io.Copy(f, file)
-		profile.PicturePath = handler.Filename
+		profile.Info["filename"] = handler.Filename
 	}
 
-	// **************  TODO: change to generic way to get other parameters *******************
-
-	profile.FullName = r.FormValue("fullName")
-	profile.Organization = r.FormValue("organization")
-	profile.Password = r.FormValue("password")
+	for key := range r.Form { // save form values
+		if key == "password" {
+			profile.Password = r.FormValue(key)
+		} else {
+			profile.Info[key] = r.FormValue(key)
+		}
+	}
 
 	return profile, nil
 }

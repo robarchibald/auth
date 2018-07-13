@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -23,18 +24,18 @@ var errUserAlreadyExists = errors.New("DB: User already exists")
 
 // Backender interface contains all the methods needed to read and write users, sessions and logins
 type Backender interface {
-	// UserBackender. Write out since it contains duplicate BackendCloser
-	AddUser(email string) (string, error)
-	GetUser(email string) (*user, error)
-	UpdateUser(userID, fullname string, company string, pictureURL string) error
-	CreateSecondaryEmail(userID, secondaryEmail string) error
-
-	// LoginBackender. Write out since it contains duplicate BackendCloser
-	CreateLogin(userID, email, password, fullName string) (*UserLogin, error)
-	GetLogin(email string) (*UserLogin, error)
-	Login(email, password string) (*UserLogin, error)
-	SetPrimaryEmail(userID, newPrimaryEmail string) error
+	// duplicates userBackender since we can't have duplicate Close methods
+	AddUser(email string, info map[string]interface{}) (string, error)
+	AddUserFull(email, password string, info map[string]interface{}) (*User, error)
+	GetUser(email string) (*User, error)
+	UpdateUser(userID, password string, info map[string]interface{}) error
+	UpdateInfo(userID string, info map[string]interface{}) error
 	UpdatePassword(userID, newPassword string) error
+
+	Login(email, password string) error
+	LoginAndGetUser(email, password string) (*User, error)
+	AddSecondaryEmail(userID, secondaryEmail string) error
+	UpdatePrimaryEmail(userID, newPrimaryEmail string) error
 
 	sessionBackender
 }
@@ -44,30 +45,28 @@ type backendCloser interface {
 }
 
 // UserBackender interface holds methods for user management
-type UserBackender interface {
-	AddUser(email string) (string, error)
-	GetUser(email string) (*user, error)
-	UpdateUser(userID, fullname string, company string, pictureURL string) error
-	CreateSecondaryEmail(userID, secondaryEmail string) error
-	backendCloser
-}
-
-type loginBackender interface {
-	CreateLogin(userID, email, password, fullName string) (*UserLogin, error)
-	GetLogin(email string) (*UserLogin, error)
-	Login(email, password string) (*UserLogin, error)
-	SetPrimaryEmail(userID, newPrimaryEmail string) error
+type userBackender interface {
+	AddUser(email string, info map[string]interface{}) (string, error)
+	AddUserFull(email, password string, info map[string]interface{}) (*User, error)
+	GetUser(email string) (*User, error)
+	UpdateUser(userID, password string, info map[string]interface{}) error
+	UpdateInfo(userID string, info map[string]interface{}) error
 	UpdatePassword(userID, newPassword string) error
+
+	Login(email, password string) error
+	LoginAndGetUser(email, password string) (*User, error)
+	AddSecondaryEmail(userID, secondaryEmail string) error
+	UpdatePrimaryEmail(userID, newPrimaryEmail string) error
 	backendCloser
 }
 
 type sessionBackender interface {
-	CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL string) error
+	CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error
 	GetEmailSession(verifyHash string) (*emailSession, error)
 	UpdateEmailSession(verifyHash string, userID string) error
 	DeleteEmailSession(verifyHash string) error
 
-	CreateSession(userID, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*LoginSession, error)
+	CreateSession(userID, email string, info map[string]interface{}, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*LoginSession, error)
 	GetSession(sessionHash string) (*LoginSession, error)
 	UpdateSession(sessionHash string, renewTimeUTC, expireTimeUTC time.Time) error
 	DeleteSession(sessionHash string) error
@@ -81,38 +80,77 @@ type sessionBackender interface {
 }
 
 type emailSession struct {
-	UserID          string `bson:"userID"         json:"userID"`
-	Email           string `bson:"email"          json:"email"`
-	EmailVerifyHash string `bson:"_id"            json:"emailVerifyHash"`
-	CSRFToken       string `bson:"csrfToken"      json:"csrfToken"`
-	DestinationURL  string `bson:"destinationURL" json:"destinationURL"`
+	UserID          string                 `bson:"userID"    json:"userID"`
+	Email           string                 `bson:"email"     json:"email"`
+	Info            map[string]interface{} `bson:"info"      json:"info"`
+	EmailVerifyHash string                 `bson:"_id"       json:"emailVerifyHash"`
+	CSRFToken       string                 `bson:"csrfToken" json:"csrfToken"`
 }
 
 type user struct {
 	UserID            string
-	FullName          string
 	PrimaryEmail      string
+	PasswordHash      string
+	Info              map[string]interface{}
 	LockoutEndTimeUTC *time.Time
 	AccessFailedCount int
-	Roles             []string
 }
 
-// UserLogin is the struct which holds login information
-type UserLogin struct {
-	UserID   string `json:"userID"`
-	Email    string `json:"email"`
-	FullName string `json:"fullName"`
+// User is the struct which holds user information
+type User struct {
+	UserID string                 `json:"userID"`
+	Email  string                 `json:"email"`
+	Info   map[string]interface{} `json:"info"`
 }
 
 // LoginSession is the struct which holds session information
 type LoginSession struct {
-	UserID        string    `bson:"userID"        json:"userID"`
-	Email         string    `bson:"email"         json:"email"`
-	FullName      string    `bson:"fullName"      json:"fullName"`
-	SessionHash   string    `bson:"_id"           json:"sessionHash"`
-	CSRFToken     string    `bson:"csrfToken"     json:"csrfToken"`
-	RenewTimeUTC  time.Time `bson:"renewTimeUTC"  json:"renewTimeUTC"`
-	ExpireTimeUTC time.Time `bson:"expireTimeUTC" json:"expireTimeUTC"`
+	UserID        string                 `bson:"userID"        json:"userID"`
+	Email         string                 `bson:"email"         json:"email"`
+	Info          map[string]interface{} `bson:"info"          json:"info"`
+	SessionHash   string                 `bson:"_id"           json:"sessionHash"`
+	CSRFToken     string                 `bson:"csrfToken"     json:"csrfToken"`
+	RenewTimeUTC  time.Time              `bson:"renewTimeUTC"  json:"renewTimeUTC"`
+	ExpireTimeUTC time.Time              `bson:"expireTimeUTC" json:"expireTimeUTC"`
+}
+
+// GetInfo will return the named info as an interface{}
+func (l *LoginSession) GetInfo(name string) interface{} {
+	if l == nil || l.Info == nil {
+		return nil
+	}
+	return l.Info[name]
+}
+
+// GetInfoString will return the named info as a string
+func (l *LoginSession) GetInfoString(name string) string {
+	v := l.GetInfo(name)
+	if v == nil {
+		return ""
+	}
+	if i, ok := v.(string); ok {
+		return i
+	}
+	return fmt.Sprint(v)
+}
+
+// GetInfoStrings will return the named info as an array of strings
+func (l *LoginSession) GetInfoStrings(name string) []string {
+	if strs, ok := l.GetInfo(name).([]string); ok {
+		return strs
+	}
+	if v, ok := l.GetInfo(name).([]interface{}); ok {
+		strArr := make([]string, len(v))
+		for i, str := range v {
+			if s, ok := str.(string); ok {
+				strArr[i] = s
+			} else {
+				strArr[i] = fmt.Sprint(str)
+			}
+		}
+		return strArr
+	}
+	return nil
 }
 
 type rememberMeSession struct {
@@ -169,27 +207,26 @@ func (a *AuthError) Trace() string {
 }
 
 type backend struct {
-	u UserBackender
-	l loginBackender
+	u userBackender
 	s sessionBackender
 	backendCloser
 }
 
 // NewBackend returns a Backender from a UserBackender, LoginBackender and SessionBackender
-func NewBackend(u UserBackender, l loginBackender, s sessionBackender) Backender {
-	return &backend{u: u, l: l, s: s}
+func NewBackend(u userBackender, s sessionBackender) Backender {
+	return &backend{u: u, s: s}
 }
 
-func (b *backend) GetLogin(email string) (*UserLogin, error) {
-	return b.l.GetLogin(email)
+func (b *backend) Login(email, password string) error {
+	return b.u.Login(email, password)
 }
 
-func (b *backend) Login(email, password string) (*UserLogin, error) {
-	return b.l.Login(email, password)
+func (b *backend) LoginAndGetUser(email, password string) (*User, error) {
+	return b.u.LoginAndGetUser(email, password)
 }
 
-func (b *backend) CreateSession(userID string, email, fullname, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*LoginSession, error) {
-	return b.s.CreateSession(userID, email, fullname, sessionHash, csrfToken, sessionRenewTimeUTC, sessionExpireTimeUTC)
+func (b *backend) CreateSession(userID, email string, info map[string]interface{}, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*LoginSession, error) {
+	return b.s.CreateSession(userID, email, info, sessionHash, csrfToken, sessionRenewTimeUTC, sessionExpireTimeUTC)
 }
 
 func (b *backend) GetSession(sessionHash string) (*LoginSession, error) {
@@ -212,8 +249,8 @@ func (b *backend) UpdateRememberMe(selector string, renewTimeUTC time.Time) erro
 	return b.s.UpdateRememberMe(selector, renewTimeUTC)
 }
 
-func (b *backend) CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL string) error {
-	return b.s.CreateEmailSession(email, emailVerifyHash, csrfToken, destinationURL)
+func (b *backend) CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
+	return b.s.CreateEmailSession(email, info, emailVerifyHash, csrfToken)
 }
 
 func (b *backend) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
@@ -228,32 +265,36 @@ func (b *backend) DeleteEmailSession(emailVerifyHash string) error {
 	return b.s.DeleteEmailSession(emailVerifyHash)
 }
 
-func (b *backend) AddUser(email string) (string, error) {
-	return b.u.AddUser(email)
+func (b *backend) AddUser(email string, info map[string]interface{}) (string, error) {
+	return b.u.AddUser(email, info)
 }
 
-func (b *backend) GetUser(email string) (*user, error) {
+func (b *backend) AddUserFull(email, password string, info map[string]interface{}) (*User, error) {
+	return b.u.AddUserFull(email, password, info)
+}
+
+func (b *backend) GetUser(email string) (*User, error) {
 	return b.u.GetUser(email)
 }
 
-func (b *backend) UpdateUser(userID, fullname string, company string, pictureURL string) error {
-	return b.u.UpdateUser(userID, fullname, company, pictureURL)
+func (b *backend) UpdateUser(userID, password string, info map[string]interface{}) error {
+	return b.u.UpdateUser(userID, password, info)
 }
 
-func (b *backend) CreateLogin(userID, email, password, fullName string) (*UserLogin, error) {
-	return b.l.CreateLogin(userID, email, password, fullName)
+func (b *backend) UpdateInfo(userID string, info map[string]interface{}) error {
+	return b.u.UpdateInfo(userID, info)
 }
 
-func (b *backend) CreateSecondaryEmail(userID string, secondaryEmail string) error {
-	return b.u.CreateSecondaryEmail(userID, secondaryEmail)
+func (b *backend) AddSecondaryEmail(userID string, secondaryEmail string) error {
+	return b.u.AddSecondaryEmail(userID, secondaryEmail)
 }
 
-func (b *backend) SetPrimaryEmail(userID, secondaryEmail string) error {
-	return b.l.SetPrimaryEmail(userID, secondaryEmail)
+func (b *backend) UpdatePrimaryEmail(userID, secondaryEmail string) error {
+	return b.u.UpdatePrimaryEmail(userID, secondaryEmail)
 }
 
 func (b *backend) UpdatePassword(userID, password string) error {
-	return b.l.UpdatePassword(userID, password)
+	return b.u.UpdatePassword(userID, password)
 }
 
 func (b *backend) DeleteSession(sessionHash string) error {
@@ -272,8 +313,5 @@ func (b *backend) Close() error {
 	if err := b.s.Close(); err != nil {
 		return err
 	}
-	if err := b.u.Close(); err != nil {
-		return err
-	}
-	return b.l.Close()
+	return b.u.Close()
 }
