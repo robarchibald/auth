@@ -76,7 +76,7 @@ func (b *backendMongo) UpdateUser(userID, password string, info map[string]inter
 	if err != nil {
 		return err
 	}
-	var set bson.M
+	set := bson.M{}
 	for key := range info {
 		set["info."+key] = info[key]
 	}

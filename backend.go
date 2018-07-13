@@ -125,6 +125,9 @@ func (l *LoginSession) GetInfo(name string) interface{} {
 // GetInfoString will return the named info as a string
 func (l *LoginSession) GetInfoString(name string) string {
 	v := l.GetInfo(name)
+	if v == nil {
+		return ""
+	}
 	if i, ok := v.(string); ok {
 		return i
 	}
@@ -139,7 +142,11 @@ func (l *LoginSession) GetInfoStrings(name string) []string {
 	if v, ok := l.GetInfo(name).([]interface{}); ok {
 		strArr := make([]string, len(v))
 		for i, str := range v {
-			strArr[i] = fmt.Sprint(str)
+			if s, ok := str.(string); ok {
+				strArr[i] = s
+			} else {
+				strArr[i] = fmt.Sprint(str)
+			}
 		}
 		return strArr
 	}
