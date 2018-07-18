@@ -116,15 +116,39 @@ type LoginSession struct {
 
 // GetInfo will return the named info as an interface{}
 func (l *LoginSession) GetInfo(name string) interface{} {
-	if l == nil || l.Info == nil {
+	if l == nil {
 		return nil
 	}
-	return l.Info[name]
+	return GetInfo(l.Info, name)
 }
 
 // GetInfoString will return the named info as a string
 func (l *LoginSession) GetInfoString(name string) string {
-	v := l.GetInfo(name)
+	if l == nil {
+		return ""
+	}
+	return GetInfoString(l.Info, name)
+}
+
+// GetInfoStrings will return the named info as an array of strings
+func (l *LoginSession) GetInfoStrings(name string) []string {
+	if l == nil {
+		return nil
+	}
+	return GetInfoStrings(l.Info, name)
+}
+
+// GetInfo will return the named info as an interface{}
+func GetInfo(info map[string]interface{}, name string) interface{} {
+	if info == nil {
+		return nil
+	}
+	return info[name]
+}
+
+// GetInfoString will return the named info as a string
+func GetInfoString(info map[string]interface{}, name string) string {
+	v := GetInfo(info, name)
 	if v == nil {
 		return ""
 	}
@@ -135,11 +159,12 @@ func (l *LoginSession) GetInfoString(name string) string {
 }
 
 // GetInfoStrings will return the named info as an array of strings
-func (l *LoginSession) GetInfoStrings(name string) []string {
-	if strs, ok := l.GetInfo(name).([]string); ok {
-		return strs
-	}
-	if v, ok := l.GetInfo(name).([]interface{}); ok {
+func GetInfoStrings(info map[string]interface{}, name string) []string {
+	i := GetInfo(info, name)
+	switch v := i.(type) {
+	case []string:
+		return v
+	case []interface{}:
 		strArr := make([]string, len(v))
 		for i, str := range v {
 			if s, ok := str.(string); ok {
