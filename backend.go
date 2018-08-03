@@ -24,20 +24,9 @@ var errUserAlreadyExists = errors.New("DB: User already exists")
 
 // Backender interface contains all the methods needed to read and write users, sessions and logins
 type Backender interface {
-	// duplicates userBackender since we can't have duplicate Close methods
-	AddUser(email string, info map[string]interface{}) (string, error)
-	AddUserFull(email, password string, info map[string]interface{}) (*User, error)
-	GetUser(email string) (*User, error)
-	UpdateUser(userID, password string, info map[string]interface{}) error
-	UpdateInfo(userID string, info map[string]interface{}) error
-	UpdatePassword(userID, newPassword string) error
-
-	Login(email, password string) error
-	LoginAndGetUser(email, password string) (*User, error)
-	AddSecondaryEmail(userID, secondaryEmail string) error
-	UpdatePrimaryEmail(userID, newPrimaryEmail string) error
-
+	userBackender
 	sessionBackender
+	backendCloser
 }
 
 type backendCloser interface {
@@ -45,6 +34,11 @@ type backendCloser interface {
 }
 
 // UserBackender interface holds methods for user management
+type UserBackender interface {
+	userBackender
+	backendCloser
+}
+
 type userBackender interface {
 	AddUser(email string, info map[string]interface{}) (string, error)
 	AddUserFull(email, password string, info map[string]interface{}) (*User, error)
@@ -57,6 +51,11 @@ type userBackender interface {
 	LoginAndGetUser(email, password string) (*User, error)
 	AddSecondaryEmail(userID, secondaryEmail string) error
 	UpdatePrimaryEmail(userID, newPrimaryEmail string) error
+}
+
+// SessionBackender interface holds methods for session management
+type SessionBackender interface {
+	sessionBackender
 	backendCloser
 }
 
@@ -76,7 +75,6 @@ type sessionBackender interface {
 	GetRememberMe(selector string) (*rememberMeSession, error)
 	UpdateRememberMe(selector string, renewTimeUTC time.Time) error
 	DeleteRememberMe(selector string) error
-	backendCloser
 }
 
 type emailSession struct {
@@ -232,13 +230,13 @@ func (a *AuthError) Trace() string {
 }
 
 type backend struct {
-	u userBackender
-	s sessionBackender
+	u UserBackender
+	s SessionBackender
 	backendCloser
 }
 
 // NewBackend returns a Backender from a UserBackender, LoginBackender and SessionBackender
-func NewBackend(u userBackender, s sessionBackender) Backender {
+func NewBackend(u UserBackender, s SessionBackender) Backender {
 	return &backend{u: u, s: s}
 }
 
