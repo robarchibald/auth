@@ -34,6 +34,10 @@ func NewBackendMongo(m mgo.Sessioner, c Crypter) Backender {
 	return &backendMongo{m, c}
 }
 
+func (b *backendMongo) Clone() Backender {
+	return &backendMongo{b.m.Clone(), b.c}
+}
+
 func (b *backendMongo) AddUser(email string, info map[string]interface{}) (string, error) {
 	u, err := b.getUser(email)
 	if err == nil {
@@ -186,14 +190,14 @@ func (b *backendMongo) DeleteRememberMe(selector string) error {
 }
 
 func (b *backendMongo) users() mgo.Collectioner {
-	return b.m.Clone().DB("users").C("users")
+	return b.m.DB("users").C("users")
 }
 func (b *backendMongo) emailSessions() mgo.Collectioner {
-	return b.m.Clone().DB("users").C("emailSessions")
+	return b.m.DB("users").C("emailSessions")
 }
 func (b *backendMongo) loginSessions() mgo.Collectioner {
-	return b.m.Clone().DB("users").C("loginSessions")
+	return b.m.DB("users").C("loginSessions")
 }
 func (b *backendMongo) rememberMeSessions() mgo.Collectioner {
-	return b.m.Clone().DB("users").C("rememberMeSessions")
+	return b.m.DB("users").C("rememberMeSessions")
 }
