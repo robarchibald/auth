@@ -26,7 +26,7 @@ func TestNewAuthStore(t *testing.T) {
 	b := &mockBackend{}
 	m := &TextMailer{}
 	actual := NewAuthStore(b, m, "prefix", cookieKey).(*authStore)
-	if actual.backend != b || actual.cookieStore.(*cookieStore).s == nil {
+	if actual.b != b || actual.cookieStore.(*cookieStore).s == nil {
 		t.Fatal("expected correct init")
 	}
 }
@@ -103,7 +103,7 @@ func TestGetSession(t *testing.T) {
 		}
 		val, err := store.GetSession(nil, &http.Request{Header: h})
 
-		methods := store.backend.(*mockBackend).MethodsCalled
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
@@ -159,8 +159,8 @@ func TestRenewSession(t *testing.T) {
 	for i, test := range renewSessionTests {
 		backend := &mockBackend{UpdateSessionErr: test.UpdateSessionErr, GetRememberMeReturn: test.GetRememberMeReturn}
 		store := getAuthStore(nil, nil, test.RememberCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		err := store.renewSession(nil, &http.Request{}, "sessionID", &LoginSession{SessionHash: "sessionHash", RenewTimeUTC: test.RenewTimeUTC, ExpireTimeUTC: test.ExpireTimeUTC})
-		methods := store.backend.(*mockBackend).MethodsCalled
+		err := store.renewSession(nil, &http.Request{}, backend, "sessionID", &LoginSession{SessionHash: "sessionHash", RenewTimeUTC: test.RenewTimeUTC, ExpireTimeUTC: test.ExpireTimeUTC})
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\texpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, test.MethodsCalled, methods)
@@ -173,7 +173,7 @@ func TestRenewSessionCorrectDates(t *testing.T) {
 	backend := &mockBackend{GetRememberMeReturn: rememberMe(futureTime, futureTime)}
 	store := getAuthStore(nil, nil, rememberCookie(futureTime, futureTime), false, false, nil, backend)
 	session := &LoginSession{SessionHash: "sessionHash", RenewTimeUTC: pastTime, ExpireTimeUTC: pastTime}
-	err := store.renewSession(nil, &http.Request{}, "sessionID", session)
+	err := store.renewSession(nil, &http.Request{}, backend, "sessionID", session)
 	if err != nil || session.ExpireTimeUTC != futureTime || session.RenewTimeUTC != futureTime {
 		t.Fatal("expected to be limited to expire time since that is less than next session expire", session.ExpireTimeUTC != futureTime, session.RenewTimeUTC != futureTime, err)
 	}
@@ -183,7 +183,7 @@ func TestRenewSessionCorrectDates(t *testing.T) {
 	backend = &mockBackend{GetRememberMeReturn: rememberMe(futureTime, now.Add(20*time.Minute))}
 	store = getAuthStore(nil, nil, rememberCookie(futureTime, futureTime), false, false, nil, backend)
 	session = &LoginSession{SessionHash: "sessionHash", RenewTimeUTC: pastTime, ExpireTimeUTC: pastTime}
-	err = store.renewSession(nil, &http.Request{}, "sessionID", session)
+	err = store.renewSession(nil, &http.Request{}, backend, "sessionID", session)
 	if err != nil || session.ExpireTimeUTC != now.Add(20*time.Minute) || now.Add(sessionRenewDuration).Sub(session.RenewTimeUTC) > 1*time.Millisecond {
 		t.Fatal("expected to limit expire time and have normal renew time", session.ExpireTimeUTC != now.Add(20*time.Minute), now.Add(sessionRenewDuration).Sub(session.RenewTimeUTC) > 1*time.Millisecond, err)
 	}
@@ -192,7 +192,7 @@ func TestRenewSessionCorrectDates(t *testing.T) {
 	backend = &mockBackend{GetRememberMeReturn: rememberMe(futureTime, now.AddDate(0, 1, 0))}
 	store = getAuthStore(nil, nil, rememberCookie(futureTime, futureTime), false, false, nil, backend)
 	session = &LoginSession{SessionHash: "sessionHash", RenewTimeUTC: pastTime, ExpireTimeUTC: pastTime}
-	err = store.renewSession(nil, &http.Request{}, "sessionID", session)
+	err = store.renewSession(nil, &http.Request{}, backend, "sessionID", session)
 	if err != nil || now.Add(sessionExpireDuration).Sub(session.ExpireTimeUTC) > 1*time.Millisecond || now.Add(sessionRenewDuration).Sub(session.RenewTimeUTC) > 1*time.Millisecond {
 		t.Fatal("expected normal renew and expire", now.Add(sessionExpireDuration).Sub(session.ExpireTimeUTC) > 1*time.Millisecond, now.Add(sessionRenewDuration).Sub(session.RenewTimeUTC) > 1*time.Millisecond, err)
 	}
@@ -200,7 +200,7 @@ func TestRenewSessionCorrectDates(t *testing.T) {
 	// renew without rememberMe, limited to expireTime
 	store = getAuthStore(nil, nil, nil, false, false, nil, &mockBackend{})
 	session = &LoginSession{SessionHash: "sessionHash", RenewTimeUTC: pastTime, ExpireTimeUTC: futureTime}
-	err = store.renewSession(nil, &http.Request{}, "sessionID", session)
+	err = store.renewSession(nil, &http.Request{}, backend, "sessionID", session)
 	if err != nil || session.RenewTimeUTC != futureTime || session.ExpireTimeUTC != futureTime {
 		t.Fatal("expected renew limited to expiration time", session.RenewTimeUTC, session.ExpireTimeUTC, err)
 	}
@@ -208,7 +208,7 @@ func TestRenewSessionCorrectDates(t *testing.T) {
 	// normal renew without rememberMe
 	store = getAuthStore(nil, nil, nil, false, false, nil, &mockBackend{})
 	session = &LoginSession{SessionHash: "sessionHash", RenewTimeUTC: pastTime, ExpireTimeUTC: now.Add(30 * time.Minute)}
-	err = store.renewSession(nil, &http.Request{}, "sessionID", session)
+	err = store.renewSession(nil, &http.Request{}, backend, "sessionID", session)
 	if err != nil || now.Add(sessionRenewDuration).Sub(session.RenewTimeUTC) > 1*time.Millisecond || session.ExpireTimeUTC != now.Add(30*time.Minute) {
 		t.Fatal("expected renew limited to expiration time", session.RenewTimeUTC, session.ExpireTimeUTC, err)
 	}
@@ -271,8 +271,8 @@ func TestRememberMe(t *testing.T) {
 	for i, test := range rememberMeTests {
 		backend := &mockBackend{GetRememberMeReturn: test.GetRememberMeReturn, UpdateRememberMeErr: test.UpdateRememberMeErr}
 		store := getAuthStore(nil, nil, test.RememberCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		val, err := store.getRememberMe(nil, &http.Request{})
-		methods := store.backend.(*mockBackend).MethodsCalled
+		val, err := store.getRememberMe(nil, &http.Request{}, backend)
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
@@ -345,8 +345,8 @@ func TestCreateSession(t *testing.T) {
 	for i, test := range createSessionTests {
 		backend := &mockBackend{CreateSessionReturn: test.CreateSessionReturn, CreateRememberMeReturn: test.CreateRememberMeReturn}
 		store := getAuthStore(nil, test.SessionCookie, test.RememberMeCookie, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		val, err := store.createSession(nil, &http.Request{}, "test@test.com", "1", map[string]interface{}{"key": "value"}, test.RememberMe)
-		methods := store.backend.(*mockBackend).MethodsCalled
+		val, err := store.createSession(nil, &http.Request{}, backend, "test@test.com", "1", map[string]interface{}{"key": "value"}, test.RememberMe)
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)
@@ -439,8 +439,8 @@ func TestAuthRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &mockBackend{ErrReturn: test.CreateEmailSessionReturn, GetUserReturn: test.GetUserReturn}
 		store := getAuthStore(nil, nil, nil, false, false, test.MailErr, backend)
-		err := store.register(&http.Request{}, test.Email, map[string]interface{}{"key": "value"})
-		methods := store.backend.(*mockBackend).MethodsCalled
+		err := store.register(&http.Request{}, backend, test.Email, map[string]interface{}{"key": "value"})
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.MethodsCalled, methods)
@@ -532,8 +532,8 @@ func TestAuthCreateProfile(t *testing.T) {
 	for i, test := range createProfileTests {
 		backend := &mockBackend{UpdateUserErr: test.UpdateUserErr, getEmailSessionReturn: test.getEmailSessionReturn, CreateSessionReturn: test.CreateSessionReturn, DeleteEmailSessionErr: test.DeleteEmailSessionErr}
 		store := getAuthStore(test.EmailCookie, nil, nil, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		_, err := store.createProfile(nil, &http.Request{}, test.CSRFToken, "password", map[string]interface{}{"key": "value"})
-		methods := store.backend.(*mockBackend).MethodsCalled
+		_, err := store.createProfile(nil, &http.Request{}, backend, test.CSRFToken, "password", map[string]interface{}{"key": "value"})
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.MethodsCalled, methods)
@@ -611,8 +611,8 @@ func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &mockBackend{getEmailSessionReturn: test.getEmailSessionReturn, AddUserErr: test.AddUserErr, UpdateEmailSessionErr: test.UpdateEmailSessionErr}
 		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
-		_, info, err := store.verifyEmail(nil, &http.Request{}, test.EmailVerificationCode)
-		methods := store.backend.(*mockBackend).MethodsCalled
+		_, info, err := store.verifyEmail(nil, &http.Request{}, backend, test.EmailVerificationCode)
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) || test.InfoValue != "" && (info == nil || info["key"] != test.InfoValue) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected methods: %s\tactual methods: %s, info: %v", i, test.Scenario, test.ExpectedErr, err, test.MethodsCalled, methods, info)
@@ -665,8 +665,8 @@ func TestAuthLogin(t *testing.T) {
 	for i, test := range loginTests {
 		backend := &mockBackend{LoginAndGetUserReturn: test.LoginAndGetUserReturn, ErrReturn: test.ErrReturn, CreateSessionReturn: test.CreateSessionReturn}
 		store := getAuthStore(nil, nil, nil, false, false, nil, backend)
-		val, err := store.login(nil, &http.Request{}, test.Email, test.Password, test.RememberMe)
-		methods := store.backend.(*mockBackend).MethodsCalled
+		val, err := store.login(nil, &http.Request{}, backend, test.Email, test.Password, test.RememberMe)
+		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
 			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected val:%v\tactual val:%v\nexpected methods: %s\tactual methods: %s", i, test.Scenario, test.ExpectedErr, err, test.ExpectedResult, val, test.MethodsCalled, methods)

@@ -102,7 +102,7 @@ func _register(email string, b *backendMemory, m *TextMailer) (string, error) {
 
 	// register new user
 	// adds to users, logins and sessions
-	err := s.register(r, email, map[string]interface{}{"key": "value"})
+	err := s.register(r, b, email, map[string]interface{}{"key": "value"})
 	if err != nil {
 		return "", err
 	}
@@ -129,7 +129,7 @@ func _verify(verifyCode string, b *backendMemory, m *TextMailer) (string, *email
 	emailSession := b.getEmailSessionByEmailVerifyHash(emailVerifyHash)
 
 	// verify Email. Should 1. add user to b.Users, 2. set UserID in EmailSession, 3. add session
-	csrfToken, info, err := s.verifyEmail(nil, r, verifyCode)
+	csrfToken, info, err := s.verifyEmail(nil, r, b, verifyCode)
 	if err != nil {
 		return "", nil, err
 	}
@@ -167,7 +167,7 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 	}
 
 	// create profile
-	newSession, err := s.createProfile(nil, r, csrfToken, password, map[string]interface{}{"myKey": "value"})
+	newSession, err := s.createProfile(nil, r, b, csrfToken, password, map[string]interface{}{"myKey": "value"})
 	if err != nil {
 		return "", nil, err
 	}
@@ -203,7 +203,7 @@ func _login(email, password string, remember bool, clientSessionCookie *sessionC
 	lenUsers := len(b.Users)
 
 	// login
-	session, err := s.login(nil, r, email, password, remember)
+	session, err := s.login(nil, r, b, email, password, remember)
 	if err != nil {
 		return "", nil, nil, err
 	}

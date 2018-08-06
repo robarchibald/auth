@@ -26,6 +26,10 @@ func NewBackendMemory(c Crypter) Backender {
 	return &backendMemory{c: c, LoginProviders: []*loginProvider{&loginProvider{LoginProviderID: 1, Name: loginProviderDefaultName}}}
 }
 
+func (m *backendMemory) Clone() Backender {
+	return m
+}
+
 func (m *backendMemory) Login(email, password string) error {
 	_, err := m.LoginAndGetUser(email, password)
 	return err

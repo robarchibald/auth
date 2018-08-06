@@ -239,6 +239,10 @@ type mockBackend struct {
 	MethodsCalled          []string
 }
 
+func (b *mockBackend) Clone() Backender {
+	return b
+}
+
 func (b *mockBackend) GetLogin(email string) (*User, error) {
 	b.MethodsCalled = append(b.MethodsCalled, "GetLogin")
 	if b.GetLoginReturn == nil {
