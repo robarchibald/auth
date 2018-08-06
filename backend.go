@@ -36,7 +36,6 @@ type backendCloser interface {
 
 // UserBackender interface holds methods for user management
 type UserBackender interface {
-	Clone() UserBackender
 	userBackender
 	backendCloser
 }
@@ -57,7 +56,6 @@ type userBackender interface {
 
 // SessionBackender interface holds methods for session management
 type SessionBackender interface {
-	Clone() SessionBackender
 	sessionBackender
 	backendCloser
 }
@@ -244,7 +242,7 @@ func NewBackend(u UserBackender, s SessionBackender) Backender {
 }
 
 func (b *backend) Clone() Backender {
-	return &backend{u: b.u.Clone(), s: b.s.Clone()}
+	return b
 }
 
 func (b *backend) Login(email, password string) error {
