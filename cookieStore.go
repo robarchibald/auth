@@ -19,11 +19,12 @@ type CookieStorer interface {
 }
 
 type cookieStore struct {
-	s *securecookie.SecureCookie
+	s      *securecookie.SecureCookie
+	domain string
 }
 
-func newCookieStore(cookieKey []byte) CookieStorer {
-	return &cookieStore{securecookie.New(cookieKey, nil)}
+func newCookieStore(cookieKey []byte, domain string) CookieStorer {
+	return &cookieStore{securecookie.New(cookieKey, nil), domain}
 }
 
 func (s *cookieStore) Encode(key string, value interface{}) (string, error) {
@@ -59,7 +60,7 @@ func (s *cookieStore) PutWithExpire(w http.ResponseWriter, r *http.Request, key 
 		return err
 	}
 
-	http.SetCookie(w, newCookie(key, encoded, secureOnly, expireMins))
+	http.SetCookie(w, newCookie(key, encoded, s.domain, secureOnly, expireMins))
 	return nil
 }
 
@@ -72,11 +73,12 @@ func (s *cookieStore) Delete(w http.ResponseWriter, key string) {
 	http.SetCookie(w, cookie)
 }
 
-func newCookie(name string, value string, secureOnly bool, expireMins int) *http.Cookie {
+func newCookie(name string, value string, domain string, secureOnly bool, expireMins int) *http.Cookie {
 	return &http.Cookie{
 		Expires:  time.Now().UTC().Add(time.Duration(expireMins) * time.Minute),
 		Name:     name,
 		Value:    value,
+		Domain:   domain,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   secureOnly,

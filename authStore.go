@@ -70,11 +70,12 @@ type authStore struct {
 	cookieStore CookieStorer
 }
 
-func NewAuthStore(b Backender, mailer Mailer, customPrefix string, cookieKey []byte) AuthStorer {
+// NewAuthStore is used to create an AuthStorer for most authentication needs
+func NewAuthStore(b Backender, mailer Mailer, customPrefix, cookieDomain string, cookieKey []byte) AuthStorer {
 	emailCookieName = customPrefix + "Email"
 	sessionCookieName = customPrefix + "Session"
 	rememberMeCookieName = customPrefix + "RememberMe"
-	return &authStore{b, mailer, newCookieStore(cookieKey)}
+	return &authStore{b, mailer, newCookieStore(cookieKey, cookieDomain)}
 }
 
 func (s *authStore) GetSession(w http.ResponseWriter, r *http.Request) (*LoginSession, error) {
