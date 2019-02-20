@@ -40,7 +40,7 @@ type AuthStorer interface {
 	Login(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	Register(w http.ResponseWriter, r *http.Request) error
 	CreateProfile(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
-	VerifyEmail(w http.ResponseWriter, r *http.Request) (string, map[string]interface{}, error)
+	VerifyEmail(w http.ResponseWriter, r *http.Request) (string, *User, error)
 	CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error
 	SetPrimaryEmail(w http.ResponseWriter, r *http.Request) error
 	UpdatePassword(w http.ResponseWriter, r *http.Request) error
@@ -483,7 +483,7 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Back
 }
 
 // move to sessionStore
-func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request) (string, map[string]interface{}, error) {
+func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request) (string, *User, error) {
 	verify, err := getVerificationCode(r)
 	if err != nil {
 		return "", nil, newAuthError("Unable to get verification email from JSON", err)
@@ -493,7 +493,7 @@ func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request) (string,
 	return s.verifyEmail(w, r, b, verify.EmailVerificationCode)
 }
 
-func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backender, emailVerificationCode string) (string, map[string]interface{}, error) {
+func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backender, emailVerificationCode string) (string, *User, error) {
 	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
 		emailVerificationCode = emailVerificationCode + "="
 	}
@@ -530,7 +530,7 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backen
 	if err != nil {
 		return "", nil, newLoggedError("Failed to send welcome email", err)
 	}
-	return session.CSRFToken, session.Info, nil
+	return session.CSRFToken, &User{Email: session.Email, Info: session.Info}, nil
 }
 
 func (s *authStore) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error {
