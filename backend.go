@@ -138,6 +138,30 @@ func (l *LoginSession) GetInfoStrings(name string) []string {
 }
 
 // GetInfo will return the named info as an interface{}
+func (u *User) GetInfo(name string) interface{} {
+	if u == nil {
+		return nil
+	}
+	return GetInfo(u.Info, name)
+}
+
+// GetInfoString will return the named info as a string
+func (u *User) GetInfoString(name string) string {
+	if u == nil {
+		return ""
+	}
+	return GetInfoString(u.Info, name)
+}
+
+// GetInfoStrings will return the named info as an array of strings
+func (u *User) GetInfoStrings(name string) []string {
+	if u == nil {
+		return nil
+	}
+	return GetInfoStrings(u.Info, name)
+}
+
+// GetInfo will return the named info as an interface{}
 func GetInfo(info map[string]interface{}, name string) interface{} {
 	if info == nil {
 		return nil
