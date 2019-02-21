@@ -5,15 +5,16 @@ import (
 	"html/template"
 	"path/filepath"
 
-	"github.com/sendgrid/sendgrid-go"
+	sendgrid "github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
-	"gopkg.in/gomail.v2"
+	gomail "gopkg.in/gomail.v2"
 )
 
 // Mailer interface includes methods needed to send communication to users on account updates
 type Mailer interface {
 	SendWelcome(to string, data interface{}) error
 	SendVerify(to string, data interface{}) error
+	SendInvitation(to string, data interface{}) error
 	SendNewLogin(to string, data interface{}) error
 	SendLockedOut(to string, data interface{}) error
 	SendEmailChanged(to string, data interface{}) error
@@ -30,6 +31,8 @@ type Emailer struct {
 
 	VerifyEmailTemplate     string
 	VerifyEmailSubject      string
+	InvitationEmailTemplate string
+	InvitationEmailSubject  string
 	WelcomeTemplate         string
 	WelcomeSubject          string
 	NewLoginTemplate        string
@@ -78,6 +81,10 @@ func (s *SmtpSender) Send(to, subject, body string) error {
 
 func (e *Emailer) SendVerify(to string, data interface{}) error {
 	return e.send(to, e.VerifyEmailSubject, e.VerifyEmailTemplate, data)
+}
+
+func (e *Emailer) SendInvitation(to string, data interface{}) error {
+	return e.send(to, e.InvitationEmailSubject, e.InvitationEmailTemplate, data)
 }
 
 func (e *Emailer) SendWelcome(to string, data interface{}) error {

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/pkg/errors"
 )
 
@@ -376,6 +376,7 @@ func (s *authStore) Register(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *authStore) register(r *http.Request, b Backender, email string, info map[string]interface{}) error {
+
 	if !isValidEmail(email) {
 		return newAuthError("Invalid email", nil)
 	}
@@ -391,8 +392,17 @@ func (s *authStore) register(r *http.Request, b Backender, email string, info ma
 	}
 
 	code := verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
-	if err := s.mailer.SendVerify(email, &sendVerifyParams{code, email, getBaseURL(r.Referer())}); err != nil {
-		return newLoggedError("Unable to send verification email", err)
+
+	path := info["source"].(string)
+	if path == "/invite" {
+		if err := s.mailer.SendInvitation(email, &sendVerifyParams{code, email, getBaseURL(r.Referer())}); err != nil {
+			return newLoggedError("Unable to send invite email", err)
+		}
+	}
+	if path == "/register" {
+		if err := s.mailer.SendVerify(email, &sendVerifyParams{code, email, getBaseURL(r.Referer())}); err != nil {
+			return newLoggedError("Unable to send verification email", err)
+		}
 	}
 
 	return nil
