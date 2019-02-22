@@ -3,22 +3,15 @@ package auth
 import (
 	"bytes"
 	"html/template"
-	"path/filepath"
 
 	sendgrid "github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	gomail "gopkg.in/gomail.v2"
 )
 
-// Mailer interface includes methods needed to send communication to users on account updates
+// Mailer interface includes method needed to send communication to users on account updates
 type Mailer interface {
-	SendWelcome(to string, data interface{}) error
-	SendVerify(to string, data interface{}) error
-	SendInvitation(to string, data interface{}) error
-	SendNewLogin(to string, data interface{}) error
-	SendLockedOut(to string, data interface{}) error
-	SendEmailChanged(to string, data interface{}) error
-	SendPasswordChanged(to string, data interface{}) error
+	SendMessage(to, templateName, emailSubject string, data interface{}) error
 }
 
 type sender interface {
@@ -59,6 +52,7 @@ type SendGridSender struct {
 	EmailFromAddress     string
 }
 
+// Send mails the provided email body to recipient at "to" with subject "subject"
 func (s *SendGridSender) Send(to, subject, body string) error {
 	from := mail.NewEmail(s.EmailFromDisplayName, s.EmailFromAddress)
 	message := mail.NewSingleEmail(from, subject, mail.NewEmail("", to), body, body)
@@ -67,6 +61,7 @@ func (s *SendGridSender) Send(to, subject, body string) error {
 	return err
 }
 
+// Send mails the provided email body to recipient at "to" with subject "subject"
 func (s *SmtpSender) Send(to, subject, body string) error {
 	m := gomail.NewMessage()
 	m.SetHeader("From", m.FormatAddress(s.SMTPFromEmail, s.EmailFromDisplayName))
@@ -79,48 +74,12 @@ func (s *SmtpSender) Send(to, subject, body string) error {
 	return d.DialAndSend(m)
 }
 
-func (e *Emailer) SendVerify(to string, data interface{}) error {
-	return e.send(to, e.VerifyEmailSubject, e.VerifyEmailTemplate, data)
-}
-
-func (e *Emailer) SendInvitation(to string, data interface{}) error {
-	return e.send(to, e.InvitationEmailSubject, e.InvitationEmailTemplate, data)
-}
-
-func (e *Emailer) SendWelcome(to string, data interface{}) error {
-	return e.send(to, e.WelcomeSubject, e.WelcomeTemplate, data)
-}
-
-func (e *Emailer) SendNewLogin(to string, data interface{}) error {
-	return e.send(to, e.NewLoginSubject, e.NewLoginTemplate, data)
-}
-
-func (e *Emailer) SendLockedOut(to string, data interface{}) error {
-	return e.send(to, e.LockedOutSubject, e.LockedOutTemplate, data)
-}
-
-func (e *Emailer) SendEmailChanged(to string, data interface{}) error {
-	return e.send(to, e.EmailChangedSubject, e.EmailChangedTemplate, data)
-}
-
-func (e *Emailer) SendPasswordChanged(to string, data interface{}) error {
-	return e.send(to, e.PasswordChangedSubject, e.PasswordChangedTemplate, data)
-}
-
-func (e *Emailer) send(to string, subject string, emailTemplate string, data interface{}) error {
-	body, err := e.renderHTMLBody(emailTemplate, data)
+// SendMessage prepares an email with the provided template and passes it to Send for mailing
+func (e *Emailer) SendMessage(to, templateName, emailSubject string, data interface{}) error {
+	var buf bytes.Buffer
+	err := e.TemplateCache.ExecuteTemplate(&buf, templateName, data)
 	if err != nil {
 		return err
 	}
-
-	return e.Sender.Send(to, subject, body)
-}
-
-func (e *Emailer) renderHTMLBody(path string, data interface{}) (string, error) {
-	var buf bytes.Buffer
-	err := e.TemplateCache.ExecuteTemplate(&buf, filepath.Base(path), data)
-	if err != nil {
-		return "", err
-	}
-	return buf.String(), nil
+	return e.Sender.Send(to, emailSubject, buf.String())
 }
