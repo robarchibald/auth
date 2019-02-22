@@ -38,6 +38,7 @@ type AuthStorer interface {
 	GetBasicAuth(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error)
 	Login(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
+	Logout(w http.ResponseWriter, r *http.Request) error
 	Register(w http.ResponseWriter, r *http.Request) error
 	CreateProfile(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	VerifyEmail(w http.ResponseWriter, r *http.Request) (string, *User, error)
@@ -197,6 +198,18 @@ func (s *authStore) renewSession(w http.ResponseWriter, r *http.Request, b Backe
 		return newLoggedError("Problem updating session", err)
 	}
 	return s.saveSessionCookie(w, r, sessionID, session.RenewTimeUTC, session.ExpireTimeUTC)
+}
+
+/******************************** Logout ***********************************************/
+func (s *authStore) Logout(w http.ResponseWriter, r *http.Request) error {
+	b := s.b.Clone()
+	defer b.Close()
+	session, err := s.getSession(w, r, b)
+	s.deleteSessionCookie(w)
+	if err != nil {
+		return err
+	}
+	return b.DeleteSession(session.SessionHash)
 }
 
 /******************************** Login ***********************************************/
