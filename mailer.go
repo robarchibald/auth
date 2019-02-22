@@ -18,24 +18,10 @@ type sender interface {
 	Send(to, subject, body string) error
 }
 
+// Emailer struct contains parsed glob of email templates a Sender interface to send emails
 type Emailer struct {
 	TemplateCache *template.Template
 	Sender        sender
-
-	VerifyEmailTemplate     string
-	VerifyEmailSubject      string
-	InvitationEmailTemplate string
-	InvitationEmailSubject  string
-	WelcomeTemplate         string
-	WelcomeSubject          string
-	NewLoginTemplate        string
-	NewLoginSubject         string
-	LockedOutTemplate       string
-	LockedOutSubject        string
-	EmailChangedTemplate    string
-	EmailChangedSubject     string
-	PasswordChangedTemplate string
-	PasswordChangedSubject  string
 }
 
 type SmtpSender struct {
