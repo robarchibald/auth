@@ -7,7 +7,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -412,8 +411,8 @@ var registerTests = []struct {
 		ExpectedErr:   "User already registered",
 	},
 	{
-		Scenario: "Add User error",
-		Email:    "validemail@test.com",
+		Scenario:                 "Add User error",
+		Email:                    "validemail@test.com",
 		CreateEmailSessionReturn: errors.New("failed"),
 		GetUserReturn:            userErr(),
 		MethodsCalled:            []string{"GetUser", "CreateEmailSession"},
@@ -439,7 +438,7 @@ func TestAuthRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &mockBackend{ErrReturn: test.CreateEmailSessionReturn, GetUserReturn: test.GetUserReturn}
 		store := getAuthStore(nil, nil, nil, false, false, test.MailErr, backend)
-		err := store.register(&http.Request{}, backend, test.Email, map[string]interface{}{"key": "value"})
+		err := store.register(&http.Request{}, backend, test.Email, "templateName", "emailSubject", map[string]interface{}{"key": "value"})
 		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -611,7 +610,7 @@ func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &mockBackend{getEmailSessionReturn: test.getEmailSessionReturn, AddUserErr: test.AddUserErr, UpdateEmailSessionErr: test.UpdateEmailSessionErr}
 		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
-		_, info, err := store.verifyEmail(nil, &http.Request{}, backend, test.EmailVerificationCode)
+		_, info, err := store.verifyEmail(nil, &http.Request{}, backend, test.EmailVerificationCode, "templateName", "emailSubject", nil)
 		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) || test.InfoValue != "" && (info == nil || info["key"] != test.InfoValue) {
@@ -674,60 +673,25 @@ func TestAuthLogin(t *testing.T) {
 	}
 }
 
-func TestGetRegistration(t *testing.T) {
-	var buf bytes.Buffer
-	buf.WriteString(`{"Email":"my.email@test.com"}`)
-	r := &http.Request{Body: ioutil.NopCloser(&buf)}
-	reg, _ := getRegistration(r)
-	if reg.Email != "my.email@test.com" {
-		t.Error("expected registration to be filled", reg)
-	}
-}
-
 func TestRegisterPub(t *testing.T) {
-	var buf bytes.Buffer
-	buf.WriteString(`{"Email":"bogus"}`)
-	r := &http.Request{Body: ioutil.NopCloser(&buf)}
+	r := &http.Request{}
 	backend := &mockBackend{}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	err := store.Register(nil, r)
+	err := store.Register(nil, r, "bogus", "templateName", "emailSubjet", nil)
 	if err == nil || err.Error() != "Invalid email" {
 		t.Error("expected error from child register method", err)
-	}
-
-	buf.WriteString("b")
-	err = store.Register(nil, r)
-	if err == nil || !strings.HasPrefix(err.Error(), "Unable to get email") {
-		t.Error("expected error from parent Register method", err)
-	}
-}
-
-func TestGetVerificationCode(t *testing.T) {
-	var buf bytes.Buffer
-	buf.WriteString(`{"EmailVerificationCode":"code"}`)
-	r := &http.Request{Body: ioutil.NopCloser(&buf)}
-	verify, _ := getVerificationCode(r)
-	if verify.EmailVerificationCode != "code" {
-		t.Error("expected verify to be filled", verify)
 	}
 }
 
 func TestVerifyEmailPub(t *testing.T) {
-	var buf bytes.Buffer
-	buf.WriteString(`{"EmailVerificationCode":"nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0"}`) // random valid base64 encoded data
-	r := &http.Request{Body: ioutil.NopCloser(&buf), Header: http.Header{}}
+	r := &http.Request{Header: http.Header{}}
 	r.Header.Add("X-CSRF-Token", "token")
 	backend := &mockBackend{getEmailSessionReturn: getEmailSessionErr()}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	_, _, err := store.VerifyEmail(nil, r)
+	emailVerificationCode := "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0" // random valid base64 encoded data
+	_, _, err := store.VerifyEmail(nil, r, emailVerificationCode, "templateName", "emailSubject", nil)
 	if err == nil || err.Error() != "Failed to verify email" {
 		t.Error("expected error from child verifyEmail method", err)
-	}
-
-	buf.WriteString("b")
-	_, _, err = store.VerifyEmail(nil, r)
-	if err == nil || err.Error() != "Unable to get verification email from JSON" {
-		t.Error("expected error from VerifyEmail method", err)
 	}
 }
 
