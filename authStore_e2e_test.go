@@ -129,11 +129,11 @@ func _verify(verifyCode string, b *backendMemory, m *TextMailer) (string, *email
 	emailSession := b.getEmailSessionByEmailVerifyHash(emailVerifyHash)
 
 	// verify Email. Should 1. add user to b.Users, 2. set UserID in EmailSession, 3. add session
-	csrfToken, info, err := s.verifyEmail(nil, r, b, verifyCode, "templateName", "emailSubject", nil)
+	csrfToken, user, err := s.verifyEmail(nil, r, b, verifyCode, "templateName", "emailSubject", nil)
 	if err != nil {
 		return "", nil, err
 	}
-	if info == nil || info["key"] != "value" {
+	if user == nil || user.Info == nil || user.Info["key"] != "value" {
 		return "", nil, errors.Errorf("expected to get back info that we entered during register phase")
 	}
 	if len(b.Users) != +lenUsers+1 || len(b.EmailSessions) != lenEmailSessions {

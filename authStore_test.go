@@ -24,7 +24,7 @@ func getAuthStore(emailCookie *emailCookie, sessionCookie *sessionCookie, rememb
 func TestNewAuthStore(t *testing.T) {
 	b := &mockBackend{}
 	m := &TextMailer{}
-	actual := NewAuthStore(b, m, "prefix", cookieKey).(*authStore)
+	actual := NewAuthStore(b, m, "prefix", "", cookieKey).(*authStore)
 	if actual.b != b || actual.cookieStore.(*cookieStore).s == nil {
 		t.Fatal("expected correct init")
 	}
@@ -48,30 +48,33 @@ var getSessionTests = []struct {
 		CSRFToken:        "csrfToken",
 		SessionCookie:    sessionCookieGood(futureTime, futureTime),
 		GetSessionReturn: sessionSuccess(futureTime, futureTime),
-		MethodsCalled:    []string{"GetSession"},
+		MethodsCalled:    []string{"GetSession", "Close"},
 	},
 	{
-		Scenario:    "No CSRFToken",
-		ExpectedErr: "Missing CSRF token",
+		Scenario:      "No CSRFToken",
+		ExpectedErr:   "Missing CSRF token",
+		MethodsCalled: []string{"Close"},
 	},
 	{
 		Scenario:          "Get Session Cookie Error",
 		CSRFToken:         "token",
 		HasCookieGetError: true,
 		ExpectedErr:       "Session cookie not found",
+		MethodsCalled:     []string{"Close"},
 	},
 	{
 		Scenario:      "Get Session Invalid Cookie Error",
 		CSRFToken:     "token",
 		SessionCookie: sessionCookieBogus(futureTime, futureTime),
 		ExpectedErr:   "Unable to decode session cookie",
+		MethodsCalled: []string{"Close"},
 	},
 	{
 		Scenario:         "Get Session Error",
 		CSRFToken:        "token",
 		SessionCookie:    sessionCookieGood(futureTime, futureTime),
 		GetSessionReturn: &SessionReturn{&LoginSession{}, errSessionNotFound},
-		MethodsCalled:    []string{"GetSession"},
+		MethodsCalled:    []string{"GetSession", "Close"},
 		ExpectedErr:      "Failed to verify session",
 	},
 	{
@@ -79,7 +82,7 @@ var getSessionTests = []struct {
 		CSRFToken:        "token",
 		SessionCookie:    sessionCookieGood(futureTime, futureTime),
 		GetSessionReturn: sessionSuccess(futureTime, futureTime),
-		MethodsCalled:    []string{"GetSession"},
+		MethodsCalled:    []string{"GetSession", "Close"},
 		ExpectedErr:      "Invalid CSRF token",
 	},
 	{
@@ -87,7 +90,7 @@ var getSessionTests = []struct {
 		CSRFToken:        "csrfToken",
 		SessionCookie:    sessionCookieGood(futureTime, futureTime),
 		GetSessionReturn: sessionSuccess(futureTime, futureTime),
-		MethodsCalled:    []string{"GetSession"},
+		MethodsCalled:    []string{"GetSession", "Close"},
 	},
 }
 
@@ -610,11 +613,11 @@ func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &mockBackend{getEmailSessionReturn: test.getEmailSessionReturn, AddUserErr: test.AddUserErr, UpdateEmailSessionErr: test.UpdateEmailSessionErr}
 		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
-		_, info, err := store.verifyEmail(nil, &http.Request{}, backend, test.EmailVerificationCode, "templateName", "emailSubject", nil)
+		_, user, err := store.verifyEmail(nil, &http.Request{}, backend, test.EmailVerificationCode, "templateName", "emailSubject", nil)
 		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
-			!collectionEqual(test.MethodsCalled, methods) || test.InfoValue != "" && (info == nil || info["key"] != test.InfoValue) {
-			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected methods: %s\tactual methods: %s, info: %v", i, test.Scenario, test.ExpectedErr, err, test.MethodsCalled, methods, info)
+			!collectionEqual(test.MethodsCalled, methods) || test.InfoValue != "" && (user == nil || user.Info == nil || user.Info["key"] != test.InfoValue) {
+			t.Errorf("Scenario[%d] failed: %s\nexpected err:%v\tactual err:%v\nexpected methods: %s\tactual methods: %s, info: %v", i, test.Scenario, test.ExpectedErr, err, test.MethodsCalled, methods, user)
 		}
 	}
 }

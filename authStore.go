@@ -39,8 +39,9 @@ type AuthStorer interface {
 	OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error)
 	Login(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	Register(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error
+	Logout(w http.ResponseWriter, r *http.Request) error
 	CreateProfile(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
-	VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, map[string]interface{}, error)
+	VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, *User, error)
 	CreateSecondaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
 	SetPrimaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
 	UpdatePassword(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
@@ -70,11 +71,12 @@ type authStore struct {
 	cookieStore CookieStorer
 }
 
-func NewAuthStore(b Backender, mailer Mailer, customPrefix string, cookieKey []byte) AuthStorer {
+// NewAuthStore is used to create an AuthStorer for most authentication needs
+func NewAuthStore(b Backender, mailer Mailer, customPrefix, cookieDomain string, cookieKey []byte) AuthStorer {
 	emailCookieName = customPrefix + "Email"
 	sessionCookieName = customPrefix + "Session"
 	rememberMeCookieName = customPrefix + "RememberMe"
-	return &authStore{b, mailer, newCookieStore(cookieKey)}
+	return &authStore{b, mailer, newCookieStore(cookieKey, cookieDomain)}
 }
 
 func (s *authStore) GetSession(w http.ResponseWriter, r *http.Request) (*LoginSession, error) {
@@ -196,6 +198,18 @@ func (s *authStore) renewSession(w http.ResponseWriter, r *http.Request, b Backe
 		return newLoggedError("Problem updating session", err)
 	}
 	return s.saveSessionCookie(w, r, sessionID, session.RenewTimeUTC, session.ExpireTimeUTC)
+}
+
+/******************************** Logout ***********************************************/
+func (s *authStore) Logout(w http.ResponseWriter, r *http.Request) error {
+	b := s.b.Clone()
+	defer b.Close()
+	session, err := s.getSession(w, r, b)
+	s.deleteSessionCookie(w)
+	if err != nil {
+		return err
+	}
+	return b.DeleteSession(session.SessionHash)
 }
 
 /******************************** Login ***********************************************/
@@ -479,13 +493,13 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Back
 }
 
 // move to sessionStore
-func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, map[string]interface{}, error) {
+func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, *User, error) {
 	b := s.b.Clone()
 	defer b.Close()
 	return s.verifyEmail(w, r, b, emailVerificationCode, templateName, emailSubject, info)
 }
 
-func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backender, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, map[string]interface{}, error) {
+func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backender, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, *User, error) {
 	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
 		emailVerificationCode = emailVerificationCode + "="
 	}
@@ -522,7 +536,7 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backen
 	if err != nil {
 		return "", nil, newLoggedError("Failed to send welcome email", err)
 	}
-	return session.CSRFToken, session.Info, nil
+	return session.CSRFToken, &User{Email: session.Email, Info: session.Info}, nil
 }
 
 func (s *authStore) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error {
