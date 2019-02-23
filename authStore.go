@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/pkg/errors"
 )
 
@@ -38,13 +38,13 @@ type AuthStorer interface {
 	GetBasicAuth(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error)
 	Login(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
+	Register(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error
 	Logout(w http.ResponseWriter, r *http.Request) error
-	Register(w http.ResponseWriter, r *http.Request) error
 	CreateProfile(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
-	VerifyEmail(w http.ResponseWriter, r *http.Request) (string, *User, error)
-	CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error
-	SetPrimaryEmail(w http.ResponseWriter, r *http.Request) error
-	UpdatePassword(w http.ResponseWriter, r *http.Request) error
+	VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, *User, error)
+	CreateSecondaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
+	SetPrimaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
+	UpdatePassword(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
 }
 
 type emailCookie struct {
@@ -373,23 +373,20 @@ func isValidPassword(password string) bool {
 	return len(password) >= 7 && len(password) <= 20
 }
 
-type sendVerifyParams struct {
+type sendParams struct {
 	VerificationCode string
 	Email            string
 	RefererBaseURL   string
+	Info             map[string]interface{}
 }
 
-func (s *authStore) Register(w http.ResponseWriter, r *http.Request) error {
-	registration, err := getRegistration(r)
-	if err != nil {
-		return newAuthError("Unable to get email", err)
-	}
+func (s *authStore) Register(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error {
 	b := s.b.Clone()
 	defer b.Close()
-	return s.register(r, b, registration.Email, registration.Info)
+	return s.register(r, b, email, templateName, emailSubject, info)
 }
 
-func (s *authStore) register(r *http.Request, b Backender, email string, info map[string]interface{}) error {
+func (s *authStore) register(r *http.Request, b Backender, email, templateName, emailSubject string, info map[string]interface{}) error {
 	if !isValidEmail(email) {
 		return newAuthError("Invalid email", nil)
 	}
@@ -405,7 +402,7 @@ func (s *authStore) register(r *http.Request, b Backender, email string, info ma
 	}
 
 	code := verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
-	if err := s.mailer.SendVerify(email, &sendVerifyParams{code, email, getBaseURL(r.Referer())}); err != nil {
+	if err := s.mailer.SendMessage(email, templateName, emailSubject, &sendParams{code, email, getBaseURL(r.Referer()), info}); err != nil {
 		return newLoggedError("Unable to send verification email", err)
 	}
 
@@ -496,17 +493,13 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Back
 }
 
 // move to sessionStore
-func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request) (string, *User, error) {
-	verify, err := getVerificationCode(r)
-	if err != nil {
-		return "", nil, newAuthError("Unable to get verification email from JSON", err)
-	}
+func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, *User, error) {
 	b := s.b.Clone()
 	defer b.Close()
-	return s.verifyEmail(w, r, b, verify.EmailVerificationCode)
+	return s.verifyEmail(w, r, b, emailVerificationCode, templateName, emailSubject, info)
 }
 
-func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backender, emailVerificationCode string) (string, *User, error) {
+func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backender, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, *User, error) {
 	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
 		emailVerificationCode = emailVerificationCode + "="
 	}
@@ -539,14 +532,14 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backen
 		return "", nil, newLoggedError("Failed to save email cookie", err)
 	}
 
-	err = s.mailer.SendWelcome(session.Email, nil)
+	err = s.mailer.SendMessage(session.Email, templateName, emailSubject, &sendParams{"", session.Email, "", info})
 	if err != nil {
 		return "", nil, newLoggedError("Failed to send welcome email", err)
 	}
 	return session.CSRFToken, &User{Email: session.Email, Info: session.Info}, nil
 }
 
-func (s *authStore) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request) error {
+func (s *authStore) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error {
 	// steps to set new primary email address:
 	// 1. create new secondary email (this step)
 	// 2. send verification email
@@ -555,13 +548,13 @@ func (s *authStore) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request)
 	return nil
 }
 
-func (s *authStore) SetPrimaryEmail(w http.ResponseWriter, r *http.Request) error {
+func (s *authStore) SetPrimaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error {
 	// be sure to require current email and password (i.e. require login) to change primary email
 	// invalidate old sessions?
 	return nil
 }
 
-func (s *authStore) UpdatePassword(w http.ResponseWriter, r *http.Request) error {
+func (s *authStore) UpdatePassword(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error {
 	// login to see if email and password is correct
 	// then update password
 	// then create session
@@ -612,25 +605,6 @@ func (s *authStore) saveSessionCookie(w http.ResponseWriter, r *http.Request, se
 func (s *authStore) saveRememberMeCookie(w http.ResponseWriter, r *http.Request, selector, token string, renewTimeUTC, expireTimeUTC time.Time) error {
 	cookie := rememberMeCookie{Selector: selector, Token: token, RenewTimeUTC: renewTimeUTC, ExpireTimeUTC: expireTimeUTC}
 	return s.cookieStore.Put(w, r, rememberMeCookieName, &cookie)
-}
-
-type registration struct {
-	Email string                 `json:"email"`
-	Info  map[string]interface{} `json:"info"`
-}
-
-func getRegistration(r *http.Request) (*registration, error) {
-	register := &registration{}
-	return register, getJSON(r, register)
-}
-
-type emailVerificationCode struct {
-	EmailVerificationCode string `json:"emailVerificationCode"`
-}
-
-func getVerificationCode(r *http.Request) (*emailVerificationCode, error) {
-	verificationCode := &emailVerificationCode{}
-	return verificationCode, getJSON(r, verificationCode)
 }
 
 type credentials struct {
