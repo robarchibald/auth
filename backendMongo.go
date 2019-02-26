@@ -80,11 +80,7 @@ func (b *backendMongo) UpdateUser(userID, password string, info map[string]inter
 	if err != nil {
 		return err
 	}
-	set := bson.M{}
-	for key := range info {
-		set["info."+key] = info[key]
-	}
-	set["passwordHash"] = passwordHash
+	set := bson.M{"passwordHash": passwordHash, "info": info}
 	return b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": set})
 }
 

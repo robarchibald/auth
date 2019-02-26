@@ -473,7 +473,12 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Back
 		return nil, errInvalidCSRF
 	}
 
-	err = b.UpdateUser(session.UserID, password, info)
+	mergedInfo := session.Info
+	for key, value := range info {
+		mergedInfo[key] = value
+	}
+
+	err = b.UpdateUser(session.UserID, password, mergedInfo)
 	if err != nil {
 		return nil, newLoggedError("Unable to update user", err)
 	}
@@ -483,7 +488,7 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Back
 		return nil, newLoggedError("Error while creating profile", err)
 	}
 
-	ls, err := s.createSession(w, r, b, session.UserID, session.Email, info, false)
+	ls, err := s.createSession(w, r, b, session.UserID, session.Email, mergedInfo, false)
 	if err != nil {
 		return nil, err
 	}
