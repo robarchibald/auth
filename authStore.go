@@ -41,7 +41,7 @@ type AuthStorer interface {
 	Register(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error
 	Logout(w http.ResponseWriter, r *http.Request) error
 	CreateProfile(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
-	VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, *User, error)
+	VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string) (string, *User, error)
 	CreateSecondaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
 	SetPrimaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
 	UpdatePassword(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
@@ -493,13 +493,13 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Back
 }
 
 // move to sessionStore
-func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, *User, error) {
+func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string) (string, *User, error) {
 	b := s.b.Clone()
 	defer b.Close()
-	return s.verifyEmail(w, r, b, emailVerificationCode, templateName, emailSubject, info)
+	return s.verifyEmail(w, r, b, emailVerificationCode, templateName, emailSubject)
 }
 
-func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backender, emailVerificationCode, templateName, emailSubject string, info map[string]interface{}) (string, *User, error) {
+func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backender, emailVerificationCode, templateName, emailSubject string) (string, *User, error) {
 	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
 		emailVerificationCode = emailVerificationCode + "="
 	}
@@ -532,7 +532,7 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backen
 		return "", nil, newLoggedError("Failed to save email cookie", err)
 	}
 
-	err = s.mailer.SendMessage(session.Email, templateName, emailSubject, &sendParams{"", session.Email, "", info})
+	err = s.mailer.SendMessage(session.Email, templateName, emailSubject, &sendParams{"", session.Email, "", session.Info})
 	if err != nil {
 		return "", nil, newLoggedError("Failed to send welcome email", err)
 	}
