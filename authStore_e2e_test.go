@@ -129,7 +129,7 @@ func _verify(verifyCode string, b *backendMemory, m *TextMailer) (string, *email
 	emailSession := b.getEmailSessionByEmailVerifyHash(emailVerifyHash)
 
 	// verify Email. Should 1. add user to b.Users, 2. set UserID in EmailSession, 3. add session
-	csrfToken, user, err := s.verifyEmail(nil, r, b, verifyCode, "templateName", "emailSubject", nil)
+	csrfToken, user, err := s.verifyEmail(nil, r, b, verifyCode, "templateName", "emailSubject")
 	if err != nil {
 		return "", nil, err
 	}

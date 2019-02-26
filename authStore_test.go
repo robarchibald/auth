@@ -414,8 +414,8 @@ var registerTests = []struct {
 		ExpectedErr:   "User already registered",
 	},
 	{
-		Scenario:                 "Add User error",
-		Email:                    "validemail@test.com",
+		Scenario: "Add User error",
+		Email:    "validemail@test.com",
 		CreateEmailSessionReturn: errors.New("failed"),
 		GetUserReturn:            userErr(),
 		MethodsCalled:            []string{"GetUser", "CreateEmailSession"},
@@ -613,7 +613,7 @@ func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &mockBackend{getEmailSessionReturn: test.getEmailSessionReturn, AddUserErr: test.AddUserErr, UpdateEmailSessionErr: test.UpdateEmailSessionErr}
 		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
-		_, user, err := store.verifyEmail(nil, &http.Request{}, backend, test.EmailVerificationCode, "templateName", "emailSubject", nil)
+		_, user, err := store.verifyEmail(nil, &http.Request{}, backend, test.EmailVerificationCode, "templateName", "emailSubject")
 		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) || test.InfoValue != "" && (user == nil || user.Info == nil || user.Info["key"] != test.InfoValue) {
@@ -692,7 +692,7 @@ func TestVerifyEmailPub(t *testing.T) {
 	backend := &mockBackend{getEmailSessionReturn: getEmailSessionErr()}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
 	emailVerificationCode := "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0" // random valid base64 encoded data
-	_, _, err := store.VerifyEmail(nil, r, emailVerificationCode, "templateName", "emailSubject", nil)
+	_, _, err := store.VerifyEmail(nil, r, emailVerificationCode, "templateName", "emailSubject")
 	if err == nil || err.Error() != "Failed to verify email" {
 		t.Error("expected error from child verifyEmail method", err)
 	}
