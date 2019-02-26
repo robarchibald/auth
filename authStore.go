@@ -27,7 +27,7 @@ const sessionRenewDuration time.Duration = 5 * time.Minute
 const sessionExpireDuration time.Duration = time.Hour
 const rememberMeRenewDuration time.Duration = time.Hour
 const rememberMeExpireDuration time.Duration = time.Hour * 24 * 30 // 30 days
-const passwordValidationMessage string = "Password must be between 7 and 20 characters"
+const passwordValidationMessage string = "Password must be at least 7 characters"
 
 var errInvalidCSRF = errors.New("Invalid CSRF token")
 var errMissingCSRF = errors.New("Missing CSRF token")
@@ -370,7 +370,7 @@ func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, b Back
 }
 
 func isValidPassword(password string) bool {
-	return len(password) >= 7 && len(password) <= 20
+	return len(password) >= 7
 }
 
 type sendParams struct {
