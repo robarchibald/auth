@@ -39,6 +39,7 @@ type AuthStorer interface {
 	OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error)
 	Login(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	Register(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error
+	RequestPasswordReset(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error
 	Logout(w http.ResponseWriter, r *http.Request) error
 	CreateProfile(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string) (string, *User, error)
@@ -380,6 +381,35 @@ type sendParams struct {
 	Info             map[string]interface{}
 }
 
+func (s *authStore) RequestPasswordReset(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error {
+	b := s.b.Clone()
+	defer b.Close()
+	return s.requestPasswordReset(r, b, email, templateName, emailSubject, info)
+}
+
+func (s *authStore) requestPasswordReset(r *http.Request, b Backender, email, templateName, emailSubject string, info map[string]interface{}) error {
+	if !isValidEmail(email) {
+		return newAuthError("Invalid email", nil)
+	}
+
+	_, err := b.GetUser(email)
+	if err != nil {
+		return newAuthError("Invalid email", err)
+	}
+
+	verifyCode, err := s.addEmailSession(b, email, info)
+	if err != nil {
+		return newLoggedError("Unable to save user", err)
+	}
+
+	code := verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
+	if err := s.mailer.SendMessage(email, templateName, emailSubject, &sendParams{code, email, getBaseURL(r.Referer()), info}); err != nil {
+		return newLoggedError("Unable to send verification email", err)
+	}
+
+	return nil
+}
+
 func (s *authStore) Register(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error {
 	b := s.b.Clone()
 	defer b.Close()
@@ -565,6 +595,49 @@ func (s *authStore) UpdatePassword(w http.ResponseWriter, r *http.Request, templ
 	// then create session
 	return nil
 }
+
+// func (s *authStore) UpdatePassword(w http.ResponseWriter, r *http.Request, b Backender, csrfToken, password string) (*LoginSession, error) {
+// 	emailCookie, err := s.getEmailCookie(w, r)
+// 	if err != nil || emailCookie.EmailVerificationCode == "" {
+// 		return nil, newLoggedError("Unable to get email verification cookie", err)
+// 	}
+
+// 	emailVerifyHash, err := decodeStringToHash(emailCookie.EmailVerificationCode) // base64 decode and hash
+// 	if err != nil {
+// 		return nil, newLoggedError("Invalid email verification cookie", err)
+// 	}
+
+// 	session, err := b.GetEmailSession(emailVerifyHash)
+// 	if err != nil {
+// 		return nil, newLoggedError("Invalid email verification", err)
+// 	}
+// 	if session.CSRFToken != csrfToken {
+// 		return nil, errInvalidCSRF
+// 	}
+
+// 	// mergedInfo := session.Info
+// 	// for key, value := range info {
+// 	// 	mergedInfo[key] = value
+// 	// }
+
+// 	err = b.UpdateUser(session.UserID, password, nil)
+// 	if err != nil {
+// 		return nil, newLoggedError("Unable to update password", err)
+// 	}
+
+// 	err = b.DeleteEmailSession(session.EmailVerifyHash)
+// 	if err != nil {
+// 		return nil, newLoggedError("Error while updating password", err)
+// 	}
+
+// 	ls, err := s.createSession(w, r, b, session.UserID, session.Email, nil, false)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	s.deleteEmailCookie(w)
+// 	return ls, nil
+// }
 
 func (s *authStore) getEmailCookie(w http.ResponseWriter, r *http.Request) (*emailCookie, error) {
 	email := &emailCookie{}
