@@ -23,6 +23,8 @@ var emailRegex = regexp.MustCompile(`^(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$
 
 const emailExpireMins int = 60 * 24 * 365 // 1 year
 const emailExpireDuration time.Duration = time.Duration(emailExpireMins) * time.Minute
+const passwordResetEmailExpireMins int = 60 * 48 // 2 days
+const passwordResetEmailExpireDuration time.Duration = time.Duration(passwordResetEmailExpireMins) * time.Minute
 const sessionRenewDuration time.Duration = 5 * time.Minute
 const sessionExpireDuration time.Duration = time.Hour
 const rememberMeRenewDuration time.Duration = time.Hour
@@ -43,9 +45,10 @@ type AuthStorer interface {
 	Logout(w http.ResponseWriter, r *http.Request) error
 	CreateProfile(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string) (string, *User, error)
+	VerifyPasswordReset(w http.ResponseWriter, r *http.Request, emailVerificationCode string) (string, *User, error)
 	CreateSecondaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
 	SetPrimaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
-	UpdatePassword(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
+	UpdatePassword(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 }
 
 type emailCookie struct {
@@ -574,6 +577,48 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backen
 	return session.CSRFToken, &User{Email: session.Email, Info: session.Info}, nil
 }
 
+func (s *authStore) VerifyPasswordReset(w http.ResponseWriter, r *http.Request, emailVerificationCode string) (string, *User, error) {
+	b := s.b.Clone()
+	defer b.Close()
+	return s.verifyPasswordReset(w, r, b, emailVerificationCode)
+}
+
+func (s *authStore) verifyPasswordReset(w http.ResponseWriter, r *http.Request, b Backender, emailVerificationCode string) (string, *User, error) {
+	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
+		emailVerificationCode = emailVerificationCode + "="
+	}
+	emailVerifyHash, err := decodeStringToHash(emailVerificationCode)
+	if err != nil {
+		return "", nil, newLoggedError("Invalid verification code", err)
+	}
+
+	session, err := b.GetEmailSession(emailVerifyHash)
+	if err != nil {
+		return "", nil, newLoggedError("Failed to verify email", err)
+	}
+
+	userID, err := b.AddUser(session.Email, session.Info)
+	if err != nil {
+		user, err := b.GetUser(session.Email)
+		if err != nil {
+			return "", nil, newLoggedError("Failed to get user in database", err)
+		}
+		userID = user.UserID
+	}
+
+	err = b.UpdateEmailSession(emailVerifyHash, userID)
+	if err != nil {
+		return "", nil, newLoggedError("Failed to update email session", err)
+	}
+
+	err = s.saveEmailCookie(w, r, emailVerificationCode, time.Now().UTC().Add(passwordResetEmailExpireDuration))
+	if err != nil {
+		return "", nil, newLoggedError("Failed to save email cookie", err)
+	}
+
+	return session.CSRFToken, &User{Email: session.Email, Info: session.Info}, nil
+}
+
 func (s *authStore) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error {
 	// steps to set new primary email address:
 	// 1. create new secondary email (this step)
@@ -589,55 +634,57 @@ func (s *authStore) SetPrimaryEmail(w http.ResponseWriter, r *http.Request, temp
 	return nil
 }
 
-func (s *authStore) UpdatePassword(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error {
-	// login to see if email and password is correct
-	// then update password
-	// then create session
-	return nil
+func (s *authStore) UpdatePassword(w http.ResponseWriter, r *http.Request) (*LoginSession, error) {
+	profile, err := getProfile(r)
+	if err != nil {
+		return nil, newAuthError("Unable to get profile information from form", err)
+	}
+	csrfToken := r.Header.Get("X-CSRF-Token")
+	if csrfToken == "" {
+		return nil, errMissingCSRF
+	}
+	b := s.b.Clone()
+	defer b.Close()
+	return s.updatePassword(w, r, b, csrfToken, profile.Password)
 }
 
-// func (s *authStore) UpdatePassword(w http.ResponseWriter, r *http.Request, b Backender, csrfToken, password string) (*LoginSession, error) {
-// 	emailCookie, err := s.getEmailCookie(w, r)
-// 	if err != nil || emailCookie.EmailVerificationCode == "" {
-// 		return nil, newLoggedError("Unable to get email verification cookie", err)
-// 	}
+func (s *authStore) updatePassword(w http.ResponseWriter, r *http.Request, b Backender, csrfToken, password string) (*LoginSession, error) {
+	emailCookie, err := s.getEmailCookie(w, r)
+	if err != nil || emailCookie.EmailVerificationCode == "" {
+		return nil, newLoggedError("Unable to get email verification cookie", err)
+	}
 
-// 	emailVerifyHash, err := decodeStringToHash(emailCookie.EmailVerificationCode) // base64 decode and hash
-// 	if err != nil {
-// 		return nil, newLoggedError("Invalid email verification cookie", err)
-// 	}
+	emailVerifyHash, err := decodeStringToHash(emailCookie.EmailVerificationCode) // base64 decode and hash
+	if err != nil {
+		return nil, newLoggedError("Invalid email verification cookie", err)
+	}
 
-// 	session, err := b.GetEmailSession(emailVerifyHash)
-// 	if err != nil {
-// 		return nil, newLoggedError("Invalid email verification", err)
-// 	}
-// 	if session.CSRFToken != csrfToken {
-// 		return nil, errInvalidCSRF
-// 	}
+	session, err := b.GetEmailSession(emailVerifyHash)
+	if err != nil {
+		return nil, newLoggedError("Invalid email verification", err)
+	}
+	if session.CSRFToken != csrfToken {
+		return nil, errInvalidCSRF
+	}
 
-// 	// mergedInfo := session.Info
-// 	// for key, value := range info {
-// 	// 	mergedInfo[key] = value
-// 	// }
+	err = b.UpdateUser(session.UserID, password, nil)
+	if err != nil {
+		return nil, newLoggedError("Unable to update password", err)
+	}
 
-// 	err = b.UpdateUser(session.UserID, password, nil)
-// 	if err != nil {
-// 		return nil, newLoggedError("Unable to update password", err)
-// 	}
+	err = b.DeleteEmailSession(session.EmailVerifyHash)
+	if err != nil {
+		return nil, newLoggedError("Error while updating password", err)
+	}
 
-// 	err = b.DeleteEmailSession(session.EmailVerifyHash)
-// 	if err != nil {
-// 		return nil, newLoggedError("Error while updating password", err)
-// 	}
+	ls, err := s.createSession(w, r, b, session.UserID, session.Email, nil, false)
+	if err != nil {
+		return nil, err
+	}
 
-// 	ls, err := s.createSession(w, r, b, session.UserID, session.Email, nil, false)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	s.deleteEmailCookie(w)
-// 	return ls, nil
-// }
+	s.deleteEmailCookie(w)
+	return ls, nil
+}
 
 func (s *authStore) getEmailCookie(w http.ResponseWriter, r *http.Request) (*emailCookie, error) {
 	email := &emailCookie{}
