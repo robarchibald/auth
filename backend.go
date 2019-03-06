@@ -61,7 +61,7 @@ type SessionBackender interface {
 }
 
 type sessionBackender interface {
-	CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error
+	CreateEmailSession(userID, email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error
 	GetEmailSession(verifyHash string) (*emailSession, error)
 	UpdateEmailSession(verifyHash string, userID string) error
 	DeleteEmailSession(verifyHash string) error
@@ -301,8 +301,8 @@ func (b *backend) UpdateRememberMe(selector string, renewTimeUTC time.Time) erro
 	return b.s.UpdateRememberMe(selector, renewTimeUTC)
 }
 
-func (b *backend) CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
-	return b.s.CreateEmailSession(email, info, emailVerifyHash, csrfToken)
+func (b *backend) CreateEmailSession(userID, email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
+	return b.s.CreateEmailSession(userID, email, info, emailVerifyHash, csrfToken)
 }
 
 func (b *backend) GetEmailSession(emailVerifyHash string) (*emailSession, error) {

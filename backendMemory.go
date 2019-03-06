@@ -103,7 +103,7 @@ func (m *backendMemory) UpdateRememberMe(selector string, renewTimeUTC time.Time
 	return nil
 }
 
-func (m *backendMemory) CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
+func (m *backendMemory) CreateEmailSession(userID, email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
 	if m.getUserByEmail(email) != nil {
 		return errUserAlreadyExists
 	}
@@ -111,7 +111,7 @@ func (m *backendMemory) CreateEmailSession(email string, info map[string]interfa
 		return errEmailVerifyHashExists
 	}
 
-	m.EmailSessions = append(m.EmailSessions, &emailSession{"", email, info, emailVerifyHash, csrfToken})
+	m.EmailSessions = append(m.EmailSessions, &emailSession{userID, email, info, emailVerifyHash, csrfToken})
 
 	return nil
 }

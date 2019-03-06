@@ -20,8 +20,8 @@ func NewBackendRedisSession(server string, port int, password string, maxIdle, m
 }
 
 // need to first check that this emailVerifyHash isn't being used, otherwise we'll clobber existing
-func (r *backendRedisSession) CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
-	return r.saveEmailSession(&emailSession{"", email, info, emailVerifyHash, csrfToken})
+func (r *backendRedisSession) CreateEmailSession(userID, email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
+	return r.saveEmailSession(&emailSession{userID, email, info, emailVerifyHash, csrfToken})
 }
 
 func (r *backendRedisSession) GetEmailSession(emailVerifyHash string) (*emailSession, error) {

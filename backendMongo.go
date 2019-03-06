@@ -129,13 +129,13 @@ func (b *backendMongo) UpdatePrimaryEmail(userID, secondaryEmail string) error {
 	return nil
 }
 
-func (b *backendMongo) CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
+func (b *backendMongo) CreateEmailSession(userID, email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
 	s := b.emailSessions()
 	c, _ := s.FindId(emailVerifyHash).Count()
 	if c > 0 {
 		return errors.New("invalid emailVerifyHash")
 	}
-	return s.Insert(&emailSession{"", email, info, emailVerifyHash, csrfToken})
+	return s.Insert(&emailSession{userID, email, info, emailVerifyHash, csrfToken})
 }
 
 func (b *backendMongo) GetEmailSession(verifyHash string) (*emailSession, error) {
