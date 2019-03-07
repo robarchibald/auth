@@ -71,6 +71,10 @@ func (r *backendRedisSession) DeleteSession(sessionHash string) error {
 	return r.db.Execute(onedb.NewRedisDelCommand(r.getSessionKey(sessionHash)))
 }
 
+func (r *backendRedisSession) DeleteSessions(email string) error {
+	return nil
+}
+
 func (r *backendRedisSession) InvalidateSessions(email string) error {
 	return nil
 }
@@ -91,6 +95,10 @@ func (r *backendRedisSession) UpdateRememberMe(selector string, renewTimeUTC tim
 
 func (r *backendRedisSession) DeleteRememberMe(selector string) error {
 	return r.db.Execute(onedb.NewRedisDelCommand(r.getRememberMeKey(selector)))
+}
+
+func (r *backendRedisSession) DeleteRememberMes(email string) error {
+	return nil
 }
 
 func (r *backendRedisSession) Close() error {

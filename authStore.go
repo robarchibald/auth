@@ -397,7 +397,7 @@ func (s *authStore) requestPasswordReset(r *http.Request, b Backender, email, te
 
 	u, err := b.GetUser(email)
 	if err != nil {
-		return newAuthError("An email has been sent to the user with instructions on how to reset their password", err)
+		return nil // user does not exist, send success message anyway to prevent fishing for user data
 	}
 
 	if info == nil {
@@ -646,7 +646,6 @@ func (s *authStore) updatePassword(w http.ResponseWriter, r *http.Request, b Bac
 	if err != nil {
 		return nil, newLoggedError("Invalid email verification cookie", err)
 	}
-	fmt.Println(emailCookie.EmailVerificationCode, emailVerifyHash)
 
 	session, err := b.GetEmailSession(emailVerifyHash)
 	if err != nil {
@@ -656,14 +655,24 @@ func (s *authStore) updatePassword(w http.ResponseWriter, r *http.Request, b Bac
 		return nil, errInvalidCSRF
 	}
 
-	err = b.UpdateUser(session.UserID, password, session.Info)
-	if err != nil {
-		return nil, newLoggedError("Unable to update password", err)
-	}
-
 	err = b.DeleteEmailSession(session.EmailVerifyHash)
 	if err != nil {
 		return nil, newLoggedError("Error while updating password", err)
+	}
+
+	err = b.DeleteSessions(session.Email)
+	if err != nil {
+		return nil, newLoggedError("Error while deleting login sessions", err)
+	}
+
+	err = b.DeleteRememberMes(session.Email)
+	if err != nil {
+		return nil, newLoggedError("Error while deleting remember me sessions", err)
+	}
+
+	err = b.UpdateUser(session.UserID, password, session.Info)
+	if err != nil {
+		return nil, newLoggedError("Unable to update password", err)
 	}
 
 	ls, err := s.createSession(w, r, b, session.UserID, session.Email, nil, false)

@@ -235,6 +235,28 @@ func (m *backendMemory) InvalidateSessions(email string) error {
 	return nil
 }
 
+func (m *backendMemory) DeleteSessions(email string) error {
+	for i := 0; i < len(m.Sessions); i++ {
+		session := m.Sessions[i]
+		if session.Email == email {
+			m.Sessions = append(m.Sessions[:i], m.Sessions[i+1:]...) // remove item
+			break
+		}
+	}
+	return nil
+}
+
+func (m *backendMemory) DeleteRememberMes(email string) error {
+	for i := 0; i < len(m.RememberMes); i++ {
+		rememberMe := m.RememberMes[i]
+		if rememberMe.Email == email {
+			m.RememberMes = append(m.RememberMes[:i], m.RememberMes[i+1:]...) // remove item
+			break
+		}
+	}
+	return nil
+}
+
 func (m *backendMemory) DeleteRememberMe(selector string) error {
 	m.removeRememberMe(selector)
 	return nil

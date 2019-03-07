@@ -171,6 +171,10 @@ func (b *backendMongo) UpdateSession(sessionHash string, renewTimeUTC, expireTim
 func (b *backendMongo) DeleteSession(sessionHash string) error {
 	return b.loginSessions().RemoveId(sessionHash)
 }
+func (b *backendMongo) DeleteSessions(e string) error {
+	_, err := b.loginSessions().RemoveAll(bson.M{"email": e})
+	return err
+}
 func (b *backendMongo) InvalidateSessions(email string) error {
 	return nil
 }
@@ -183,6 +187,10 @@ func (b *backendMongo) UpdateRememberMe(selector string, renewTimeUTC time.Time)
 }
 func (b *backendMongo) DeleteRememberMe(selector string) error {
 	return b.rememberMeSessions().RemoveId(selector)
+}
+func (b *backendMongo) DeleteRememberMes(e string) error {
+	_, err := b.rememberMeSessions().RemoveAll(bson.M{"email": e})
+	return err
 }
 
 func (b *backendMongo) users() mgo.Collectioner {

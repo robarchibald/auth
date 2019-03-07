@@ -71,11 +71,13 @@ type sessionBackender interface {
 	UpdateSession(sessionHash string, renewTimeUTC, expireTimeUTC time.Time) error
 	DeleteSession(sessionHash string) error
 	InvalidateSessions(email string) error
+	DeleteSessions(email string) error
 
 	CreateRememberMe(userID, email string, rememberMeSelector, rememberMeTokenHash string, renewTimeUTC, expireTimeUTC time.Time) (*rememberMeSession, error)
 	GetRememberMe(selector string) (*rememberMeSession, error)
 	UpdateRememberMe(selector string, renewTimeUTC time.Time) error
 	DeleteRememberMe(selector string) error
+	DeleteRememberMes(email string) error
 }
 
 type emailSession struct {
@@ -355,6 +357,14 @@ func (b *backend) DeleteSession(sessionHash string) error {
 
 func (b *backend) InvalidateSessions(email string) error {
 	return b.s.InvalidateSessions(email)
+}
+
+func (b *backend) DeleteSessions(email string) error {
+	return b.s.DeleteSessions(email)
+}
+
+func (b *backend) DeleteRememberMes(email string) error {
+	return b.s.DeleteRememberMes(email)
 }
 
 func (b *backend) DeleteRememberMe(selector string) error {
