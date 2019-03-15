@@ -20,8 +20,8 @@ func NewBackendRedisSession(server string, port int, password string, maxIdle, m
 }
 
 // need to first check that this emailVerifyHash isn't being used, otherwise we'll clobber existing
-func (r *backendRedisSession) CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
-	return r.saveEmailSession(&emailSession{"", email, info, emailVerifyHash, csrfToken})
+func (r *backendRedisSession) CreateEmailSession(userID, email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
+	return r.saveEmailSession(&emailSession{userID, email, info, emailVerifyHash, csrfToken})
 }
 
 func (r *backendRedisSession) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
@@ -71,6 +71,10 @@ func (r *backendRedisSession) DeleteSession(sessionHash string) error {
 	return r.db.Execute(onedb.NewRedisDelCommand(r.getSessionKey(sessionHash)))
 }
 
+func (r *backendRedisSession) DeleteSessions(email string) error {
+	return nil
+}
+
 func (r *backendRedisSession) InvalidateSessions(email string) error {
 	return nil
 }
@@ -91,6 +95,10 @@ func (r *backendRedisSession) UpdateRememberMe(selector string, renewTimeUTC tim
 
 func (r *backendRedisSession) DeleteRememberMe(selector string) error {
 	return r.db.Execute(onedb.NewRedisDelCommand(r.getRememberMeKey(selector)))
+}
+
+func (r *backendRedisSession) DeleteRememberMes(email string) error {
+	return nil
 }
 
 func (r *backendRedisSession) Close() error {

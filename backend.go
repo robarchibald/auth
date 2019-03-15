@@ -61,7 +61,7 @@ type SessionBackender interface {
 }
 
 type sessionBackender interface {
-	CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error
+	CreateEmailSession(userID, email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error
 	GetEmailSession(verifyHash string) (*emailSession, error)
 	UpdateEmailSession(verifyHash string, userID string) error
 	DeleteEmailSession(verifyHash string) error
@@ -71,11 +71,13 @@ type sessionBackender interface {
 	UpdateSession(sessionHash string, renewTimeUTC, expireTimeUTC time.Time) error
 	DeleteSession(sessionHash string) error
 	InvalidateSessions(email string) error
+	DeleteSessions(email string) error
 
 	CreateRememberMe(userID, email string, rememberMeSelector, rememberMeTokenHash string, renewTimeUTC, expireTimeUTC time.Time) (*rememberMeSession, error)
 	GetRememberMe(selector string) (*rememberMeSession, error)
 	UpdateRememberMe(selector string, renewTimeUTC time.Time) error
 	DeleteRememberMe(selector string) error
+	DeleteRememberMes(email string) error
 }
 
 type emailSession struct {
@@ -301,8 +303,8 @@ func (b *backend) UpdateRememberMe(selector string, renewTimeUTC time.Time) erro
 	return b.s.UpdateRememberMe(selector, renewTimeUTC)
 }
 
-func (b *backend) CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
-	return b.s.CreateEmailSession(email, info, emailVerifyHash, csrfToken)
+func (b *backend) CreateEmailSession(userID, email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
+	return b.s.CreateEmailSession(userID, email, info, emailVerifyHash, csrfToken)
 }
 
 func (b *backend) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
@@ -355,6 +357,14 @@ func (b *backend) DeleteSession(sessionHash string) error {
 
 func (b *backend) InvalidateSessions(email string) error {
 	return b.s.InvalidateSessions(email)
+}
+
+func (b *backend) DeleteSessions(email string) error {
+	return b.s.DeleteSessions(email)
+}
+
+func (b *backend) DeleteRememberMes(email string) error {
+	return b.s.DeleteRememberMes(email)
 }
 
 func (b *backend) DeleteRememberMe(selector string) error {
