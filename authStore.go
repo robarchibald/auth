@@ -400,14 +400,13 @@ func (s *authStore) requestPasswordReset(r *http.Request, b Backender, email, te
 		return nil // user does not exist, send success message anyway to prevent fishing for user data
 	}
 
-	if info == nil {
-		info = make(map[string]interface{})
-	}
-	for key := range u.Info {
-		info[key] = u.Info[key]
+	if info != nil {
+		for key, value := range info {
+			u.Info[key] = value
+		}
 	}
 
-	verifyCode, err := s.addEmailSession(b, u.UserID, email, info)
+	verifyCode, err := s.addEmailSession(b, u.UserID, email, u.Info)
 	if err != nil {
 		return newLoggedError("An email has been sent to the user with instructions on how to reset their password", err)
 	}
