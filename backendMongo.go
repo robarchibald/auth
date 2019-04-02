@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"strings"
 	"time"
 
 	"github.com/EndFirstCorp/onedb/mgo"
@@ -59,12 +60,12 @@ func (b *backendMongo) AddUserFull(email, password string, info map[string]inter
 	}
 
 	id := bson.NewObjectId()
-	return &User{id.Hex(), email, info}, b.users().Insert(mongoUser{ID: id, PrimaryEmail: email, PasswordHash: passwordHash, Info: info})
+	return &User{id.Hex(), strings.ToLower(email), info}, b.users().Insert(mongoUser{ID: id, PrimaryEmail: strings.ToLower(email), PasswordHash: passwordHash, Info: info})
 }
 
 func (b *backendMongo) getUser(email string) (*mongoUser, error) {
 	u := &mongoUser{}
-	return u, b.users().Find(bson.M{"primaryEmail": email}).One(u)
+	return u, b.users().Find(bson.M{"primaryEmail": strings.ToLower(email)}).One(u)
 }
 
 func (b *backendMongo) GetUser(email string) (*User, error) {
@@ -135,7 +136,7 @@ func (b *backendMongo) CreateEmailSession(userID, email string, info map[string]
 	if c > 0 {
 		return errors.New("invalid emailVerifyHash")
 	}
-	return s.Insert(&emailSession{userID, email, info, emailVerifyHash, csrfToken})
+	return s.Insert(&emailSession{userID, strings.ToLower(email), info, emailVerifyHash, csrfToken})
 }
 
 func (b *backendMongo) GetEmailSession(verifyHash string) (*emailSession, error) {
@@ -150,12 +151,12 @@ func (b *backendMongo) DeleteEmailSession(verifyHash string) error {
 	return b.emailSessions().RemoveId(verifyHash)
 }
 func (b *backendMongo) CreateSession(userID, email string, info map[string]interface{}, sessionHash, csrfToken string, renewTimeUTC, expireTimeUTC time.Time) (*LoginSession, error) {
-	s := LoginSession{userID, email, info, sessionHash, csrfToken, renewTimeUTC, expireTimeUTC}
+	s := LoginSession{userID, strings.ToLower(email), info, sessionHash, csrfToken, renewTimeUTC, expireTimeUTC}
 	return &s, b.loginSessions().Insert(s)
 }
 
 func (b *backendMongo) CreateRememberMe(userID, email, selector, tokenHash string, renewTimeUTC, expireTimeUTC time.Time) (*rememberMeSession, error) {
-	r := rememberMeSession{userID, email, selector, tokenHash, renewTimeUTC, expireTimeUTC}
+	r := rememberMeSession{userID, strings.ToLower(email), selector, tokenHash, renewTimeUTC, expireTimeUTC}
 	return &r, b.rememberMeSessions().Insert(&r)
 }
 
@@ -172,7 +173,7 @@ func (b *backendMongo) DeleteSession(sessionHash string) error {
 	return b.loginSessions().RemoveId(sessionHash)
 }
 func (b *backendMongo) DeleteSessions(e string) error {
-	_, err := b.loginSessions().RemoveAll(bson.M{"email": e})
+	_, err := b.loginSessions().RemoveAll(bson.M{"email": strings.ToLower(e)})
 	return err
 }
 func (b *backendMongo) InvalidateSessions(email string) error {
@@ -189,7 +190,7 @@ func (b *backendMongo) DeleteRememberMe(selector string) error {
 	return b.rememberMeSessions().RemoveId(selector)
 }
 func (b *backendMongo) DeleteRememberMes(e string) error {
-	_, err := b.rememberMeSessions().RemoveAll(bson.M{"email": e})
+	_, err := b.rememberMeSessions().RemoveAll(bson.M{"email": strings.ToLower(e)})
 	return err
 }
 
