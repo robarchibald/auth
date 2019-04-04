@@ -397,6 +397,7 @@ func (s *authStore) requestPasswordReset(r *http.Request, b Backender, email, te
 
 	u, err := b.GetUser(email)
 	if err != nil {
+		// TODO: send a message to the provided email address letting them know that an attempt was made to reset a password, however an account does not exist
 		return nil // user does not exist, send success message anyway to prevent fishing for user data
 	}
 
