@@ -40,8 +40,8 @@ type AuthStorer interface {
 	GetBasicAuth(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error)
 	Login(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
-	Register(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error
-	RequestPasswordReset(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error
+	Register(w http.ResponseWriter, r *http.Request, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error
+	RequestPasswordReset(w http.ResponseWriter, r *http.Request, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error
 	Logout(w http.ResponseWriter, r *http.Request) error
 	CreateProfile(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string) (string, *User, error)
@@ -384,13 +384,18 @@ type sendParams struct {
 	Info             map[string]interface{}
 }
 
-func (s *authStore) RequestPasswordReset(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error {
-	b := s.b.Clone()
-	defer b.Close()
-	return s.requestPasswordReset(r, b, email, templateName, emailSubject, info)
+type TemplateNames struct {
+	Success string
+	Failure string
 }
 
-func (s *authStore) requestPasswordReset(r *http.Request, b Backender, email, templateName, emailSubject string, info map[string]interface{}) error {
+func (s *authStore) RequestPasswordReset(w http.ResponseWriter, r *http.Request, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error {
+	b := s.b.Clone()
+	defer b.Close()
+	return s.requestPasswordReset(r, b, email, templates, emailSubject, info)
+}
+
+func (s *authStore) requestPasswordReset(r *http.Request, b Backender, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error {
 	if !isValidEmail(email) {
 		return newAuthError("Invalid email", nil)
 	}
@@ -398,6 +403,12 @@ func (s *authStore) requestPasswordReset(r *http.Request, b Backender, email, te
 	u, err := b.GetUser(email)
 	if err != nil {
 		// TODO: send a message to the provided email address letting them know that an attempt was made to reset a password, however an account does not exist
+		if err := s.mailer.SendMessage(email, templates.Failure, "Attempted Password Reset", &sendParams{RefererBaseURL: getBaseURL(r.Referer()), Info: info}); err != nil {
+			return newLoggedError(
+				// "An email has been sent to the user with instructions on how to reset their password",
+				"no go on sending the response",
+				err)
+		}
 		return nil // user does not exist, send success message anyway to prevent fishing for user data
 	}
 
@@ -413,20 +424,20 @@ func (s *authStore) requestPasswordReset(r *http.Request, b Backender, email, te
 	}
 
 	code := verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
-	if err := s.mailer.SendMessage(email, templateName, emailSubject, &sendParams{code, email, getBaseURL(r.Referer()), info}); err != nil {
+	if err := s.mailer.SendMessage(email, templates.Success, emailSubject, &sendParams{code, email, getBaseURL(r.Referer()), info}); err != nil {
 		return newLoggedError("An email has been sent to the user with instructions on how to reset their password", err)
 	}
 
 	return nil
 }
 
-func (s *authStore) Register(w http.ResponseWriter, r *http.Request, email, templateName, emailSubject string, info map[string]interface{}) error {
+func (s *authStore) Register(w http.ResponseWriter, r *http.Request, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error {
 	b := s.b.Clone()
 	defer b.Close()
-	return s.register(r, b, email, templateName, emailSubject, info)
+	return s.register(r, b, email, templates, emailSubject, info)
 }
 
-func (s *authStore) register(r *http.Request, b Backender, email, templateName, emailSubject string, info map[string]interface{}) error {
+func (s *authStore) register(r *http.Request, b Backender, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error {
 	if !isValidEmail(email) {
 		return newAuthError("Invalid email", nil)
 	}
@@ -442,7 +453,7 @@ func (s *authStore) register(r *http.Request, b Backender, email, templateName, 
 	}
 
 	code := verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
-	if err := s.mailer.SendMessage(email, templateName, emailSubject, &sendParams{code, email, getBaseURL(r.Referer()), info}); err != nil {
+	if err := s.mailer.SendMessage(email, templates.Success, emailSubject, &sendParams{code, email, getBaseURL(r.Referer()), info}); err != nil {
 		return newLoggedError("Unable to send verification email", err)
 	}
 
