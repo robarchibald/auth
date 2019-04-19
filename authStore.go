@@ -384,6 +384,7 @@ type sendParams struct {
 	Info             map[string]interface{}
 }
 
+// TemplateNames contains the names of the html email templates to be used on Success and/or Failure conditions
 type TemplateNames struct {
 	Success string
 	Failure string
@@ -402,14 +403,10 @@ func (s *authStore) requestPasswordReset(r *http.Request, b Backender, email str
 
 	u, err := b.GetUser(email)
 	if err != nil {
-		// TODO: send a message to the provided email address letting them know that an attempt was made to reset a password, however an account does not exist
 		if err := s.mailer.SendMessage(email, templates.Failure, "Attempted Password Reset", &sendParams{RefererBaseURL: getBaseURL(r.Referer()), Info: info}); err != nil {
-			return newLoggedError(
-				// "An email has been sent to the user with instructions on how to reset their password",
-				"no go on sending the response",
-				err)
+			return newLoggedError("An email has been sent to the user with instructions on how to reset their password", err)
 		}
-		return nil // user does not exist, send success message anyway to prevent fishing for user data
+		return nil // user does not exist, send success message anyway to prevent fishing for user data. Email owner will be notified of attempt
 	}
 
 	if info != nil {
