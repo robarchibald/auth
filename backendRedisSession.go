@@ -4,18 +4,18 @@ import (
 	"math"
 	"time"
 
-	"github.com/EndFirstCorp/onedb"
+	"github.com/EndFirstCorp/onedb/redis"
 	"github.com/pkg/errors"
 )
 
 type backendRedisSession struct {
-	db     onedb.DBer
+	db     redis.Rediser
 	prefix string
 }
 
 // NewBackendRedisSession returns a SessionBackender for Redis
 func NewBackendRedisSession(server string, port int, password string, maxIdle, maxConnections int, keyPrefix string) sessionBackender {
-	r := onedb.NewRedis(server, port, password, maxIdle, maxConnections)
+	r := redis.New(server, port, password, maxIdle, maxConnections)
 	return &backendRedisSession{db: r, prefix: keyPrefix}
 }
 
@@ -26,7 +26,7 @@ func (r *backendRedisSession) CreateEmailSession(userID, email string, info map[
 
 func (r *backendRedisSession) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
 	session := &emailSession{}
-	return session, r.db.QueryStructRow(onedb.NewRedisGetCommand(r.getEmailSessionKey(emailVerifyHash)), session)
+	return session, r.db.GetStruct(r.getEmailSessionKey(emailVerifyHash), session)
 }
 
 func (r *backendRedisSession) UpdateEmailSession(emailVerifyHash, userID string) error {
@@ -54,7 +54,7 @@ func (r *backendRedisSession) CreateRememberMe(userID, email, selector, tokenHas
 
 func (r *backendRedisSession) GetSession(sessionHash string) (*LoginSession, error) {
 	session := &LoginSession{}
-	return session, r.db.QueryStructRow(onedb.NewRedisGetCommand(r.getSessionKey(sessionHash)), session)
+	return session, r.db.GetStruct(r.getSessionKey(sessionHash), session)
 }
 
 func (r *backendRedisSession) UpdateSession(sessionHash string, renewTimeUTC, expireTimeUTC time.Time) error {
@@ -68,7 +68,7 @@ func (r *backendRedisSession) UpdateSession(sessionHash string, renewTimeUTC, ex
 }
 
 func (r *backendRedisSession) DeleteSession(sessionHash string) error {
-	return r.db.Execute(onedb.NewRedisDelCommand(r.getSessionKey(sessionHash)))
+	return r.db.Del(r.getSessionKey(sessionHash))
 }
 
 func (r *backendRedisSession) DeleteSessions(email string) error {
@@ -81,7 +81,7 @@ func (r *backendRedisSession) InvalidateSessions(email string) error {
 
 func (r *backendRedisSession) GetRememberMe(selector string) (*rememberMeSession, error) {
 	rememberMe := &rememberMeSession{}
-	return rememberMe, r.db.QueryStructRow(onedb.NewRedisGetCommand(r.getRememberMeKey(selector)), rememberMe)
+	return rememberMe, r.db.GetStruct(r.getRememberMeKey(selector), rememberMe)
 }
 
 func (r *backendRedisSession) UpdateRememberMe(selector string, renewTimeUTC time.Time) error {
@@ -94,7 +94,7 @@ func (r *backendRedisSession) UpdateRememberMe(selector string, renewTimeUTC tim
 }
 
 func (r *backendRedisSession) DeleteRememberMe(selector string) error {
-	return r.db.Execute(onedb.NewRedisDelCommand(r.getRememberMeKey(selector)))
+	return r.db.Del(r.getRememberMeKey(selector))
 }
 
 func (r *backendRedisSession) DeleteRememberMes(email string) error {
@@ -140,9 +140,5 @@ func round(num float64) int {
 }
 
 func (r *backendRedisSession) save(key string, value interface{}, expireSeconds int) error {
-	cmd, err := onedb.NewRedisSetCommand(key, value, expireSeconds)
-	if err != nil {
-		return err
-	}
-	return r.db.Execute(cmd)
+	return r.db.SetWithExpire(key, value, expireSeconds)
 }
