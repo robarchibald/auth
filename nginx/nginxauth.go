@@ -41,6 +41,7 @@ type authConf struct {
 	ConcurrentDownloads int
 
 	CookieBase64Key string
+	CookieDomain    string
 
 	SMTPServer              string
 	SMTPPort                int
@@ -93,11 +94,11 @@ func newNginxAuth(configFle, logfile string) (*nginxauth, error) {
 	config := authConf{}
 	err = configReader.ReadFile(configFle, &config)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	m, err := mgo.Dial(config.ConnectionURI)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	s := auth.NewBackendRedisSession(config.RedisServer, config.RedisPort, config.RedisPassword, config.RedisMaxIdle, config.RedisMaxConnections, config.StoragePrefix)
@@ -113,7 +114,7 @@ func newNginxAuth(configFle, logfile string) (*nginxauth, error) {
 		return nil, err
 	}
 
-	return &nginxauth{b, auth.NewAuthStore(b, mailer, config.StoragePrefix, cookieKey), config, eLog}, nil
+	return &nginxauth{b, auth.NewAuthStore(b, mailer, config.StoragePrefix, config.CookieDomain, cookieKey), config, eLog}, nil
 }
 
 func (n *authConf) NewEmailer() (*auth.Emailer, error) {
@@ -124,20 +125,8 @@ func (n *authConf) NewEmailer() (*auth.Emailer, error) {
 		return nil, err
 	}
 	return &auth.Emailer{
-		TemplateCache:           templateCache,
-		Sender:                  sender,
-		VerifyEmailTemplate:     n.VerifyEmailTemplate,
-		VerifyEmailSubject:      n.VerifyEmailSubject,
-		WelcomeTemplate:         n.WelcomeTemplate,
-		WelcomeSubject:          n.WelcomeSubject,
-		NewLoginTemplate:        n.NewLoginTemplate,
-		NewLoginSubject:         n.NewLoginSubject,
-		LockedOutTemplate:       n.LockedOutTemplate,
-		LockedOutSubject:        n.LockedOutSubject,
-		EmailChangedTemplate:    n.EmailChangedTemplate,
-		EmailChangedSubject:     n.EmailChangedSubject,
-		PasswordChangedTemplate: n.PasswordChangedTemplate,
-		PasswordChangedSubject:  n.PasswordChangedSubject,
+		TemplateCache: templateCache,
+		Sender:        sender,
 	}, nil
 }
 
@@ -226,7 +215,7 @@ func login(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
 }
 
 func register(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("register", authStore.Register, w, r)
+	writeOutput(w, `{ "result": "Success" }`, authStore.Register(w, r, "", auth.TemplateNames{}, "", nil))
 }
 
 func createProfile(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
@@ -234,19 +223,20 @@ func createProfile(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Req
 }
 
 func createSecondaryEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("createSecondaryEmail", authStore.CreateSecondaryEmail, w, r)
+	writeOutput(w, `{ "result": "Success" }`, authStore.CreateSecondaryEmail(w, r, "", ""))
 }
 
 func setPrimaryEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("setPrimaryEmail", authStore.SetPrimaryEmail, w, r)
+	writeOutput(w, `{ "result": "Success" }`, authStore.SetPrimaryEmail(w, r, "", ""))
 }
 
 func updatePassword(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	run("updatePassword", authStore.UpdatePassword, w, r)
+	_, err := authStore.UpdatePassword(w, r)
+	writeOutput(w, `{ "result": "Success" }`, err)
 }
 
 func verifyEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	csrfToken, destinationURL, err := authStore.VerifyEmail(w, r)
+	csrfToken, destinationURL, err := authStore.VerifyEmail(w, r, "", "", "")
 	writeOutput(w, fmt.Sprintf(`{ "result": "Success", "destinationURL": "%s", "csrfToken": "%s" }`, destinationURL, csrfToken), err)
 }
 
