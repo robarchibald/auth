@@ -14,7 +14,7 @@ type backendRedisSession struct {
 }
 
 // NewBackendRedisSession returns a SessionBackender for Redis
-func NewBackendRedisSession(server string, port int, password string, maxIdle, maxConnections int, keyPrefix string) sessionBackender {
+func NewBackendRedisSession(server string, port int, password string, maxIdle, maxConnections int, keyPrefix string) SessionBackender {
 	r := redis.New(server, port, password, maxIdle, maxConnections)
 	return &backendRedisSession{db: r, prefix: keyPrefix}
 }
