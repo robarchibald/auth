@@ -308,7 +308,7 @@ func (b *mockBackend) AddUser(email string, info map[string]interface{}) (string
 	return "1", b.AddUserErr
 }
 
-func (b *mockBackend) CreateEmailSession(email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
+func (b *mockBackend) CreateEmailSession(userID, email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "CreateEmailSession")
 	return b.ErrReturn
 }

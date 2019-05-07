@@ -102,7 +102,7 @@ func _register(email string, b *backendMemory, m *TextMailer) (string, error) {
 
 	// register new user
 	// adds to users, logins and sessions
-	err := s.register(r, b, email, "templateName", "emailSubject", map[string]interface{}{"key": "value"})
+	err := s.register(r, b, email, TemplateNames{Success: "templateName"}, "emailSubject", map[string]interface{}{"key": "value"})
 	if err != nil {
 		return "", err
 	}
@@ -167,7 +167,7 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 	}
 
 	// create profile
-	newSession, err := s.createProfile(nil, r, b, csrfToken, password, map[string]interface{}{"myKey": "value"})
+	newSession, err := s.createProfile(nil, r, b, csrfToken, password)
 	if err != nil {
 		return "", nil, err
 	}
@@ -178,7 +178,7 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 		return "", nil, err
 	}
 	// check user was saved correctly
-	if user == nil || oldEmailSession == nil || user.PrimaryEmail != oldEmailSession.Email || user.UserID != oldEmailSession.UserID || user.PasswordHash != passwordHash || user.Info == nil || user.Info["myKey"] != "value" {
+	if user == nil || oldEmailSession == nil || user.PrimaryEmail != oldEmailSession.Email || user.UserID != oldEmailSession.UserID || user.PasswordHash != passwordHash || user.Info == nil || user.Info["key"] != "value" {
 		return "", nil, errors.Errorf("expected user to be updated with expected values: %v, %v", user, oldEmailSession)
 	}
 	// verify email session was deleted
@@ -190,7 +190,7 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 	sessionCookie := c.cookies["Session"].(*sessionCookie)
 	sessionHash, _ := decodeStringToHash(sessionCookie.SessionID)
 	session := b.getSessionByHash(sessionHash)
-	if session == nil || session.SessionHash != sessionHash || session.Email != oldEmailSession.Email || session.UserID != oldEmailSession.UserID || session.Info == nil || session.Info["myKey"] != "value" {
+	if session == nil || session.SessionHash != sessionHash || session.Email != oldEmailSession.Email || session.UserID != oldEmailSession.UserID || session.Info == nil || session.Info["key"] != "value" {
 		return "", nil, errors.Errorf("expected session to be created, %v", session)
 	}
 	return newSession.CSRFToken, sessionCookie, nil
@@ -209,7 +209,7 @@ func _login(email, password string, remember bool, clientSessionCookie *sessionC
 	}
 	// verify session is valid
 	user := b.getUserByEmail(email)
-	if session == nil || session.Email != email || session.UserID != user.UserID || session.Info == nil || session.Info["myKey"] != "value" {
+	if session == nil || session.Email != email || session.UserID != user.UserID || session.Info == nil || session.Info["key"] != "value" {
 		return "", nil, nil, errors.Errorf("session wasn't created correctly, %v", session)
 	}
 	// verify no users were created
@@ -235,7 +235,7 @@ func _login(email, password string, remember bool, clientSessionCookie *sessionC
 	newSessionCookie := c.cookies["Session"].(*sessionCookie)
 	sessionHash, _ := decodeStringToHash(newSessionCookie.SessionID)
 	newSession := b.getSessionByHash(sessionHash)
-	if newSession == nil || newSession.SessionHash != sessionHash || newSession.Email != session.Email || newSession.UserID != session.UserID || newSession.Info == nil || newSession.Info["myKey"] != "value" {
+	if newSession == nil || newSession.SessionHash != sessionHash || newSession.Email != session.Email || newSession.UserID != session.UserID || newSession.Info == nil || newSession.Info["key"] != "value" {
 		return "", nil, nil, errors.Errorf("expected session to be created in database that matches return from function, %v", newSession)
 	}
 	// verify rememberMe cookie
