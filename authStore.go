@@ -16,23 +16,27 @@ import (
 	"github.com/pkg/errors"
 )
 
-var emailCookieName = "Email"
-var sessionCookieName = "Session"
-var rememberMeCookieName = "RememberMe"
-var emailRegex = regexp.MustCompile(`^(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$`)
+var (
+	emailCookieName      = "Email"
+	sessionCookieName    = "Session"
+	rememberMeCookieName = "RememberMe"
+	userCookieName       = "User"
+	emailRegex           = regexp.MustCompile(`^(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$`)
+	errInvalidCSRF       = errors.New("Invalid CSRF token")
+	errMissingCSRF       = errors.New("Missing CSRF token")
+)
 
-const emailExpireMins int = 60 * 24 * 365 // 1 year
-const emailExpireDuration time.Duration = time.Duration(emailExpireMins) * time.Minute
-const passwordResetEmailExpireMins int = 60 * 48 // 2 days
-const passwordResetEmailExpireDuration time.Duration = time.Duration(passwordResetEmailExpireMins) * time.Minute
-const sessionRenewDuration time.Duration = 5 * time.Minute
-const sessionExpireDuration time.Duration = time.Hour
-const rememberMeRenewDuration time.Duration = time.Hour
-const rememberMeExpireDuration time.Duration = time.Hour * 24 * 30 // 30 days
-const passwordValidationMessage string = "Password must be at least 7 characters"
-
-var errInvalidCSRF = errors.New("Invalid CSRF token")
-var errMissingCSRF = errors.New("Missing CSRF token")
+const (
+	emailExpireMins                  = 60 * 24 * 365 // 1 year
+	emailExpireDuration              = time.Duration(emailExpireMins) * time.Minute
+	passwordResetEmailExpireMins     = 60 * 48 // 2 days
+	passwordResetEmailExpireDuration = time.Duration(passwordResetEmailExpireMins) * time.Minute
+	sessionRenewDuration             = 5 * time.Minute
+	sessionExpireDuration            = time.Hour
+	rememberMeRenewDuration          = time.Hour
+	rememberMeExpireDuration         = time.Hour * 24 * 30 // 30 days
+	passwordValidationMessage        = "Password must be at least 7 characters"
+)
 
 // AuthStorer interface provides the necessary functionality to get and store authentication information
 type AuthStorer interface {
@@ -199,9 +203,13 @@ func (s *authStore) renewSession(w http.ResponseWriter, r *http.Request, b Backe
 
 	err := b.UpdateSession(session.SessionHash, session.RenewTimeUTC, session.ExpireTimeUTC)
 	if err != nil {
-		return newLoggedError("Problem updating session", err)
+		return newLoggedError("Problem updating session cookie", err)
 	}
-	return s.saveSessionCookie(w, r, sessionID, session.RenewTimeUTC, session.ExpireTimeUTC)
+	err = s.saveSessionCookie(w, r, sessionID, session.RenewTimeUTC, session.ExpireTimeUTC)
+	if err != nil {
+		return newLoggedError("Problem updating user cookie", err)
+	}
+	return s.saveUserCookie(w, r, session.Info)
 }
 
 /******************************** Logout ***********************************************/
@@ -370,7 +378,7 @@ func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, b Back
 	if err != nil {
 		return nil, err
 	}
-	return session, nil
+	return session, s.saveUserCookie(w, r, session.Info)
 }
 
 func isValidPassword(password string) bool {
@@ -717,6 +725,7 @@ func (s *authStore) deleteEmailCookie(w http.ResponseWriter) {
 
 func (s *authStore) deleteSessionCookie(w http.ResponseWriter) {
 	s.cookieStore.Delete(w, sessionCookieName)
+	s.cookieStore.Delete(w, userCookieName)
 }
 
 func (s *authStore) deleteRememberMeCookie(w http.ResponseWriter) {
@@ -735,6 +744,10 @@ func (s *authStore) saveSessionCookie(w http.ResponseWriter, r *http.Request, se
 		return newAuthError("Error saving session cookie", err)
 	}
 	return nil
+}
+
+func (s *authStore) saveUserCookie(w http.ResponseWriter, r *http.Request, info map[string]interface{}) error {
+	return s.cookieStore.PutUnsecured(w, r, userCookieName, info)
 }
 
 func (s *authStore) saveRememberMeCookie(w http.ResponseWriter, r *http.Request, selector, token string, renewTimeUTC, expireTimeUTC time.Time) error {

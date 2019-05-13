@@ -147,7 +147,7 @@ var renewSessionTests = []struct {
 		ExpireTimeUTC:    futureTime,
 		UpdateSessionErr: errors.New("failed"),
 		MethodsCalled:    []string{"UpdateSession"},
-		ExpectedErr:      "Problem updating session",
+		ExpectedErr:      "Problem updating session cookie",
 	},
 	{
 		Scenario:      "Success with no rememberme",

@@ -142,6 +142,11 @@ func (c *MockCookieStore) Get(w http.ResponseWriter, r *http.Request, key string
 	return c.getErr
 }
 
+func (c *MockCookieStore) PutUnsecured(w http.ResponseWriter, r *http.Request, key string, value interface{}) error {
+	c.cookies[key] = value
+	return c.putErr
+}
+
 func (c *MockCookieStore) PutWithExpire(w http.ResponseWriter, r *http.Request, key string, expire int, value interface{}) error {
 	c.cookies[key] = value
 	return c.putErr
