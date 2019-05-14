@@ -56,7 +56,7 @@ func (s *cookieStore) PutUnsecured(w http.ResponseWriter, r *http.Request, key s
 	if err != nil {
 		return err
 	}
-	s.putCookie(w, r, key, string(data), 60*24*30) // default to 30 day expiration
+	s.putCookie(w, r, key, string(data), false, 60*24*30) // default to 30 day expiration
 	return nil
 }
 
@@ -69,13 +69,13 @@ func (s *cookieStore) PutWithExpire(w http.ResponseWriter, r *http.Request, key 
 	if err != nil {
 		return err
 	}
-	s.putCookie(w, r, key, encoded, expireMins)
+	s.putCookie(w, r, key, encoded, true, expireMins)
 	return nil
 }
 
-func (s *cookieStore) putCookie(w http.ResponseWriter, r *http.Request, key, value string, expireMins int) {
+func (s *cookieStore) putCookie(w http.ResponseWriter, r *http.Request, key, value string, httpOnly bool, expireMins int) {
 	secureOnly := strings.HasPrefix(r.Referer(), "https") // proxy to back-end so if referer is secure connection, we can use secureOnly cookies
-	http.SetCookie(w, newCookie(key, value, s.domain, secureOnly, expireMins))
+	http.SetCookie(w, newCookie(key, value, s.domain, httpOnly, secureOnly, expireMins))
 }
 
 func (s *cookieStore) Delete(w http.ResponseWriter, key string) {
@@ -87,14 +87,14 @@ func (s *cookieStore) Delete(w http.ResponseWriter, key string) {
 	http.SetCookie(w, cookie)
 }
 
-func newCookie(name string, value string, domain string, secureOnly bool, expireMins int) *http.Cookie {
+func newCookie(name string, value string, domain string, httpOnly, secureOnly bool, expireMins int) *http.Cookie {
 	return &http.Cookie{
 		Expires:  time.Now().UTC().Add(time.Duration(expireMins) * time.Minute),
 		Name:     name,
 		Value:    value,
 		Domain:   domain,
 		Path:     "/",
-		HttpOnly: true,
+		HttpOnly: httpOnly,
 		Secure:   secureOnly,
 		MaxAge:   expireMins * 60, // time in seconds
 	}
