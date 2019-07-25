@@ -499,10 +499,10 @@ func (s *authStore) CreateProfile(w http.ResponseWriter, r *http.Request) (*Logi
 	}
 	b := s.b.Clone()
 	defer b.Close()
-	return s.createProfile(w, r, b, csrfToken, *profile)
+	return s.createProfile(w, r, b, csrfToken, profile)
 }
 
-func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Backender, csrfToken string, userProfile profile) (*LoginSession, error) {
+func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Backender, csrfToken string, userProfile *profile) (*LoginSession, error) {
 	emailCookie, err := s.getEmailCookie(w, r)
 	if err != nil || emailCookie.EmailVerificationCode == "" {
 		return nil, newLoggedError("Unable to get email verification cookie", err)

@@ -158,7 +158,7 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 	r := &http.Request{Header: http.Header{}}
 	c := NewMockCookieStore(map[string]interface{}{"Email": emailCookie}, false, false)
 	s := &authStore{b, m, c}
-
+	p := profile{Password: password}
 	emailVerifyHash, _ := decodeStringToHash(emailCookie.EmailVerificationCode)
 	oldEmailSession := b.getEmailSessionByEmailVerifyHash(emailVerifyHash)
 	var user *user
@@ -167,7 +167,7 @@ func _createProfile(fullName, password string, emailCookie *emailCookie, b *back
 	}
 
 	// create profile
-	newSession, err := s.createProfile(nil, r, b, csrfToken, password)
+	newSession, err := s.createProfile(nil, r, b, csrfToken, &p)
 	if err != nil {
 		return "", nil, err
 	}
