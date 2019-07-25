@@ -534,7 +534,7 @@ func TestAuthCreateProfile(t *testing.T) {
 	for i, test := range createProfileTests {
 		backend := &mockBackend{UpdateUserErr: test.UpdateUserErr, getEmailSessionReturn: test.getEmailSessionReturn, CreateSessionReturn: test.CreateSessionReturn, DeleteEmailSessionErr: test.DeleteEmailSessionErr}
 		store := getAuthStore(test.EmailCookie, nil, nil, test.HasCookieGetError, test.HasCookiePutError, nil, backend)
-		_, err := store.createProfile(nil, &http.Request{}, backend, test.CSRFToken, "password")
+		_, err := store.createProfile(nil, &http.Request{}, backend, test.CSRFToken, &profile{Password: "password"})
 		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {

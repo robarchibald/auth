@@ -499,10 +499,10 @@ func (s *authStore) CreateProfile(w http.ResponseWriter, r *http.Request) (*Logi
 	}
 	b := s.b.Clone()
 	defer b.Close()
-	return s.createProfile(w, r, b, csrfToken, profile.Password)
+	return s.createProfile(w, r, b, csrfToken, profile)
 }
 
-func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Backender, csrfToken, password string) (*LoginSession, error) {
+func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Backender, csrfToken string, userProfile *profile) (*LoginSession, error) {
 	emailCookie, err := s.getEmailCookie(w, r)
 	if err != nil || emailCookie.EmailVerificationCode == "" {
 		return nil, newLoggedError("Unable to get email verification cookie", err)
@@ -520,8 +520,12 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Back
 	if session.CSRFToken != csrfToken {
 		return nil, errInvalidCSRF
 	}
+	mergedInfo := session.Info
+	for key, value := range userProfile.Info {
+		mergedInfo[key] = value
+	}
 
-	err = b.UpdateUser(session.UserID, password, session.Info)
+	err = b.UpdateUser(session.UserID, userProfile.Password, mergedInfo)
 	if err != nil {
 		return nil, newLoggedError("Unable to update user", err)
 	}
@@ -531,7 +535,7 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Back
 		return nil, newLoggedError("Error while creating profile", err)
 	}
 
-	ls, err := s.createSession(w, r, b, session.UserID, session.Email, session.Info, false)
+	ls, err := s.createSession(w, r, b, session.UserID, session.Email, mergedInfo, false)
 	if err != nil {
 		return nil, err
 	}
