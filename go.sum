@@ -1,3 +1,5 @@
+github.com/EndFirstCorp/configReader v0.0.0-20170802044638-188a03b4d2f3 h1:fXNM9CRXDjxsHRahYdiSfuR2gMvmiM5KyU+cnJpxglQ=
+github.com/EndFirstCorp/configReader v0.0.0-20170802044638-188a03b4d2f3/go.mod h1:XqrN3KUFIYxiX7roHM3b1DQBPA9WTk7shvcMm/UA1oU=
 github.com/EndFirstCorp/onedb v0.0.0-20190522173707-b2ee7465b4ca h1:apqTET3mEm+Mttq6RQ+UD5TH+j2A1xa0a8Ow7XvFXI0=
 github.com/EndFirstCorp/onedb v0.0.0-20190522173707-b2ee7465b4ca/go.mod h1:gn9yNOE+zqRkXTxYV8ogHiHfpSel067Q1jdktwYD4VY=
 github.com/EndFirstCorp/onedb v0.0.0-20200131215747-f53a22dba5a8 h1:JFMSCZVh0yoiOT3ufLO+ZnfoEm4IwZCpneB/EGjlF0U=
@@ -13,6 +15,8 @@ github.com/garyburd/redigo v1.6.0 h1:0VruCpn7yAIIu7pWVClQC8wxCJEcG3nyzpMSHKi1PQc
 github.com/garyburd/redigo v1.6.0/go.mod h1:NR3MbYisc3/PwhQ00EMzDiPmrwpPxAn5GI05/YaO1SY=
 github.com/go-sql-driver/mysql v1.5.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=
 github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe/go.mod h1:8vg3r2VgvsThLBIFL93Qb5yWzgyZWhEmBwUJWevAkK0=
+github.com/gorilla/handlers v1.4.2 h1:0QniY0USkHQ1RGCLfKxeNHK9bkDHGRYGNDFBCS+YARg=
+github.com/gorilla/handlers v1.4.2/go.mod h1:Qkdc/uu4tH4g6mTK6auzZ766c4CA0Ng8+o/OAirnOIQ=
 github.com/gorilla/securecookie v1.1.1 h1:miw7JPhV+b/lAHSXz4qd/nN9jRiAFV5FwjeKyCS8BvQ=
 github.com/gorilla/securecookie v1.1.1/go.mod h1:ra0sb63/xPlUeL+yeDciTfxMRAA+MP+HVt/4epWDjd4=
 github.com/kless/osutil v0.0.0-20161130133508-7d3ee1afa71c h1:Ws2FH852iLedKasudbpV3+MKwbN+hXGAMPxvPUG+uvE=
