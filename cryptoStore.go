@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/kless/osutil/user/crypt/sha512_crypt"
+	"github.com/tredoe/osutil/user/crypt/sha512_crypt"
 	"github.com/pkg/errors"
 )
 
