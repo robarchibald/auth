@@ -4,8 +4,7 @@ go 1.12
 
 require (
 	github.com/EndFirstCorp/configReader v0.0.0-20170802044638-188a03b4d2f3
-	github.com/EndFirstCorp/onedb v0.0.0-20200201014439-32cbea10f2f2
-	github.com/EndFirstCorp/onedb/mgo v0.0.0-20200201014439-32cbea10f2f2
+	github.com/EndFirstCorp/onedb v0.0.0-20200303162352-c70089b708c3
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gorilla/handlers v1.4.2
 	github.com/gorilla/securecookie v1.1.1
