@@ -1,4 +1,4 @@
-module github.com/6degreeshealth/auth
+module github.com/EndFirstCorp/auth
 
 go 1.12
 
