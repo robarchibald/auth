@@ -74,6 +74,11 @@ func (s *cookieStore) Delete(w http.ResponseWriter, key string) {
 }
 
 func newCookie(name string, value string, domain string, secureOnly bool, expireMins int) *http.Cookie {
+	sameSite := http.SameSiteLaxMode
+	if secureOnly {
+			sameSite = http.SameSiteNoneMode
+	}
+
 	return &http.Cookie{
 		Expires:  time.Now().UTC().Add(time.Duration(expireMins) * time.Minute),
 		Name:     name,
@@ -82,6 +87,7 @@ func newCookie(name string, value string, domain string, secureOnly bool, expire
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   secureOnly,
+		SameSite: sameSite,
 		MaxAge:   expireMins * 60, // time in seconds
 	}
 }
