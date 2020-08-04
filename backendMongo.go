@@ -19,6 +19,7 @@ type mongoUser struct {
 	PrimaryEmail      string                 `bson:"primaryEmail"      json:"primaryEmail"`
 	SecondaryEmails   []email                `bson:"secondaryEmails"   json:"secondaryEmails"`
 	PasswordHash      string                 `bson:"passwordHash"      json:"passwordHash"`
+	IsEmailVerified   bool                   `bson:"isEmailVerified"   json:"isEmailVerified"`
 	Info              map[string]interface{} `bson:"info"              json:"info"`
 	LockoutEndTimeUTC *time.Time             `bson:"lockoutEndTimeUTC" json:"lockoutEndTimeUTC"`
 	AccessFailedCount int                    `bson:"accessFailedCount" json:"accessFailedCount"`
@@ -91,6 +92,20 @@ func (b *backendMongo) UpdatePassword(userID, password string) error {
 		return err
 	}
 	return b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"passwordHash": passwordHash}})
+}
+
+func (b *backendMongo) VerifyEmail(email string) (string, error) {
+	user, err := b.getUser(email)
+	if err != nil {
+		return "", err
+	}
+
+	userID := user.ID
+	if err := b.users().UpdateId(userID, bson.M{"isEmailVerified": true}); err != nil {
+		return "", err
+	}
+
+	return userID.Hex(), nil
 }
 
 func (b *backendMongo) UpdateInfo(userID string, info map[string]interface{}) error {

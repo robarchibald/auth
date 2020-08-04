@@ -444,6 +444,8 @@ func (s *authStore) register(r *http.Request, b Backender, email string, templat
 		return newAuthError("User already registered", err)
 	}
 
+	password := GetInfoString(info, "password")
+	delete(info, "password")
 	verifyCode, err := s.addEmailSession(b, "", email, info)
 	if err != nil {
 		return newLoggedError("Unable to save user", err)
@@ -452,6 +454,13 @@ func (s *authStore) register(r *http.Request, b Backender, email string, templat
 	code := verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
 	if err := s.mailer.SendMessage(email, templates.Success, emailSubject, &sendParams{code, email, getBaseURL(r.Referer()), info}); err != nil {
 		return newLoggedError("Unable to send verification email", err)
+	}
+
+	if password != "" {
+		_, err := b.AddUserFull(email, password, info)
+		if err != nil {
+			return newLoggedError("Failed to add user", err)
+		}
 	}
 
 	return nil
@@ -562,16 +571,15 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backen
 
 	session, err := b.GetEmailSession(emailVerifyHash)
 	if err != nil {
-		return "", nil, newLoggedError("Failed to verify email", err)
+		return "", nil, newLoggedError("Failed to get session", err)
 	}
 
 	userID, err := b.AddUser(session.Email, session.Info)
 	if err != nil {
-		user, err := b.GetUser(session.Email)
+		userID, err = b.VerifyEmail(session.Email)
 		if err != nil {
-			return "", nil, newLoggedError("Failed to get user in database", err)
+			return "", nil, newLoggedError("Failed to verify email", err)
 		}
-		userID = user.UserID
 	}
 
 	err = b.UpdateEmailSession(emailVerifyHash, userID)

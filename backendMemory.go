@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type backendMemory struct {
@@ -23,7 +25,7 @@ const loginProviderDefaultName string = "Default"
 
 // NewBackendMemory creates a memory-backed Backender
 func NewBackendMemory(c Crypter) Backender {
-	return &backendMemory{c: c, LoginProviders: []*loginProvider{&loginProvider{LoginProviderID: 1, Name: loginProviderDefaultName}}}
+	return &backendMemory{c: c, LoginProviders: []*loginProvider{{LoginProviderID: 1, Name: loginProviderDefaultName}}}
 }
 
 func (m *backendMemory) Clone() Backender {
@@ -146,7 +148,7 @@ func (m *backendMemory) AddUser(email string, info map[string]interface{}) (stri
 		return "", errUserAlreadyExists
 	}
 	m.LastUserID++
-	m.Users = append(m.Users, &user{strconv.Itoa(m.LastUserID), email, "", info, nil, 0})
+	m.Users = append(m.Users, &user{strconv.Itoa(m.LastUserID), email, "", true, info, nil, 0})
 	return strconv.Itoa(m.LastUserID), nil
 }
 
@@ -160,7 +162,7 @@ func (m *backendMemory) AddUserFull(email, password string, info map[string]inte
 		return nil, errUserAlreadyExists
 	}
 	m.LastUserID++
-	m.Users = append(m.Users, &user{strconv.Itoa(m.LastUserID), email, passwordHash, info, nil, 0})
+	m.Users = append(m.Users, &user{strconv.Itoa(m.LastUserID), email, passwordHash, false, info, nil, 0})
 	return &User{u.UserID, u.PrimaryEmail, u.Info}, nil
 }
 
@@ -216,6 +218,16 @@ func (m *backendMemory) UpdatePassword(userID, password string) error {
 	}
 	user.PasswordHash = passwordHash
 	return nil
+}
+
+func (m *backendMemory) VerifyEmail(email string) (string, error) {
+	user := m.getUserByEmail(email)
+	if user == nil {
+		return "", errors.New("could not find user")
+	}
+
+	user.IsEmailVerified = true
+	return user.UserID, nil
 }
 
 func (m *backendMemory) AddSecondaryEmail(userID, secondaryEmail string) error {

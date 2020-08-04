@@ -47,6 +47,7 @@ type userBackender interface {
 	UpdateUser(userID, password string, info map[string]interface{}) error
 	UpdateInfo(userID string, info map[string]interface{}) error
 	UpdatePassword(userID, newPassword string) error
+	VerifyEmail(email string) (string, error)
 
 	Login(email, password string) error
 	LoginAndGetUser(email, password string) (*User, error)
@@ -92,6 +93,7 @@ type user struct {
 	UserID            string
 	PrimaryEmail      string
 	PasswordHash      string
+	IsEmailVerified   bool
 	Info              map[string]interface{}
 	LockoutEndTimeUTC *time.Time
 	AccessFailedCount int
@@ -349,6 +351,10 @@ func (b *backend) UpdatePrimaryEmail(userID, secondaryEmail string) error {
 
 func (b *backend) UpdatePassword(userID, password string) error {
 	return b.u.UpdatePassword(userID, password)
+}
+
+func (b *backend) VerifyEmail(email string) (string, error) {
+	return b.u.VerifyEmail(email)
 }
 
 func (b *backend) DeleteSession(sessionHash string) error {
