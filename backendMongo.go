@@ -101,7 +101,7 @@ func (b *backendMongo) VerifyEmail(email string) (string, error) {
 	}
 
 	userID := user.ID
-	if err := b.users().UpdateId(userID, bson.M{"isEmailVerified": true}); err != nil {
+	if err := b.users().UpdateId(userID, bson.M{"$set": bson.M{"isEmailVerified": true}}); err != nil {
 		return "", err
 	}
 
