@@ -49,6 +49,7 @@ type AuthStorer interface {
 	CreateSecondaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
 	SetPrimaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
 	UpdatePassword(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
+	UpdateInfo(userID string, info map[string]interface{}) error
 }
 
 type emailCookie struct {
@@ -706,6 +707,12 @@ func (s *authStore) updatePassword(w http.ResponseWriter, r *http.Request, b Bac
 	}
 	ls.Info["destinationURL"] = GetInfoString(session.Info, "destinationURL")
 	return ls, nil
+}
+
+func (s *authStore) UpdateInfo(userID string, info map[string]interface{}) error {
+	b := s.b.Clone()
+	defer b.Close()
+	return b.UpdateInfo(userID, info)
 }
 
 func (s *authStore) getEmailCookie(w http.ResponseWriter, r *http.Request) (*emailCookie, error) {
