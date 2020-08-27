@@ -109,7 +109,7 @@ func (b *backendMongo) VerifyEmail(email string) (string, error) {
 }
 
 func (b *backendMongo) UpdateInfo(userID string, info map[string]interface{}) error {
-	var set bson.M
+	set := make(bson.M)
 	for key := range info {
 		set["info."+key] = info[key]
 	}
