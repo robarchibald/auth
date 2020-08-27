@@ -229,7 +229,7 @@ func (s *authStore) Login(w http.ResponseWriter, r *http.Request) (*LoginSession
 	if err != nil {
 		return nil, err
 	}
-	return session, err
+	return session, nil
 }
 
 func (s *authStore) login(w http.ResponseWriter, r *http.Request, b Backender, email, password string, rememberMe bool) (*LoginSession, error) {
