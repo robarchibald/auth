@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -47,6 +48,7 @@ type userBackender interface {
 	UpdateUser(userID, password string, info map[string]interface{}) error
 	UpdateInfo(userID string, info map[string]interface{}) error
 	UpdatePassword(userID, newPassword string) error
+	VerifyEmail(email string) (string, error)
 
 	Login(email, password string) error
 	LoginAndGetUser(email, password string) (*User, error)
@@ -92,6 +94,7 @@ type user struct {
 	UserID            string
 	PrimaryEmail      string
 	PasswordHash      string
+	IsEmailVerified   bool
 	Info              map[string]interface{}
 	LockoutEndTimeUTC *time.Time
 	AccessFailedCount int
@@ -137,6 +140,14 @@ func (l *LoginSession) GetInfoStrings(name string) []string {
 		return nil
 	}
 	return GetInfoStrings(l.Info, name)
+}
+
+// GetInfoInts will return the named info as an array of integers
+func (l *LoginSession) GetInfoInts(name string) ([]int, error) {
+	if l == nil {
+		return nil, errors.New("No login session")
+	}
+	return GetInfoInts(l.Info, name)
 }
 
 // GetInfo will return the named info as an interface{}
@@ -201,6 +212,30 @@ func GetInfoStrings(info map[string]interface{}, name string) []string {
 		return strArr
 	}
 	return nil
+}
+
+// GetInfoInts will return the named info as an array of integers
+func GetInfoInts(info map[string]interface{}, name string) ([]int, error) {
+	i := GetInfo(info, name)
+	switch v := i.(type) {
+	case []int:
+		return v, nil
+	case []interface{}:
+		strArr := make([]int, len(v))
+		for i, str := range v {
+			if s, ok := str.(int); ok {
+				strArr[i] = s
+			} else {
+				toInt, err := strconv.Atoi(fmt.Sprint(str))
+				if err != nil {
+					return nil, err
+				}
+				strArr[i] = toInt
+			}
+		}
+		return strArr, nil
+	}
+	return nil, fmt.Errorf("Type %T incompatible with []int", i)
 }
 
 type rememberMeSession struct {
@@ -349,6 +384,10 @@ func (b *backend) UpdatePrimaryEmail(userID, secondaryEmail string) error {
 
 func (b *backend) UpdatePassword(userID, password string) error {
 	return b.u.UpdatePassword(userID, password)
+}
+
+func (b *backend) VerifyEmail(email string) (string, error) {
+	return b.u.VerifyEmail(email)
 }
 
 func (b *backend) DeleteSession(sessionHash string) error {

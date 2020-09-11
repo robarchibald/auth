@@ -182,44 +182,62 @@ func (s *mockAuthStorer) GetBasicAuth(w http.ResponseWriter, r *http.Request) (*
 	s.LastRun = "GetBasicAuth"
 	return s.SessionReturn, s.ErrReturn
 }
+
 func (s *mockAuthStorer) OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error) {
 	s.LastRun = "OAuthLogin"
 	return "csrfToken", s.ErrReturn
 }
+
 func (s *mockAuthStorer) Login(w http.ResponseWriter, r *http.Request) (*auth.LoginSession, error) {
 	s.LastRun = "Login"
 	return s.SessionReturn, s.ErrReturn
 }
+
 func (s *mockAuthStorer) Logout(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
+
 func (s *mockAuthStorer) Register(w http.ResponseWriter, r *http.Request, email string, templates auth.TemplateNames, emailSubject string, info map[string]interface{}) error {
 	s.LastRun = "Register"
 	return s.ErrReturn
 }
+
 func (s *mockAuthStorer) RequestPasswordReset(w http.ResponseWriter, r *http.Request, email string, templates auth.TemplateNames, emailSubject string, info map[string]interface{}) error {
 	return nil
 }
+
 func (s *mockAuthStorer) CreateProfile(w http.ResponseWriter, r *http.Request) (*auth.LoginSession, error) {
 	s.LastRun = "CreateProfile"
 	return s.SessionReturn, s.ErrReturn
 }
+
 func (s *mockAuthStorer) VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string) (string, *auth.User, error) {
 	s.LastRun = "VerifyEmail"
 	return "csrfToken", s.UserReturn, s.ErrReturn
 }
+
 func (s *mockAuthStorer) VerifyPasswordReset(w http.ResponseWriter, r *http.Request, emailVerificationCode string) (string, *auth.User, error) {
 	return "", nil, nil
 }
+
 func (s *mockAuthStorer) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error {
 	s.LastRun = "CreateSecondaryEmail"
 	return s.ErrReturn
 }
+
 func (s *mockAuthStorer) SetPrimaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error {
 	s.LastRun = "SetPrimaryEmail"
 	return s.ErrReturn
 }
+
 func (s *mockAuthStorer) UpdatePassword(w http.ResponseWriter, r *http.Request) (*auth.LoginSession, error) {
 	s.LastRun = "UpdatePassword"
 	return nil, s.ErrReturn
 }
+
+func (s *mockAuthStorer) UpdateInfo(userID string, info map[string]interface{}) error {
+	s.LastRun = "UpdateInfo"
+	return s.ErrReturn
+}
+
+var _ auth.AuthStorer = &mockAuthStorer{}
