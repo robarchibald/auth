@@ -247,6 +247,11 @@ func (s *authStore) login(w http.ResponseWriter, r *http.Request, b Backender, e
 		return nil, newLoggedError("Invalid username or password", err)
 	}
 
+	isEmailVerified, ok := login.Info["isEmailVerified"].(bool)
+	if !isEmailVerified || !ok {
+		return nil, newAuthError("Your email has not been verified.")
+	}
+
 	return s.createSession(w, r, b, login.UserID, email, login.Info, rememberMe)
 }
 
