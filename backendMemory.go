@@ -204,6 +204,12 @@ func (m *backendMemory) UpdateInfo(userID string, info map[string]interface{}) e
 	for key := range info {
 		user.Info[key] = info[key]
 	}
+
+	for i, session := range m.Sessions {
+		session.Info = info
+		m.Sessions[i] = session
+	}
+
 	return nil
 }
 

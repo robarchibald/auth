@@ -110,9 +110,15 @@ func (b *backendMongo) VerifyEmail(email string) (string, error) {
 
 func (b *backendMongo) UpdateInfo(userID string, info map[string]interface{}) error {
 	set := make(bson.M)
-	for key := range info {
-		set["info."+key] = info[key]
+	for k, v := range info {
+		set["info."+k] = v
 	}
+
+	_, err := b.loginSessions().UpdateAll(bson.M{"userID": userID}, bson.M{"$set": set})
+	if err != nil {
+		return err
+	}
+
 	return b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": set})
 }
 
