@@ -249,7 +249,7 @@ func (s *authStore) login(w http.ResponseWriter, r *http.Request, b Backender, e
 
 	isEmailVerified, ok := login.Info["isEmailVerified"].(bool)
 	if !isEmailVerified || !ok {
-		return nil, newAuthError("Your email has not been verified.")
+		return nil, newAuthError("Your email has not been verified.", nil)
 	}
 
 	return s.createSession(w, r, b, login.UserID, email, login.Info, rememberMe)
