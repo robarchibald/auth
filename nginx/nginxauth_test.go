@@ -2,9 +2,9 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/EndFirstCorp/auth"
@@ -49,195 +49,120 @@ func TestNewEmailer(t *testing.T) {
 func TestAuth(t *testing.T) {
 	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
-	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
+	storer := auth.NewFakeStorer(auth.FakeStorerConfig{GetSessionErr: errors.New("failed")})
 	authCookie(storer, w, nil)
-	if w.Body.String() != "Authentication required: failed\n" || storer.LastRun != "GetSession" {
-		t.Error("expected auth to fail", w.Body.String(), storer.LastRun)
-	}
+	checkBodyAndMethods(t, "Authentication required: failed\n", []string{"GetSession"}, w, storer)
 
 	w = httptest.NewRecorder()
-	storer = &mockAuthStorer{SessionReturn: &auth.LoginSession{UserID: "1", Email: "test@test.com", Info: map[string]interface{}{"fullName": "Name"}}}
+	storer = auth.NewFakeStorer(auth.FakeStorerConfig{GetSessionVal: &auth.LoginSession{UserID: "1", Email: "test@test.com", Info: map[string]interface{}{"fullName": "Name"}}})
 	authCookie(storer, w, nil)
-	if w.Header().Get("X-User") != `{"userID":"1","email":"test@test.com","info":{"fullName":"Name"}}` || storer.LastRun != "GetSession" {
-		t.Error("expected User header to be set", w.Header().Get("X-User"), storer.LastRun)
-	}
+	checkHeaderAndMethods(t, `{"userID":"1","email":"test@test.com","isEmailVerified":false,"info":{"fullName":"Name"}}`, []string{"GetSession"}, w, storer)
 }
 
 func TestAuthBasic(t *testing.T) {
 	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
-	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
+	storer := auth.NewFakeStorer(auth.FakeStorerConfig{GetBasicAuthErr: errors.New("failed")})
 	authBasic(storer, w, nil)
-	if w.Body.String() != "Authentication required: failed\n" || storer.LastRun != "GetBasicAuth" {
-		t.Error("expected auth to fail", w.Body.String(), storer.LastRun)
-	}
+	checkBodyAndMethods(t, "Authentication required: failed\n", []string{"GetBasicAuth"}, w, storer)
 
 	w = httptest.NewRecorder()
-	storer = &mockAuthStorer{SessionReturn: &auth.LoginSession{UserID: "0", Email: "test@test.com"}}
+	storer = auth.NewFakeStorer(auth.FakeStorerConfig{GetBasicAuthVal: &auth.LoginSession{UserID: "0", Email: "test@test.com"}})
 	authBasic(storer, w, nil)
-	if w.Header().Get("X-User") != `{"userID":"0","email":"test@test.com","info":null}` || storer.LastRun != "GetBasicAuth" {
-		t.Error("expected User header to be set", w.Header().Get("X-User"), storer.LastRun)
-	}
+	checkHeaderAndMethods(t, `{"userID":"0","email":"test@test.com","isEmailVerified":false,"info":null}`, []string{"GetBasicAuth"}, w, storer)
 }
 
 func TestLogin(t *testing.T) {
 	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
-	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
+	storer := auth.NewFakeStorer(auth.FakeStorerConfig{LoginErr: errors.New("failed")})
 	login(storer, w, nil)
-	if body := w.Body.String(); body != "Authentication required: failed\n" || storer.LastRun != "Login" {
-		t.Error("expected to fail", body, storer.LastRun)
-	}
+	checkBodyAndMethods(t, "Authentication required: failed\n", []string{"Login"}, w, storer)
 
 	w = httptest.NewRecorder()
-	storer = &mockAuthStorer{SessionReturn: &auth.LoginSession{}}
+	storer = auth.NewFakeStorer(auth.FakeStorerConfig{LoginVal: &auth.LoginSession{}})
 	login(storer, w, nil)
-	if w.Body.String() != `{ "result": "Success" }` || storer.LastRun != "Login" {
-		t.Error("expected success", w.Body.String(), storer.LastRun)
-	}
+	checkBodyAndMethods(t, `{"userID":"","email":"","isEmailVerified":false,"info":null}`, []string{"Login"}, w, storer)
 }
 
 func TestRegister(t *testing.T) {
 	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
-	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
+	storer := auth.NewFakeStorer(auth.FakeStorerConfig{RegisterErr: errors.New("failed")})
 	register(storer, w, nil)
-	if w.Body.String() != "failed\n" || storer.LastRun != "Register" {
-		t.Error("expected to fail", w.Body.String(), storer.LastRun)
-	}
+	checkBodyAndMethods(t, "failed\n", []string{"Register"}, w, storer)
 }
 
 func TestCreateProfile(t *testing.T) {
 	w := httptest.NewRecorder()
-	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
+	storer := auth.NewFakeStorer(auth.FakeStorerConfig{CreateProfileErr: errors.New("failed")})
 	createProfile(storer, w, nil)
-	if body := w.Body.String(); body != "Authentication required: failed\n" || storer.LastRun != "CreateProfile" {
-		t.Error("expected to fail", body, storer.LastRun)
-	}
+	checkBodyAndMethods(t, "Authentication required: failed\n", []string{"CreateProfile"}, w, storer)
 }
 
 func TestSetPrimaryEmail(t *testing.T) {
 	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
-	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
+	storer := auth.NewFakeStorer(auth.FakeStorerConfig{SetPrimaryEmailErr: errors.New("failed")})
 	setPrimaryEmail(storer, w, nil)
-	if w.Body.String() != "failed\n" || storer.LastRun != "SetPrimaryEmail" {
-		t.Error("expected to fail", w.Body.String(), storer.LastRun)
-	}
+	checkBodyAndMethods(t, "failed\n", []string{"SetPrimaryEmail"}, w, storer)
 }
 
 func TestCreateSecondaryEmail(t *testing.T) {
 	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
-	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
+	storer := auth.NewFakeStorer(auth.FakeStorerConfig{CreateSecondaryEmailErr: errors.New("failed")})
 	createSecondaryEmail(storer, w, nil)
-	if w.Body.String() != "failed\n" || storer.LastRun != "CreateSecondaryEmail" {
-		t.Error("expected to fail", w.Body.String(), storer.LastRun)
-	}
+	checkBodyAndMethods(t, "failed\n", []string{"CreateSecondaryEmail"}, w, storer)
 }
 
 func TestUpdatePassword(t *testing.T) {
 	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
-	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
+	storer := auth.NewFakeStorer(auth.FakeStorerConfig{UpdatePasswordErr: errors.New("failed")})
 	updatePassword(storer, w, nil)
-	if w.Body.String() != "failed\n" || storer.LastRun != "UpdatePassword" {
-		t.Error("expected to fail", w.Body.String(), storer.LastRun)
-	}
+	checkBodyAndMethods(t, "failed\n", []string{"UpdatePassword"}, w, storer)
 }
 
 func TestVerifyEmail(t *testing.T) {
 	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
-	storer := &mockAuthStorer{ErrReturn: errors.New("failed")}
+	storer := auth.NewFakeStorer(auth.FakeStorerConfig{VerifyEmailErr: errors.New("failed")})
 	verifyEmail(storer, w, nil)
-	if w.Body.String() != "failed\n" || storer.LastRun != "VerifyEmail" {
-		t.Error("expected to fail", w.Body.String(), storer.LastRun)
-	}
+	checkBodyAndMethods(t, "failed\n", []string{"VerifyEmail"}, w, storer)
 }
 
 func TestAddUserHeader(t *testing.T) {
 	log.SetOutput(&nilWriter{})
 	w := httptest.NewRecorder()
 	addUserHeader(`{"name": "value"}`, w)
-	if w.Header().Get("X-User") != `{"name": "value"}` {
-		t.Error("expected halfauth header", w.Header())
+	checkHeader(t, `{"name": "value"}`, w)
+}
+
+func checkBodyAndMethods(t *testing.T, expectedBody string, expectedMethodsCalled []string, w *httptest.ResponseRecorder, storer auth.FakeStorer) {
+	checkBody(t, expectedBody, w)
+	checkMethods(t, expectedMethodsCalled, storer)
+}
+
+func checkHeaderAndMethods(t *testing.T, expectedHeader string, expectedMethodsCalled []string, w *httptest.ResponseRecorder, storer auth.FakeStorer) {
+	checkHeader(t, expectedHeader, w)
+	checkMethods(t, expectedMethodsCalled, storer)
+}
+
+func checkBody(t *testing.T, expectedBody string, w *httptest.ResponseRecorder) {
+	if actualBody := w.Body.String(); actualBody != expectedBody {
+		t.Errorf("want body: %s, got %s", expectedBody, actualBody)
 	}
 }
 
-/*******************************************************/
-type mockAuthStorer struct {
-	SessionReturn *auth.LoginSession
-	UserReturn    *auth.User
-	ErrReturn     error
-	LastRun       string
+func checkHeader(t *testing.T, expectedHeader string, w *httptest.ResponseRecorder) {
+	if actualHeader := w.Header().Get("X-User"); actualHeader != expectedHeader {
+		t.Errorf("want X-User Header: %s, got %s", expectedHeader, actualHeader)
+	}
 }
 
-func (s *mockAuthStorer) GetSession(w http.ResponseWriter, r *http.Request) (*auth.LoginSession, error) {
-	s.LastRun = "GetSession"
-	return s.SessionReturn, s.ErrReturn
+func checkMethods(t *testing.T, expectedMethodsCalled []string, storer auth.FakeStorer) {
+	if methodsCalled := storer.MethodsCalled(); !reflect.DeepEqual(methodsCalled, expectedMethodsCalled) {
+		t.Errorf("want methods: %v, got %v", expectedMethodsCalled, methodsCalled)
+	}
 }
-
-func (s *mockAuthStorer) GetBasicAuth(w http.ResponseWriter, r *http.Request) (*auth.LoginSession, error) {
-	s.LastRun = "GetBasicAuth"
-	return s.SessionReturn, s.ErrReturn
-}
-
-func (s *mockAuthStorer) OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error) {
-	s.LastRun = "OAuthLogin"
-	return "csrfToken", s.ErrReturn
-}
-
-func (s *mockAuthStorer) Login(w http.ResponseWriter, r *http.Request) (*auth.LoginSession, error) {
-	s.LastRun = "Login"
-	return s.SessionReturn, s.ErrReturn
-}
-
-func (s *mockAuthStorer) Logout(w http.ResponseWriter, r *http.Request) error {
-	return nil
-}
-
-func (s *mockAuthStorer) Register(w http.ResponseWriter, r *http.Request, email string, templates auth.TemplateNames, emailSubject string, info map[string]interface{}) error {
-	s.LastRun = "Register"
-	return s.ErrReturn
-}
-
-func (s *mockAuthStorer) RequestPasswordReset(w http.ResponseWriter, r *http.Request, email string, templates auth.TemplateNames, emailSubject string, info map[string]interface{}) error {
-	return nil
-}
-
-func (s *mockAuthStorer) CreateProfile(w http.ResponseWriter, r *http.Request) (*auth.LoginSession, error) {
-	s.LastRun = "CreateProfile"
-	return s.SessionReturn, s.ErrReturn
-}
-
-func (s *mockAuthStorer) VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string) (string, *auth.User, error) {
-	s.LastRun = "VerifyEmail"
-	return "csrfToken", s.UserReturn, s.ErrReturn
-}
-
-func (s *mockAuthStorer) VerifyPasswordReset(w http.ResponseWriter, r *http.Request, emailVerificationCode string) (string, *auth.User, error) {
-	return "", nil, nil
-}
-
-func (s *mockAuthStorer) CreateSecondaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error {
-	s.LastRun = "CreateSecondaryEmail"
-	return s.ErrReturn
-}
-
-func (s *mockAuthStorer) SetPrimaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error {
-	s.LastRun = "SetPrimaryEmail"
-	return s.ErrReturn
-}
-
-func (s *mockAuthStorer) UpdatePassword(w http.ResponseWriter, r *http.Request) (*auth.LoginSession, error) {
-	s.LastRun = "UpdatePassword"
-	return nil, s.ErrReturn
-}
-
-func (s *mockAuthStorer) UpdateInfo(userID string, info map[string]interface{}) error {
-	s.LastRun = "UpdateInfo"
-	return s.ErrReturn
-}
-
-var _ auth.AuthStorer = &mockAuthStorer{}

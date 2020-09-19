@@ -207,7 +207,7 @@ func basicErr(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 func oauthLogin(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	runWithCSRF("oauthLogin", authStore.OAuthLogin, w, r)
+	runWithCSRF(authStore.OAuthLogin, w, r)
 }
 
 func login(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
@@ -215,7 +215,7 @@ func login(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
 }
 
 func register(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	writeOutput(w, `{ "result": "Success" }`, authStore.Register(w, r, "", auth.TemplateNames{}, "", nil))
+	outputMessage(w, `{ "result": "Success" }`, authStore.Register(w, r, "", auth.TemplateNames{}, "", nil))
 }
 
 func createProfile(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
@@ -223,25 +223,35 @@ func createProfile(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Req
 }
 
 func createSecondaryEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	writeOutput(w, `{ "result": "Success" }`, authStore.CreateSecondaryEmail(w, r, "", ""))
+	outputMessage(w, `{ "result": "Success" }`, authStore.CreateSecondaryEmail(w, r, "", ""))
 }
 
 func setPrimaryEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	writeOutput(w, `{ "result": "Success" }`, authStore.SetPrimaryEmail(w, r, "", ""))
+	outputMessage(w, `{ "result": "Success" }`, authStore.SetPrimaryEmail(w, r, "", ""))
 }
 
 func updatePassword(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
 	_, err := authStore.UpdatePassword(w, r)
-	writeOutput(w, `{ "result": "Success" }`, err)
+	outputMessage(w, `{ "result": "Success" }`, err)
+}
+
+type verifyEmailResponse struct {
+	DestinationURL string `json:"destinationURL"`
+	Email          string `json:"email"`
+	CSRFToken      string `json:"csrfToken"`
 }
 
 func verifyEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	csrfToken, destinationURL, err := authStore.VerifyEmail(w, r, "", "", "")
-	writeOutput(w, fmt.Sprintf(`{ "result": "Success", "destinationURL": "%s", "csrfToken": "%s" }`, destinationURL, csrfToken), err)
+	csrfToken, user, err := authStore.VerifyEmail(w, r, "", "", "")
+	if err != nil {
+		outputError(w, err)
+		return
+	}
+	outputData(w, verifyEmailResponse{user.GetInfoString("destinationURL"), user.Email, csrfToken})
 }
 
 func run(name string, method func(http.ResponseWriter, *http.Request) error, w http.ResponseWriter, r *http.Request) {
-	writeOutput(w, `{ "result": "Success" }`, method(w, r))
+	outputMessage(w, `{ "result": "Success" }`, method(w, r))
 }
 
 func runWithProfile(method func(http.ResponseWriter, *http.Request) (*auth.LoginSession, error), w http.ResponseWriter, r *http.Request) {
@@ -250,30 +260,34 @@ func runWithProfile(method func(http.ResponseWriter, *http.Request) (*auth.Login
 		authErr(w, r, err)
 		return
 	}
-
-	user, err := json.Marshal(&auth.User{Email: s.Email, UserID: s.UserID, Info: s.Info})
-	if err != nil {
-		authErr(w, r, err)
-		return
-	}
-
-	writeOutput(w, string(user), nil)
+	outputData(w, &auth.User{Email: s.Email, UserID: s.UserID, Info: s.Info})
 }
 
-func runWithCSRF(name string, method func(http.ResponseWriter, *http.Request) (string, error), w http.ResponseWriter, r *http.Request) {
+func runWithCSRF(method func(http.ResponseWriter, *http.Request) (string, error), w http.ResponseWriter, r *http.Request) {
 	csrfToken, err := method(w, r)
-	writeOutput(w, fmt.Sprintf(`{ "result": "Success", "csrfToken": "%s" }`, csrfToken), err)
+	outputMessage(w, fmt.Sprintf(`{ "result": "Success", "csrfToken": "%s" }`, csrfToken), err)
 }
 
-func writeOutput(w http.ResponseWriter, message string, err error) {
+func outputMessage(w http.ResponseWriter, message string, err error) {
 	w.Header().Add("Access-Control-Allow-Origin", "*")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		logError(err)
-	} else {
-		w.Header().Add("Content-Type", "application/json")
-		fmt.Fprint(w, "{ \"result\": \"Success\" }")
+		outputError(w, err)
+		return
 	}
+	w.Header().Add("Content-Type", "application/json")
+	fmt.Fprint(w, message)
+}
+
+func outputError(w http.ResponseWriter, err error) {
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+	if aerr, ok := err.(*auth.AuthError); ok {
+		log.Println(aerr.Trace())
+	}
+}
+
+func outputData(w http.ResponseWriter, data interface{}) {
+	outData, err := json.Marshal(data)
+	outputMessage(w, string(outData), err)
 }
 
 func addUserHeader(userJSON string, w http.ResponseWriter) {
