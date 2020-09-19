@@ -225,11 +225,7 @@ func (s *authStore) Login(w http.ResponseWriter, r *http.Request) (*LoginSession
 	}
 	b := s.b.Clone()
 	defer b.Close()
-	session, err := s.login(w, r, b, credentials.Email, credentials.Password, credentials.RememberMe)
-	if err != nil {
-		return nil, err
-	}
-	return session, nil
+	return s.login(w, r, b, credentials.Email, credentials.Password, credentials.RememberMe)
 }
 
 func (s *authStore) login(w http.ResponseWriter, r *http.Request, b Backender, email, password string, rememberMe bool) (*LoginSession, error) {
@@ -247,8 +243,7 @@ func (s *authStore) login(w http.ResponseWriter, r *http.Request, b Backender, e
 		return nil, newLoggedError("Invalid username or password", err)
 	}
 
-	isEmailVerified, ok := login.Info["isEmailVerified"].(bool)
-	if !isEmailVerified || !ok {
+	if !login.IsEmailVerified {
 		return nil, newAuthError("Your email has not been verified.", nil)
 	}
 
@@ -577,10 +572,10 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backen
 
 	session, err := b.GetEmailSession(emailVerifyHash)
 	if err != nil {
-		return "", nil, newLoggedError("Failed to get session", err)
+		return "", nil, newLoggedError("Failed to verify email", err)
 	}
 
-	userID, err := b.AddUser(session.Email, session.Info)
+	userID, err := b.AddVerifiedUser(session.Email, session.Info)
 	if err != nil {
 		userID, err = b.VerifyEmail(session.Email)
 		if err != nil {

@@ -42,7 +42,7 @@ type UserBackender interface {
 }
 
 type userBackender interface {
-	AddUser(email string, info map[string]interface{}) (string, error)
+	AddVerifiedUser(email string, info map[string]interface{}) (string, error)
 	AddUserFull(email, password string, info map[string]interface{}) (*User, error)
 	GetUser(email string) (*User, error)
 	UpdateUser(userID, password string, info map[string]interface{}) error
@@ -102,9 +102,10 @@ type user struct {
 
 // User is the struct which holds user information
 type User struct {
-	UserID string                 `json:"userID"`
-	Email  string                 `json:"email"`
-	Info   map[string]interface{} `json:"info"`
+	UserID          string                 `json:"userID"`
+	Email           string                 `json:"email"`
+	IsEmailVerified bool                   `json:"isEmailVerified"`
+	Info            map[string]interface{} `json:"info"`
 }
 
 // LoginSession is the struct which holds session information
@@ -292,127 +293,23 @@ func (a *AuthError) Trace() string {
 }
 
 type backend struct {
-	u UserBackender
-	s SessionBackender
+	UserBackender
+	SessionBackender
 	backendCloser
 }
 
 // NewBackend returns a Backender from a UserBackender, LoginBackender and SessionBackender
 func NewBackend(u UserBackender, s SessionBackender) Backender {
-	return &backend{u: u, s: s}
+	return &backend{UserBackender: u, SessionBackender: s}
 }
 
 func (b *backend) Clone() Backender {
 	return b
 }
 
-func (b *backend) Login(email, password string) error {
-	return b.u.Login(email, password)
-}
-
-func (b *backend) LoginAndGetUser(email, password string) (*User, error) {
-	return b.u.LoginAndGetUser(email, password)
-}
-
-func (b *backend) CreateSession(userID, email string, info map[string]interface{}, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*LoginSession, error) {
-	return b.s.CreateSession(userID, email, info, sessionHash, csrfToken, sessionRenewTimeUTC, sessionExpireTimeUTC)
-}
-
-func (b *backend) GetSession(sessionHash string) (*LoginSession, error) {
-	return b.s.GetSession(sessionHash)
-}
-
-func (b *backend) UpdateSession(sessionHash string, renewTimeUTC, expireTimeUTC time.Time) error {
-	return b.s.UpdateSession(sessionHash, renewTimeUTC, expireTimeUTC)
-}
-
-func (b *backend) CreateRememberMe(userID, email string, rememberMeSelector, rememberMeTokenHash string, renewTimeUTC, expireTimeUTC time.Time) (*rememberMeSession, error) {
-	return b.s.CreateRememberMe(userID, email, rememberMeSelector, rememberMeTokenHash, renewTimeUTC, expireTimeUTC)
-}
-
-func (b *backend) GetRememberMe(selector string) (*rememberMeSession, error) {
-	return b.s.GetRememberMe(selector)
-}
-
-func (b *backend) UpdateRememberMe(selector string, renewTimeUTC time.Time) error {
-	return b.s.UpdateRememberMe(selector, renewTimeUTC)
-}
-
-func (b *backend) CreateEmailSession(userID, email string, info map[string]interface{}, emailVerifyHash, csrfToken string) error {
-	return b.s.CreateEmailSession(userID, email, info, emailVerifyHash, csrfToken)
-}
-
-func (b *backend) GetEmailSession(emailVerifyHash string) (*emailSession, error) {
-	return b.s.GetEmailSession(emailVerifyHash)
-}
-
-func (b *backend) UpdateEmailSession(emailVerifyHash string, userID string) error {
-	return b.s.UpdateEmailSession(emailVerifyHash, userID)
-}
-
-func (b *backend) DeleteEmailSession(emailVerifyHash string) error {
-	return b.s.DeleteEmailSession(emailVerifyHash)
-}
-
-func (b *backend) AddUser(email string, info map[string]interface{}) (string, error) {
-	return b.u.AddUser(email, info)
-}
-
-func (b *backend) AddUserFull(email, password string, info map[string]interface{}) (*User, error) {
-	return b.u.AddUserFull(email, password, info)
-}
-
-func (b *backend) GetUser(email string) (*User, error) {
-	return b.u.GetUser(email)
-}
-
-func (b *backend) UpdateUser(userID, password string, info map[string]interface{}) error {
-	return b.u.UpdateUser(userID, password, info)
-}
-
-func (b *backend) UpdateInfo(userID string, info map[string]interface{}) error {
-	return b.u.UpdateInfo(userID, info)
-}
-
-func (b *backend) AddSecondaryEmail(userID string, secondaryEmail string) error {
-	return b.u.AddSecondaryEmail(userID, secondaryEmail)
-}
-
-func (b *backend) UpdatePrimaryEmail(userID, secondaryEmail string) error {
-	return b.u.UpdatePrimaryEmail(userID, secondaryEmail)
-}
-
-func (b *backend) UpdatePassword(userID, password string) error {
-	return b.u.UpdatePassword(userID, password)
-}
-
-func (b *backend) VerifyEmail(email string) (string, error) {
-	return b.u.VerifyEmail(email)
-}
-
-func (b *backend) DeleteSession(sessionHash string) error {
-	return b.s.DeleteSession(sessionHash)
-}
-
-func (b *backend) InvalidateSessions(email string) error {
-	return b.s.InvalidateSessions(email)
-}
-
-func (b *backend) DeleteSessions(email string) error {
-	return b.s.DeleteSessions(email)
-}
-
-func (b *backend) DeleteRememberMes(email string) error {
-	return b.s.DeleteRememberMes(email)
-}
-
-func (b *backend) DeleteRememberMe(selector string) error {
-	return b.s.DeleteRememberMe(selector)
-}
-
 func (b *backend) Close() error {
-	if err := b.s.Close(); err != nil {
+	if err := b.SessionBackender.Close(); err != nil {
 		return err
 	}
-	return b.u.Close()
+	return b.UserBackender.Close()
 }
