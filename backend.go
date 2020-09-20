@@ -144,9 +144,9 @@ func (l *LoginSession) GetInfoStrings(name string) []string {
 }
 
 // GetInfoInts will return the named info as an array of integers
-func (l *LoginSession) GetInfoInts(name string) ([]int, error) {
+func (l *LoginSession) GetInfoInts(name string) []int {
 	if l == nil {
-		return nil, errors.New("No login session")
+		return nil
 	}
 	return GetInfoInts(l.Info, name)
 }
@@ -173,6 +173,14 @@ func (u *User) GetInfoStrings(name string) []string {
 		return nil
 	}
 	return GetInfoStrings(u.Info, name)
+}
+
+// GetInfoInts will return the named info as an array of integers
+func (u *User) GetInfoInts(name string) []int {
+	if u == nil {
+		return nil
+	}
+	return GetInfoInts(u.Info, name)
 }
 
 // GetInfo will return the named info as an interface{}
@@ -216,27 +224,27 @@ func GetInfoStrings(info map[string]interface{}, name string) []string {
 }
 
 // GetInfoInts will return the named info as an array of integers
-func GetInfoInts(info map[string]interface{}, name string) ([]int, error) {
+func GetInfoInts(info map[string]interface{}, name string) []int {
 	i := GetInfo(info, name)
 	switch v := i.(type) {
 	case []int:
-		return v, nil
+		return v
 	case []interface{}:
-		strArr := make([]int, len(v))
-		for i, str := range v {
+		var intArr []int
+		for _, str := range v {
 			if s, ok := str.(int); ok {
-				strArr[i] = s
+				intArr = append(intArr, s)
 			} else {
 				toInt, err := strconv.Atoi(fmt.Sprint(str))
 				if err != nil {
-					return nil, err
+					continue
 				}
-				strArr[i] = toInt
+				intArr = append(intArr, toInt)
 			}
 		}
-		return strArr, nil
+		return intArr
 	}
-	return nil, fmt.Errorf("Type %T incompatible with []int", i)
+	return nil
 }
 
 type rememberMeSession struct {

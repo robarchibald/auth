@@ -1,11 +1,118 @@
 package auth
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/pkg/errors"
 )
+
+func TestGetInfo(t *testing.T) {
+	var l *LoginSession
+	if v := l.GetInfo("hello"); v != nil {
+		t.Error("expected to return nothing", v)
+	}
+
+	l = &LoginSession{Info: map[string]interface{}{"hello": "there"}}
+	if v := l.GetInfo("hello"); v != "there" {
+		t.Error("Expected to get value", v)
+	}
+
+	var u *User
+	if v := u.GetInfo("hello"); v != nil {
+		t.Error("expected to return nothing", v)
+	}
+
+	u = &User{Info: map[string]interface{}{"hello": "there"}}
+	if v := u.GetInfo("hello"); v != "there" {
+		t.Error("Expected to get value", v)
+	}
+
+	if GetInfo(nil, "hello") != nil {
+		t.Error("Expected to get nil")
+	}
+}
+
+func TestGetInfoString(t *testing.T) {
+	var l *LoginSession
+	if v := l.GetInfoString("hello"); v != "" {
+		t.Error("expected to return nothing", v)
+	}
+
+	l = &LoginSession{Info: map[string]interface{}{"hello": "there"}}
+	if v := l.GetInfoString("hello"); v != "there" {
+		t.Error("Expected to get value", v)
+	}
+
+	var u *User
+	if v := u.GetInfoString("hello"); v != "" {
+		t.Error("expected to return nothing", v)
+	}
+
+	u = &User{Info: map[string]interface{}{"hello": "there", "struct": &emailCookie{}}}
+	if v := u.GetInfoString("hello"); v != "there" {
+		t.Error("Expected to get value", v)
+	}
+
+	if v := u.GetInfoString("struct"); v != "&{ 0001-01-01 00:00:00 +0000 UTC}" {
+		t.Error("Expected to get value", v)
+	}
+}
+
+func TestGetInfoStrings(t *testing.T) {
+	var l *LoginSession
+	if v := l.GetInfoStrings("hello"); v != nil {
+		t.Error("expected to return nothing", v)
+	}
+
+	expected := []string{"1234", "345"}
+	l = &LoginSession{Info: map[string]interface{}{"hello": []interface{}{1234, "345"}}}
+	if v := l.GetInfoStrings("hello"); !reflect.DeepEqual(v, expected) {
+		t.Error("Expected to get value", expected, v)
+	}
+
+	var u *User
+	if v := u.GetInfoStrings("hello"); v != nil {
+		t.Error("expected to return nothing", v)
+	}
+
+	u = &User{Info: map[string]interface{}{"hello": []string{"1234", "345"}, "struct": &emailCookie{}}}
+	if v := u.GetInfoStrings("hello"); !reflect.DeepEqual(v, expected) {
+		t.Error("Expected to get value", expected, v)
+	}
+
+	if v := u.GetInfoStrings("struct"); v != nil {
+		t.Error("Expected to get value", v)
+	}
+}
+
+func TestGetInfoInts(t *testing.T) {
+	var l *LoginSession
+	if v := l.GetInfoInts("hello"); v != nil {
+		t.Error("expected to return nothing", v)
+	}
+
+	expected := []int{1234, 345}
+	l = &LoginSession{Info: map[string]interface{}{"hello": []interface{}{1234, "345", "abc"}}}
+	if v := l.GetInfoInts("hello"); !reflect.DeepEqual(v, expected) {
+		t.Error("Expected to get value", expected, v)
+	}
+
+	var u *User
+	if v := u.GetInfoInts("hello"); v != nil {
+		t.Error("expected to return nothing", v)
+	}
+
+	u = &User{Info: map[string]interface{}{"hello": []int{1234, 345}, "struct": emailCookie{}}}
+	if v := u.GetInfoInts("hello"); !reflect.DeepEqual(v, expected) {
+		t.Error("Expected to get value", expected, v)
+	}
+
+	if v := u.GetInfoInts("struct"); v != nil {
+		t.Error("Expected to get value", v)
+	}
+}
 
 func TestAuthError(t *testing.T) {
 	e3 := newAuthError("error 3", errors.New("other"))
