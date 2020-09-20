@@ -45,7 +45,7 @@ func (m *backendMemory) LoginAndGetUser(email, password string) (*User, error) {
 	if err := m.c.HashEquals(password, user.PasswordHash); err != nil {
 		return nil, err
 	}
-	return &User{user.UserID, user.PrimaryEmail, user.Info}, nil
+	return &User{user.UserID, user.PrimaryEmail, user.IsEmailVerified, user.Info}, nil
 }
 
 func (m *backendMemory) CreateSession(userID, email string, info map[string]interface{}, sessionHash, csrfToken string, sessionRenewTimeUTC, sessionExpireTimeUTC time.Time) (*LoginSession, error) {
@@ -142,7 +142,7 @@ func (m *backendMemory) DeleteEmailSession(emailVerifyHash string) error {
 	return nil
 }
 
-func (m *backendMemory) AddUser(email string, info map[string]interface{}) (string, error) {
+func (m *backendMemory) AddVerifiedUser(email string, info map[string]interface{}) (string, error) {
 	u := m.getUserByEmail(email)
 	if u != nil {
 		return "", errUserAlreadyExists
@@ -163,7 +163,7 @@ func (m *backendMemory) AddUserFull(email, password string, info map[string]inte
 	}
 	m.LastUserID++
 	m.Users = append(m.Users, &user{strconv.Itoa(m.LastUserID), email, passwordHash, false, info, nil, 0})
-	return &User{u.UserID, u.PrimaryEmail, u.Info}, nil
+	return &User{u.UserID, u.PrimaryEmail, u.IsEmailVerified, u.Info}, nil
 }
 
 func (m *backendMemory) GetUser(email string) (*User, error) {
@@ -171,7 +171,7 @@ func (m *backendMemory) GetUser(email string) (*User, error) {
 	if u == nil {
 		return nil, errUserNotFound
 	}
-	return &User{u.UserID, u.PrimaryEmail, u.Info}, nil
+	return &User{u.UserID, u.PrimaryEmail, u.IsEmailVerified, u.Info}, nil
 }
 
 func (m *backendMemory) UpdateUser(userID, password string, info map[string]interface{}) error {
@@ -204,6 +204,12 @@ func (m *backendMemory) UpdateInfo(userID string, info map[string]interface{}) e
 	for key := range info {
 		user.Info[key] = info[key]
 	}
+
+	for i, session := range m.Sessions {
+		session.Info = info
+		m.Sessions[i] = session
+	}
+
 	return nil
 }
 
@@ -369,3 +375,5 @@ func (m *backendMemory) getRememberMe(selector string) *rememberMeSession {
 	}
 	return nil
 }
+
+var _ Backender = &backendMemory{}

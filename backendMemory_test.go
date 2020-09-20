@@ -119,13 +119,13 @@ func TestMemoryRenewRememberMe(t *testing.T) {
 	}
 }
 
-func TestMemoryAddUser(t *testing.T) {
+func TestMemoryAddVerifiedUser(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
-	if userID, err := backend.AddUser("email", map[string]interface{}{"key": "value"}); err != nil || len(backend.Users) != 1 || userID != "1" {
+	if userID, err := backend.AddVerifiedUser("email", map[string]interface{}{"key": "value"}); err != nil || len(backend.Users) != 1 || userID != "1" {
 		t.Error("expected valid session", err, backend.Users)
 	}
 
-	if userID, err := backend.AddUser("email", map[string]interface{}{"key": "value"}); err != errUserAlreadyExists || userID != "" {
+	if userID, err := backend.AddVerifiedUser("email", map[string]interface{}{"key": "value"}); err != errUserAlreadyExists || userID != "" {
 		t.Error("expected user to already exist", err)
 	}
 }
@@ -208,7 +208,7 @@ func TestToString(t *testing.T) {
 	backend.RememberMes = append(backend.RememberMes, &rememberMeSession{})
 
 	actual := backend.ToString()
-	expected := "Users:\n     {   map[] <nil> 0}\nSessions:\n     {  map[]   0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {    0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
+	expected := "Users:\n     {   false map[] <nil> 0}\nSessions:\n     {  map[]   0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\nRememberMe:\n     {    0001-01-01 00:00:00 +0000 UTC 0001-01-01 00:00:00 +0000 UTC}\n"
 	if actual != expected {
 		t.Error("expected different value", expected, "\n", actual)
 	}

@@ -40,14 +40,14 @@ func (b *backendMongo) Clone() Backender {
 	return &backendMongo{b.m.Clone(), b.c}
 }
 
-func (b *backendMongo) AddUser(email string, info map[string]interface{}) (string, error) {
+func (b *backendMongo) AddVerifiedUser(email string, info map[string]interface{}) (string, error) {
 	u, err := b.getUser(email)
 	if err == nil {
 		return u.ID.Hex(), errors.New("user already exists")
 	}
 
 	id := bson.NewObjectId()
-	return id.Hex(), b.users().Insert(mongoUser{ID: id, PrimaryEmail: email, Info: info})
+	return id.Hex(), b.users().Insert(mongoUser{ID: id, PrimaryEmail: email, IsEmailVerified: true, Info: info})
 }
 
 func (b *backendMongo) AddUserFull(email, password string, info map[string]interface{}) (*User, error) {
@@ -61,7 +61,7 @@ func (b *backendMongo) AddUserFull(email, password string, info map[string]inter
 	}
 
 	id := bson.NewObjectId()
-	return &User{id.Hex(), strings.ToLower(email), info}, b.users().Insert(mongoUser{ID: id, PrimaryEmail: strings.ToLower(email), PasswordHash: passwordHash, Info: info})
+	return &User{id.Hex(), strings.ToLower(email), false, info}, b.users().Insert(mongoUser{ID: id, PrimaryEmail: strings.ToLower(email), PasswordHash: passwordHash, Info: info})
 }
 
 func (b *backendMongo) getUser(email string) (*mongoUser, error) {
@@ -74,7 +74,7 @@ func (b *backendMongo) GetUser(email string) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &User{u.ID.Hex(), u.PrimaryEmail, u.Info}, nil
+	return &User{u.ID.Hex(), u.PrimaryEmail, u.IsEmailVerified, u.Info}, nil
 }
 
 func (b *backendMongo) UpdateUser(userID, password string, info map[string]interface{}) error {
@@ -110,9 +110,15 @@ func (b *backendMongo) VerifyEmail(email string) (string, error) {
 
 func (b *backendMongo) UpdateInfo(userID string, info map[string]interface{}) error {
 	set := make(bson.M)
-	for key := range info {
-		set["info."+key] = info[key]
+	for k, v := range info {
+		set["info."+k] = v
 	}
+
+	_, err := b.loginSessions().UpdateAll(bson.M{"userID": userID}, bson.M{"$set": set})
+	if err != nil {
+		return err
+	}
+
 	return b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": set})
 }
 
@@ -129,7 +135,7 @@ func (b *backendMongo) LoginAndGetUser(email, password string) (*User, error) {
 	if err := b.c.HashEquals(password, u.PasswordHash); err != nil {
 		return nil, err
 	}
-	return &User{u.ID.Hex(), u.PrimaryEmail, u.Info}, nil
+	return &User{u.ID.Hex(), u.PrimaryEmail, u.IsEmailVerified, u.Info}, nil
 }
 
 func (b *backendMongo) Login(email, password string) error {
