@@ -205,9 +205,8 @@ func (m *backendMemory) UpdateInfo(userID string, info map[string]interface{}) e
 		user.Info[key] = info[key]
 	}
 
-	for i, session := range m.Sessions {
+	for _, session := range m.Sessions {
 		session.Info = info
-		m.Sessions[i] = session
 	}
 
 	return nil
