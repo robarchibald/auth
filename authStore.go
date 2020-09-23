@@ -383,7 +383,6 @@ type EmailSendParams struct {
 	VerificationCode string
 	Email            string
 	BaseURL          string
-	Product          string
 	Info             map[string]interface{}
 	TemplateSuccess  string
 	SubjectSuccess   string

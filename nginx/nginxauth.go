@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -109,7 +110,7 @@ func newNginxAuth(configFle, logfile string) (*nginxauth, error) {
 		return nil, err
 	}
 
-	cookieKey, err := auth.DecodeFromString(config.CookieBase64Key)
+	cookieKey, err := base64.URLEncoding.DecodeString(config.CookieBase64Key)
 	if err != nil {
 		return nil, err
 	}

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/tredoe/osutil/user/crypt/sha512_crypt"
 	"github.com/pkg/errors"
+	"github.com/tredoe/osutil/user/crypt/sha512_crypt"
 )
 
 var errHashNotEqual = errors.New("input string does not match the supplied hash")
@@ -20,10 +20,12 @@ type Crypter interface {
 	Hash(token string) (string, error)
 }
 
+// CryptoHashStore encrypts using an iterated hash with configurable number of iterations
 type CryptoHashStore struct {
 	Crypter
 }
 
+// HashEquals does a constant-time compare to determine if a token is equal to the provided hash
 func (c *CryptoHashStore) HashEquals(token, tokenHash string) error {
 	hashed, err := cryptoHashWSalt(token, tokenHash) // sha512_crypt will strip out salt from hash
 	if err != nil {
@@ -35,6 +37,7 @@ func (c *CryptoHashStore) HashEquals(token, tokenHash string) error {
 	return nil
 }
 
+// Hash returns a hashed string that has been hashed 50000 times
 func (c *CryptoHashStore) Hash(token string) (string, error) {
 	salt, err := getRandomSalt(16, 50000)
 	if err != nil {
@@ -48,7 +51,7 @@ type hashStore struct {
 }
 
 func (h *hashStore) HashEquals(token, tokenHash string) error {
-	hash, err := DecodeFromString(tokenHash)
+	hash, err := base64.URLEncoding.DecodeString(tokenHash)
 	if err != nil {
 		return err
 	}
@@ -63,15 +66,11 @@ func (h *hashStore) Hash(token string) (string, error) {
 }
 
 func decodeStringToHash(token string) (string, error) {
-	data, err := DecodeFromString(token)
+	data, err := base64.URLEncoding.DecodeString(token)
 	if err != nil {
 		return "", err
 	}
 	return encodeToString(hash(data)), nil
-}
-
-func DecodeFromString(token string) ([]byte, error) {
-	return base64.URLEncoding.DecodeString(token)
 }
 
 func encodeToString(bytes []byte) string {
@@ -106,11 +105,11 @@ func hash(bytes []byte) []byte {
 
 // Url decode both the token and the hash and then compare
 func encodedHashEquals(token, tokenHash string) error {
-	tokenBytes, err := DecodeFromString(token)
+	tokenBytes, err := base64.URLEncoding.DecodeString(token)
 	if err != nil {
 		return err
 	}
-	hashBytes, err := DecodeFromString(tokenHash)
+	hashBytes, err := base64.URLEncoding.DecodeString(tokenHash)
 	if err != nil {
 		return err
 	}
