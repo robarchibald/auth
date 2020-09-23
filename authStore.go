@@ -40,11 +40,11 @@ type AuthStorer interface {
 	GetBasicAuth(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
 	OAuthLogin(w http.ResponseWriter, r *http.Request) (string, error)
 	Login(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
-	Register(w http.ResponseWriter, r *http.Request, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error
-	RequestPasswordReset(w http.ResponseWriter, r *http.Request, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error
+	Register(w http.ResponseWriter, r *http.Request, params EmailSendParams, password string) error
+	RequestPasswordReset(w http.ResponseWriter, r *http.Request, params EmailSendParams) error
 	Logout(w http.ResponseWriter, r *http.Request) error
 	CreateProfile(w http.ResponseWriter, r *http.Request) (*LoginSession, error)
-	VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string) (string, *User, error)
+	VerifyEmail(w http.ResponseWriter, r *http.Request, params EmailSendParams) (string, *User, error)
 	VerifyPasswordReset(w http.ResponseWriter, r *http.Request, emailVerificationCode string) (string, *User, error)
 	CreateSecondaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
 	SetPrimaryEmail(w http.ResponseWriter, r *http.Request, templateName, emailSubject string) error
@@ -378,87 +378,83 @@ func isValidPassword(password string) bool {
 	return len(password) >= 7
 }
 
-type sendParams struct {
+// EmailSendParams contains information necessary to send an email to the user
+type EmailSendParams struct {
 	VerificationCode string
 	Email            string
-	RefererBaseURL   string
+	BaseURL          string
+	Product          string
 	Info             map[string]interface{}
+	TemplateSuccess  string
+	SubjectSuccess   string
+	TemplateFailure  string
+	SubjectFailure   string
 }
 
-// TemplateNames contains the names of the html email templates to be used on Success and/or Failure conditions
-type TemplateNames struct {
-	Success string
-	Failure string
-}
-
-func (s *authStore) RequestPasswordReset(w http.ResponseWriter, r *http.Request, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error {
+func (s *authStore) RequestPasswordReset(w http.ResponseWriter, r *http.Request, sendParams EmailSendParams) error {
 	b := s.b.Clone()
 	defer b.Close()
-	return s.requestPasswordReset(r, b, email, templates, emailSubject, info)
+	return s.requestPasswordReset(r, b, sendParams)
 }
 
-func (s *authStore) requestPasswordReset(r *http.Request, b Backender, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error {
-	if !isValidEmail(email) {
+func (s *authStore) requestPasswordReset(r *http.Request, b Backender, params EmailSendParams) error {
+	if !isValidEmail(params.Email) {
 		return newAuthError("Invalid email", nil)
 	}
 
-	u, err := b.GetUser(email)
+	u, err := b.GetUser(params.Email)
 	if err != nil {
-		if err := s.mailer.SendMessage(email, templates.Failure, "Attempted Password Reset", &sendParams{RefererBaseURL: getBaseURL(r.Referer()), Info: info}); err != nil {
+		if err := s.mailer.SendMessage(params.Email, params.TemplateFailure, params.SubjectFailure, params); err != nil {
 			return newLoggedError("An email has been sent to the user with instructions on how to reset their password", err)
 		}
 		return nil // user does not exist, send success message anyway to prevent fishing for user data. Email owner will be notified of attempt
 	}
 
-	if info != nil {
-		for key, value := range info {
-			u.Info[key] = value
-		}
+	for key, value := range params.Info {
+		u.Info[key] = value
 	}
 
-	verifyCode, err := s.addEmailSession(b, u.UserID, email, u.Info)
+	verifyCode, err := s.addEmailSession(b, u.UserID, params.Email, u.Info)
 	if err != nil {
 		return newLoggedError("An email has been sent to the user with instructions on how to reset their password", err)
 	}
 
-	code := verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
-	if err := s.mailer.SendMessage(email, templates.Success, emailSubject, &sendParams{code, email, getBaseURL(r.Referer()), info}); err != nil {
+	params.VerificationCode = verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
+	if err := s.mailer.SendMessage(params.Email, params.TemplateSuccess, params.SubjectSuccess, params); err != nil {
 		return newLoggedError("An email has been sent to the user with instructions on how to reset their password", err)
 	}
 
 	return nil
 }
 
-func (s *authStore) Register(w http.ResponseWriter, r *http.Request, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error {
+func (s *authStore) Register(w http.ResponseWriter, r *http.Request, params EmailSendParams, password string) error {
 	b := s.b.Clone()
 	defer b.Close()
-	return s.register(r, b, email, templates, emailSubject, info)
+	return s.register(r, b, params, password)
 }
 
-func (s *authStore) register(r *http.Request, b Backender, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error {
-	if !isValidEmail(email) {
+func (s *authStore) register(r *http.Request, b Backender, params EmailSendParams, password string) error {
+	if !isValidEmail(params.Email) {
 		return newAuthError("Invalid email", nil)
 	}
 
-	user, err := b.GetUser(email)
+	user, err := b.GetUser(params.Email)
 	if user != nil {
 		return newAuthError("User already registered", err)
 	}
 
-	password := GetInfoString(info, "password")
-	delete(info, "password")
-	verifyCode, err := s.addEmailSession(b, "", email, info)
+	verifyCode, err := s.addEmailSession(b, "", params.Email, params.Info)
 	if err != nil {
 		return newLoggedError("Unable to save user", err)
 	}
 
-	code := verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
-	if err := s.mailer.SendMessage(email, templates.Success, emailSubject, &sendParams{code, email, getBaseURL(r.Referer()), info}); err != nil {
+	params.VerificationCode = verifyCode[:len(verifyCode)-1] // drop the "=" at the end of the code since it makes it look like a querystring
+	if err := s.mailer.SendMessage(params.Email, params.TemplateSuccess, params.SubjectSuccess, params); err != nil {
 		return newLoggedError("Unable to send verification email", err)
 	}
 
 	if password != "" {
-		_, err := b.AddUserFull(email, password, info)
+		_, err := b.AddUserFull(params.Email, password, params.Info)
 		if err != nil {
 			return newLoggedError("Failed to add user", err)
 		}
@@ -555,13 +551,14 @@ func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Back
 }
 
 // move to sessionStore
-func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string) (string, *User, error) {
+func (s *authStore) VerifyEmail(w http.ResponseWriter, r *http.Request, params EmailSendParams) (string, *User, error) {
 	b := s.b.Clone()
 	defer b.Close()
-	return s.verifyEmail(w, r, b, emailVerificationCode, templateName, emailSubject)
+	return s.verifyEmail(w, r, b, params)
 }
 
-func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backender, emailVerificationCode, templateName, emailSubject string) (string, *User, error) {
+func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backender, params EmailSendParams) (string, *User, error) {
+	emailVerificationCode := params.VerificationCode
 	if !strings.HasSuffix(emailVerificationCode, "=") { // add back the "=" then decode
 		emailVerificationCode = emailVerificationCode + "="
 	}
@@ -593,7 +590,7 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backen
 		return "", nil, newLoggedError("Failed to save email cookie", err)
 	}
 
-	err = s.mailer.SendMessage(session.Email, templateName, emailSubject, &sendParams{"", session.Email, "", session.Info})
+	err = s.mailer.SendMessage(session.Email, params.TemplateSuccess, params.SubjectSuccess, params)
 	if err != nil {
 		return "", nil, newLoggedError("Failed to send welcome email", err)
 	}

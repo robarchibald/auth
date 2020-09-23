@@ -444,7 +444,7 @@ func TestAuthRegister(t *testing.T) {
 	for i, test := range registerTests {
 		backend := &mockBackend{ErrReturn: test.CreateEmailSessionErr, GetUserVal: test.GetUserVal, GetUserErr: test.GetUserErr}
 		store := getAuthStore(nil, nil, nil, false, false, test.MailErr, backend)
-		err := store.register(&http.Request{}, backend, test.Email, TemplateNames{Success: "templateName"}, "emailSubject", map[string]interface{}{"key": "value"})
+		err := store.register(&http.Request{}, backend, EmailSendParams{Email: test.Email, TemplateSuccess: "templateName", SubjectSuccess: "emailSubject", Info: map[string]interface{}{"key": "value"}}, "")
 		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) {
@@ -622,7 +622,7 @@ func TestAuthVerifyEmail(t *testing.T) {
 	for i, test := range verifyEmailTests {
 		backend := &mockBackend{GetEmailSessionVal: test.GetEmailSessionVal, GetEmailSessionErr: test.GetEmailSessionErr, AddVerifiedUserVal: test.AddVerifiedUserVal, AddVerifiedUserErr: test.AddVerifiedUserErr, VerifyEmailVal: test.VerifyEmailVal, VerifyEmailErr: test.VerifyEmailErr, UpdateEmailSessionErr: test.UpdateEmailSessionErr}
 		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
-		_, user, err := store.verifyEmail(nil, &http.Request{}, backend, test.EmailVerificationCode, "templateName", "emailSubject")
+		_, user, err := store.verifyEmail(nil, &http.Request{}, backend, EmailSendParams{VerificationCode: test.EmailVerificationCode, TemplateSuccess: "templateName", SubjectSuccess: "emailSubject"})
 		methods := store.b.(*mockBackend).MethodsCalled
 		if (err == nil && test.ExpectedErr != "" || err != nil && test.ExpectedErr != err.Error()) ||
 			!collectionEqual(test.MethodsCalled, methods) || test.InfoValue != "" && (user == nil || user.Info == nil || user.Info["key"] != test.InfoValue) {
@@ -690,7 +690,7 @@ func TestRegisterPub(t *testing.T) {
 	r := &http.Request{}
 	backend := &mockBackend{}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
-	err := store.Register(nil, r, "bogus", TemplateNames{Success: "templateName"}, "emailSubjet", nil)
+	err := store.Register(nil, r, EmailSendParams{Email: "bogus", TemplateSuccess: "templateName", SubjectSuccess: "emailSubjet"}, "")
 	if err == nil || err.Error() != "Invalid email" {
 		t.Error("expected error from child register method", err)
 	}
@@ -702,7 +702,7 @@ func TestVerifyEmailPub(t *testing.T) {
 	backend := &mockBackend{GetEmailSessionErr: errFailed}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
 	emailVerificationCode := "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0" // random valid base64 encoded data
-	_, _, err := store.VerifyEmail(nil, r, emailVerificationCode, "templateName", "emailSubject")
+	_, _, err := store.VerifyEmail(nil, r, EmailSendParams{VerificationCode: emailVerificationCode, TemplateSuccess: "templateName", SubjectSuccess: "emailSubject"})
 	if err == nil || err.Error() != "Failed to verify email" {
 		t.Error("expected error from child verifyEmail method", err)
 	}

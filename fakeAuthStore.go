@@ -73,12 +73,12 @@ func (a *fakeAuthStore) Login(w http.ResponseWriter, r *http.Request) (*LoginSes
 	return a.LoginVal, a.LoginErr
 }
 
-func (a *fakeAuthStore) Register(w http.ResponseWriter, r *http.Request, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error {
+func (a *fakeAuthStore) Register(w http.ResponseWriter, r *http.Request, params EmailSendParams, password string) error {
 	a.Called = append(a.Called, "Register")
 	return a.RegisterErr
 }
 
-func (a *fakeAuthStore) RequestPasswordReset(w http.ResponseWriter, r *http.Request, email string, templates TemplateNames, emailSubject string, info map[string]interface{}) error {
+func (a *fakeAuthStore) RequestPasswordReset(w http.ResponseWriter, r *http.Request, params EmailSendParams) error {
 	a.Called = append(a.Called, "RequestPasswordReset")
 	return a.RequestPasswordResetErr
 }
@@ -88,7 +88,7 @@ func (a *fakeAuthStore) CreateProfile(w http.ResponseWriter, r *http.Request) (*
 	return a.CreateProfileVal, a.CreateProfileErr
 }
 
-func (a *fakeAuthStore) VerifyEmail(w http.ResponseWriter, r *http.Request, emailVerificationCode, templateName, emailSubject string) (string, *User, error) {
+func (a *fakeAuthStore) VerifyEmail(w http.ResponseWriter, r *http.Request, params EmailSendParams) (string, *User, error) {
 	a.Called = append(a.Called, "VerifyEmail")
 	return a.VerifyEmailVal, a.VerifyEmailVal2, a.VerifyEmailErr
 }

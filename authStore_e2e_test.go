@@ -102,7 +102,7 @@ func _register(email string, b *backendMemory, m *TextMailer) (string, error) {
 
 	// register new user
 	// adds to users, logins and sessions
-	err := s.register(r, b, email, TemplateNames{Success: "templateName"}, "emailSubject", map[string]interface{}{"key": "value"})
+	err := s.register(r, b, EmailSendParams{Email: email, TemplateSuccess: "templateName", SubjectSuccess: "emailSubject", Info: map[string]interface{}{"key": "value"}}, "")
 	if err != nil {
 		return "", err
 	}
@@ -110,7 +110,7 @@ func _register(email string, b *backendMemory, m *TextMailer) (string, error) {
 		return "", errors.New("expected to add a new Email session")
 	}
 	// get code from "email"
-	data := m.MessageData.(*sendParams)
+	data := m.MessageData.(EmailSendParams)
 	emailVerifyHash, _ := decodeStringToHash(data.VerificationCode + "=")
 	if b.EmailSessions[lenSessions].Email != email || b.EmailSessions[lenSessions].EmailVerifyHash != emailVerifyHash || b.EmailSessions[lenSessions].Info == nil || b.EmailSessions[lenSessions].Info["key"] != "value" {
 		return "", errors.Errorf("expected to have valid session: %s, %v, %v", b.EmailSessions[lenSessions].Email, b.EmailSessions[lenSessions].EmailVerifyHash != emailVerifyHash, b.EmailSessions[lenSessions].Info != nil && b.EmailSessions[lenSessions].Info["key"] != "value")
@@ -129,7 +129,7 @@ func _verify(verifyCode string, b *backendMemory, m *TextMailer) (string, *email
 	emailSession := b.getEmailSessionByEmailVerifyHash(emailVerifyHash)
 
 	// verify Email. Should 1. add user to b.Users, 2. set UserID in EmailSession, 3. add session
-	csrfToken, user, err := s.verifyEmail(nil, r, b, verifyCode, "templateName", "emailSubject")
+	csrfToken, user, err := s.verifyEmail(nil, r, b, EmailSendParams{VerificationCode: verifyCode, TemplateSuccess: "templateName", SubjectSuccess: "emailSubject"})
 	if err != nil {
 		return "", nil, err
 	}
