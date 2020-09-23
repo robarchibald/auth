@@ -463,18 +463,6 @@ func (s *authStore) register(r *http.Request, b Backender, params EmailSendParam
 	return nil
 }
 
-func getBaseURL(url string) string {
-	protoIndex := strings.Index(url, "://")
-	if protoIndex == -1 { // must be relative URL, return default
-		return "https://endfirst.com"
-	}
-	firstSlash := strings.Index(url[protoIndex+3:], "/")
-	if firstSlash == -1 { // must not have trailing slash, return whole url
-		return url
-	}
-	return url[:protoIndex+3+firstSlash]
-}
-
 func (s *authStore) addEmailSession(b Backender, userID, email string, info map[string]interface{}) (string, error) {
 	verifyCode, verifyHash, err := generateStringAndHash()
 	if err != nil {

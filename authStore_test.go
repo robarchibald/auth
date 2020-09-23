@@ -787,23 +787,6 @@ func TestCreateProfilePub(t *testing.T) {
 	}
 }
 
-func TestGetBaseUrl(t *testing.T) {
-	actual := getBaseURL("http://www.hello.com/anywhere/but/here.html")
-	if actual != "http://www.hello.com" {
-		t.Error("expected base url", actual)
-	}
-
-	actual = getBaseURL("http://www.hello.com")
-	if actual != "http://www.hello.com" {
-		t.Error("expected base url", actual)
-	}
-
-	actual = getBaseURL("anywhere/but/here.html")
-	if actual != "https://endfirst.com" {
-		t.Error("expected base url", actual)
-	}
-}
-
 func collectionEqual(expected, actual []string) bool {
 	if len(expected) != len(actual) {
 		return false
