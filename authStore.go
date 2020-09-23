@@ -559,6 +559,12 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backen
 		return "", nil, newLoggedError("Failed to verify email", err)
 	}
 
+	info := session.Info
+	for key, value := range params.Info {
+		info[key] = value
+	}
+	params.Info = info
+
 	userID, err := b.AddVerifiedUser(session.Email, session.Info)
 	if err != nil {
 		userID, err = b.VerifyEmail(session.Email)
