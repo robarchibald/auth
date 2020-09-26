@@ -48,7 +48,7 @@ type userBackender interface {
 	UpdateUser(userID, password string, info map[string]interface{}) error
 	UpdateInfo(userID string, info map[string]interface{}) error
 	UpdatePassword(userID, newPassword string) error
-	VerifyEmail(email string) (string, error)
+	VerifyEmail(email string) error
 
 	Login(email, password string) error
 	LoginAndGetUser(email, password string) (*User, error)

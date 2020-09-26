@@ -77,11 +77,11 @@ type authStore struct {
 }
 
 // NewAuthStore is used to create an AuthStorer for most authentication needs
-func NewAuthStore(b Backender, mailer Mailer, customPrefix, cookieDomain string, cookieKey []byte) AuthStorer {
+func NewAuthStore(b Backender, mailer Mailer, customPrefix, cookieDomain string, cookieKey []byte, secureOnly bool) AuthStorer {
 	emailCookieName = customPrefix + "Email"
 	sessionCookieName = customPrefix + "Session"
 	rememberMeCookieName = customPrefix + "RememberMe"
-	return &authStore{b, mailer, newCookieStore(cookieKey, cookieDomain)}
+	return &authStore{b, mailer, newCookieStore(cookieKey, cookieDomain, secureOnly)}
 }
 
 func (s *authStore) GetSession(w http.ResponseWriter, r *http.Request) (*LoginSession, error) {
@@ -202,7 +202,7 @@ func (s *authStore) renewSession(w http.ResponseWriter, r *http.Request, b Backe
 	if err != nil {
 		return newLoggedError("Problem updating session", err)
 	}
-	return s.saveSessionCookie(w, r, sessionID, session.RenewTimeUTC, session.ExpireTimeUTC)
+	return s.saveSessionCookie(w, sessionID, session.RenewTimeUTC, session.ExpireTimeUTC)
 }
 
 /******************************** Logout ***********************************************/
@@ -362,12 +362,12 @@ func (s *authStore) createSession(w http.ResponseWriter, r *http.Request, b Back
 	}
 
 	if rememberMe {
-		err := s.saveRememberMeCookie(w, r, selector, token, remember.RenewTimeUTC, remember.ExpireTimeUTC)
+		err := s.saveRememberMeCookie(w, selector, token, remember.RenewTimeUTC, remember.ExpireTimeUTC)
 		if err != nil {
 			return nil, newAuthError("Unable to save rememberMe cookie", err)
 		}
 	}
-	err = s.saveSessionCookie(w, r, sessionID, session.RenewTimeUTC, session.ExpireTimeUTC)
+	err = s.saveSessionCookie(w, sessionID, session.RenewTimeUTC, session.ExpireTimeUTC)
 	if err != nil {
 		return nil, err
 	}
@@ -437,12 +437,12 @@ func (s *authStore) register(r *http.Request, b Backender, params EmailSendParam
 		return newAuthError("Invalid email", nil)
 	}
 
-	user, err := b.GetUser(params.Email)
-	if user != nil {
-		return newAuthError("User already registered", err)
+	userID, err := getRegisterUserID(b, params, password)
+	if err != nil {
+		return err
 	}
 
-	verifyCode, err := s.addEmailSession(b, "", params.Email, params.Info)
+	verifyCode, err := s.addEmailSession(b, userID, params.Email, params.Info)
 	if err != nil {
 		return newLoggedError("Unable to save user", err)
 	}
@@ -452,14 +452,25 @@ func (s *authStore) register(r *http.Request, b Backender, params EmailSendParam
 		return newLoggedError("Unable to send verification email", err)
 	}
 
-	if password != "" {
-		_, err := b.AddUserFull(params.Email, password, params.Info)
-		if err != nil {
-			return newLoggedError("Failed to add user", err)
-		}
-	}
-
 	return nil
+}
+
+func getRegisterUserID(b Backender, params EmailSendParams, password string) (string, error) {
+	user, _ := b.GetUser(params.Email)
+	if user != nil {
+		if user.IsEmailVerified {
+			return "", newAuthError("User already registered", nil)
+		}
+		return user.UserID, nil
+	}
+	if password != "" {
+		user, err := b.AddUserFull(params.Email, password, params.Info)
+		if err != nil {
+			return "", newLoggedError("Failed to add user", err)
+		}
+		return user.UserID, nil
+	}
+	return "", nil
 }
 
 func (s *authStore) addEmailSession(b Backender, userID, email string, info map[string]interface{}) (string, error) {
@@ -559,35 +570,50 @@ func (s *authStore) verifyEmail(w http.ResponseWriter, r *http.Request, b Backen
 		return "", nil, newLoggedError("Failed to verify email", err)
 	}
 
+	userID, err := s.markAsVerified(w, b, session, emailVerificationCode)
+	if err != nil {
+		return "", nil, err
+	}
+
 	info := session.Info
 	for key, value := range params.Info {
 		info[key] = value
 	}
 	params.Info = info
-
-	userID, err := b.AddVerifiedUser(session.Email, session.Info)
-	if err != nil {
-		userID, err = b.VerifyEmail(session.Email)
-		if err != nil {
-			return "", nil, newLoggedError("Failed to verify email", err)
-		}
-	}
-
-	err = b.UpdateEmailSession(emailVerifyHash, userID)
-	if err != nil {
-		return "", nil, newLoggedError("Failed to update email session", err)
-	}
-
-	err = s.saveEmailCookie(w, r, emailVerificationCode, time.Now().UTC().Add(emailExpireDuration))
-	if err != nil {
-		return "", nil, newLoggedError("Failed to save email cookie", err)
-	}
-
 	err = s.mailer.SendMessage(session.Email, params.TemplateSuccess, params.SubjectSuccess, params)
 	if err != nil {
 		return "", nil, newLoggedError("Failed to send welcome email", err)
 	}
-	return session.CSRFToken, &User{Email: session.Email, Info: session.Info}, nil
+	return session.CSRFToken, &User{UserID: userID, Email: session.Email, Info: session.Info}, nil
+}
+
+func (s *authStore) markAsVerified(w http.ResponseWriter, b Backender, session *emailSession, emailVerificationCode string) (string, error) {
+	if session.UserID != "" {
+		err := b.VerifyEmail(session.Email)
+		if err != nil {
+			return "", newLoggedError("Failed to verify email", err)
+		}
+		b.DeleteEmailSession(session.EmailVerifyHash)
+		s.deleteEmailCookie(w)
+		return session.UserID, nil
+	}
+
+	userID, err := b.AddVerifiedUser(session.Email, session.Info)
+	if err != nil {
+		return "", newLoggedError("Failed to create user", err)
+	}
+
+	err = b.UpdateEmailSession(session.EmailVerifyHash, userID)
+	if err != nil {
+		return "", newLoggedError("Failed to update email session", err)
+	}
+
+	err = s.saveEmailCookie(w, emailVerificationCode, time.Now().UTC().Add(emailExpireDuration))
+	if err != nil {
+		return "", newLoggedError("Failed to save email cookie", err)
+	}
+
+	return userID, nil
 }
 
 func (s *authStore) VerifyPasswordReset(w http.ResponseWriter, r *http.Request, emailVerificationCode string) (string, *User, error) {
@@ -610,7 +636,7 @@ func (s *authStore) verifyPasswordReset(w http.ResponseWriter, r *http.Request, 
 		return "", nil, newLoggedError("Failed to verify email", err)
 	}
 
-	err = s.saveEmailCookie(w, r, emailVerificationCode, time.Now().UTC().Add(passwordResetEmailExpireDuration))
+	err = s.saveEmailCookie(w, emailVerificationCode, time.Now().UTC().Add(passwordResetEmailExpireDuration))
 	if err != nil {
 		return "", nil, newLoggedError("Failed to save email cookie", err)
 	}
@@ -732,23 +758,23 @@ func (s *authStore) deleteRememberMeCookie(w http.ResponseWriter) {
 	s.cookieStore.Delete(w, rememberMeCookieName)
 }
 
-func (s *authStore) saveEmailCookie(w http.ResponseWriter, r *http.Request, emailVerificationCode string, expireTimeUTC time.Time) error {
+func (s *authStore) saveEmailCookie(w http.ResponseWriter, emailVerificationCode string, expireTimeUTC time.Time) error {
 	cookie := emailCookie{EmailVerificationCode: emailVerificationCode, ExpireTimeUTC: expireTimeUTC}
-	return s.cookieStore.PutWithExpire(w, r, emailCookieName, emailExpireMins, &cookie)
+	return s.cookieStore.PutWithExpire(w, emailCookieName, emailExpireMins, &cookie)
 }
 
-func (s *authStore) saveSessionCookie(w http.ResponseWriter, r *http.Request, sessionID string, renewTimeUTC, expireTimeUTC time.Time) error {
+func (s *authStore) saveSessionCookie(w http.ResponseWriter, sessionID string, renewTimeUTC, expireTimeUTC time.Time) error {
 	cookie := sessionCookie{SessionID: sessionID, RenewTimeUTC: renewTimeUTC, ExpireTimeUTC: expireTimeUTC}
-	err := s.cookieStore.Put(w, r, sessionCookieName, &cookie)
+	err := s.cookieStore.Put(w, sessionCookieName, &cookie)
 	if err != nil {
 		return newAuthError("Error saving session cookie", err)
 	}
 	return nil
 }
 
-func (s *authStore) saveRememberMeCookie(w http.ResponseWriter, r *http.Request, selector, token string, renewTimeUTC, expireTimeUTC time.Time) error {
+func (s *authStore) saveRememberMeCookie(w http.ResponseWriter, selector, token string, renewTimeUTC, expireTimeUTC time.Time) error {
 	cookie := rememberMeCookie{Selector: selector, Token: token, RenewTimeUTC: renewTimeUTC, ExpireTimeUTC: expireTimeUTC}
-	return s.cookieStore.Put(w, r, rememberMeCookieName, &cookie)
+	return s.cookieStore.Put(w, rememberMeCookieName, &cookie)
 }
 
 type credentials struct {

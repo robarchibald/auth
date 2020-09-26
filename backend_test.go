@@ -331,7 +331,6 @@ type mockBackend struct {
 	GetRememberMeVal      *rememberMeSession
 	GetRememberMeErr      error
 	UpdateRememberMeErr   error
-	VerifyEmailVal        string
 	VerifyEmailErr        error
 	ErrReturn             error
 	MethodsCalled         []string
@@ -457,9 +456,9 @@ func (b *mockBackend) Close() error {
 	return b.ErrReturn
 }
 
-func (b *mockBackend) VerifyEmail(email string) (string, error) {
+func (b *mockBackend) VerifyEmail(email string) error {
 	b.MethodsCalled = append(b.MethodsCalled, "VerifyEmail")
-	return b.VerifyEmailVal, b.VerifyEmailErr
+	return b.VerifyEmailErr
 }
 
 func userSuccess() *User {

@@ -4,7 +4,6 @@ package auth
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gorilla/securecookie"
@@ -13,18 +12,19 @@ import (
 // CookieStorer interface provides the necessary methods for handling cookies
 type CookieStorer interface {
 	Get(w http.ResponseWriter, r *http.Request, key string, result interface{}) error
-	Put(w http.ResponseWriter, r *http.Request, key string, value interface{}) error
-	PutWithExpire(w http.ResponseWriter, r *http.Request, key string, expireMins int, value interface{}) error
+	Put(w http.ResponseWriter, key string, value interface{}) error
+	PutWithExpire(w http.ResponseWriter, key string, expireMins int, value interface{}) error
 	Delete(w http.ResponseWriter, key string)
 }
 
 type cookieStore struct {
-	s      *securecookie.SecureCookie
-	domain string
+	s          *securecookie.SecureCookie
+	domain     string
+	secureOnly bool
 }
 
-func newCookieStore(cookieKey []byte, domain string) CookieStorer {
-	return &cookieStore{securecookie.New(cookieKey, nil), domain}
+func newCookieStore(cookieKey []byte, domain string, secureOnly bool) CookieStorer {
+	return &cookieStore{securecookie.New(cookieKey, nil), domain, secureOnly}
 }
 
 func (s *cookieStore) Encode(key string, value interface{}) (string, error) {
@@ -49,18 +49,17 @@ func (s *cookieStore) Get(w http.ResponseWriter, r *http.Request, key string, re
 	return nil
 }
 
-func (s *cookieStore) Put(w http.ResponseWriter, r *http.Request, key string, value interface{}) error {
-	return s.PutWithExpire(w, r, key, 60*24*30, value) // default to 30 day expiration
+func (s *cookieStore) Put(w http.ResponseWriter, key string, value interface{}) error {
+	return s.PutWithExpire(w, key, 60*24*30, value) // default to 30 day expiration
 }
 
-func (s *cookieStore) PutWithExpire(w http.ResponseWriter, r *http.Request, key string, expireMins int, value interface{}) error {
-	secureOnly := strings.HasPrefix(r.Referer(), "https") // proxy to back-end so if referer is secure connection, we can use secureOnly cookies
+func (s *cookieStore) PutWithExpire(w http.ResponseWriter, key string, expireMins int, value interface{}) error {
 	encoded, err := s.Encode(key, value)
 	if err != nil {
 		return err
 	}
 
-	http.SetCookie(w, newCookie(key, encoded, s.domain, secureOnly, expireMins))
+	http.SetCookie(w, newCookie(key, encoded, s.domain, s.secureOnly, expireMins))
 	return nil
 }
 
@@ -76,7 +75,7 @@ func (s *cookieStore) Delete(w http.ResponseWriter, key string) {
 func newCookie(name string, value string, domain string, secureOnly bool, expireMins int) *http.Cookie {
 	sameSite := http.SameSiteLaxMode
 	if secureOnly {
-			sameSite = http.SameSiteNoneMode
+		sameSite = http.SameSiteNoneMode
 	}
 
 	return &http.Cookie{

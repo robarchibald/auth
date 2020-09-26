@@ -18,14 +18,14 @@ var pastTime = time.Now().UTC().Add(-5 * time.Minute)
 var errFailed = errors.New("failed")
 
 func getAuthStore(emailCookie *emailCookie, sessionCookie *sessionCookie, rememberCookie *rememberMeCookie, hasCookieGetError, hasCookiePutError bool, mailErr error, backend *mockBackend) *authStore {
-	cookieStore := NewMockCookieStore(map[string]interface{}{emailCookieName: emailCookie, sessionCookieName: sessionCookie, rememberMeCookieName: rememberCookie}, hasCookieGetError, hasCookiePutError)
+	cookieStore := newMockCookieStore(map[string]interface{}{emailCookieName: emailCookie, sessionCookieName: sessionCookie, rememberMeCookieName: rememberCookie}, hasCookieGetError, hasCookiePutError)
 	return &authStore{backend, &TextMailer{Err: mailErr}, cookieStore}
 }
 
 func TestNewAuthStore(t *testing.T) {
 	b := &mockBackend{}
 	m := &TextMailer{}
-	actual := NewAuthStore(b, m, "prefix", "", cookieKey).(*authStore)
+	actual := NewAuthStore(b, m, "prefix", "", cookieKey, false).(*authStore)
 	if actual.b != b || actual.cookieStore.(*cookieStore).s == nil {
 		t.Fatal("expected correct init")
 	}
@@ -557,7 +557,6 @@ func TestAuthVerifyEmail(t *testing.T) {
 		GetEmailSessionErr    error
 		AddVerifiedUserVal    string
 		AddVerifiedUserErr    error
-		VerifyEmailVal        string
 		VerifyEmailErr        error
 		UpdateEmailSessionErr error
 		MailErr               error
@@ -572,11 +571,25 @@ func TestAuthVerifyEmail(t *testing.T) {
 			ExpectedErr:           "Invalid verification code",
 		},
 		{
-			Scenario:              "Verify Email Error",
+			Scenario:              "Error getting session",
 			EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
 			GetEmailSessionErr:    errFailed,
 			MethodsCalled:         []string{"GetEmailSession"},
 			ExpectedErr:           "Failed to verify email",
+		},
+		{
+			Scenario:              "Error verifying email",
+			EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
+			GetEmailSessionVal:    &emailSession{UserID: "1234"},
+			VerifyEmailErr:        errFailed,
+			MethodsCalled:         []string{"GetEmailSession", "VerifyEmail"},
+			ExpectedErr:           "Failed to verify email",
+		},
+		{
+			Scenario:              "Success with full user",
+			EmailVerificationCode: "nfwRDzfxxJj2_HY-_mLz6jWyWU7bF0zUlIUUVkQgbZ0",
+			GetEmailSessionVal:    &emailSession{UserID: "1234"},
+			MethodsCalled:         []string{"GetEmailSession", "VerifyEmail", "DeleteEmailSession"},
 		},
 		{
 			Scenario:              "Add Verified User fail",
@@ -584,8 +597,8 @@ func TestAuthVerifyEmail(t *testing.T) {
 			GetEmailSessionVal:    getEmailSession(),
 			AddVerifiedUserErr:    errFailed,
 			VerifyEmailErr:        errFailed,
-			MethodsCalled:         []string{"GetEmailSession", "AddVerifiedUser", "VerifyEmail"},
-			ExpectedErr:           "Failed to verify email",
+			MethodsCalled:         []string{"GetEmailSession", "AddVerifiedUser"},
+			ExpectedErr:           "Failed to create user",
 		},
 		{
 			Scenario:              "Email session update fail",
@@ -620,7 +633,7 @@ func TestAuthVerifyEmail(t *testing.T) {
 		},
 	}
 	for i, test := range verifyEmailTests {
-		backend := &mockBackend{GetEmailSessionVal: test.GetEmailSessionVal, GetEmailSessionErr: test.GetEmailSessionErr, AddVerifiedUserVal: test.AddVerifiedUserVal, AddVerifiedUserErr: test.AddVerifiedUserErr, VerifyEmailVal: test.VerifyEmailVal, VerifyEmailErr: test.VerifyEmailErr, UpdateEmailSessionErr: test.UpdateEmailSessionErr}
+		backend := &mockBackend{GetEmailSessionVal: test.GetEmailSessionVal, GetEmailSessionErr: test.GetEmailSessionErr, AddVerifiedUserVal: test.AddVerifiedUserVal, AddVerifiedUserErr: test.AddVerifiedUserErr, VerifyEmailErr: test.VerifyEmailErr, UpdateEmailSessionErr: test.UpdateEmailSessionErr}
 		store := getAuthStore(nil, nil, nil, false, test.HasCookiePutError, test.MailErr, backend)
 		_, user, err := store.verifyEmail(nil, &http.Request{}, backend, EmailSendParams{VerificationCode: test.EmailVerificationCode, TemplateSuccess: "templateName", SubjectSuccess: "emailSubject"})
 		methods := store.b.(*mockBackend).MethodsCalled

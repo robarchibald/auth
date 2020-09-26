@@ -94,18 +94,8 @@ func (b *backendMongo) UpdatePassword(userID, password string) error {
 	return b.users().UpdateId(bson.ObjectIdHex(userID), bson.M{"$set": bson.M{"passwordHash": passwordHash}})
 }
 
-func (b *backendMongo) VerifyEmail(email string) (string, error) {
-	user, err := b.getUser(email)
-	if err != nil {
-		return "", err
-	}
-
-	userID := user.ID
-	if err := b.users().UpdateId(userID, bson.M{"$set": bson.M{"isEmailVerified": true}}); err != nil {
-		return "", err
-	}
-
-	return userID.Hex(), nil
+func (b *backendMongo) VerifyEmail(email string) error {
+	return b.users().Update(bson.M{"primaryEmail": email}, bson.M{"$set": bson.M{"isEmailVerified": true}})
 }
 
 func (b *backendMongo) UpdateInfo(userID string, info map[string]interface{}) error {

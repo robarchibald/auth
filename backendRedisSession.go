@@ -142,3 +142,5 @@ func round(num float64) int {
 func (r *backendRedisSession) save(key string, value interface{}, expireSeconds int) error {
 	return r.db.SetWithExpire(key, value, expireSeconds)
 }
+
+var _ sessionBackender = &backendRedisSession{}

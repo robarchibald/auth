@@ -225,14 +225,14 @@ func (m *backendMemory) UpdatePassword(userID, password string) error {
 	return nil
 }
 
-func (m *backendMemory) VerifyEmail(email string) (string, error) {
+func (m *backendMemory) VerifyEmail(email string) error {
 	user := m.getUserByEmail(email)
 	if user == nil {
-		return "", errors.New("could not find user")
+		return errors.New("could not find user")
 	}
 
 	user.IsEmailVerified = true
-	return user.UserID, nil
+	return nil
 }
 
 func (m *backendMemory) AddSecondaryEmail(userID, secondaryEmail string) error {

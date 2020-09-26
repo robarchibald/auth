@@ -115,7 +115,7 @@ func newNginxAuth(configFle, logfile string) (*nginxauth, error) {
 		return nil, err
 	}
 
-	return &nginxauth{b, auth.NewAuthStore(b, mailer, config.StoragePrefix, config.CookieDomain, cookieKey), config, eLog}, nil
+	return &nginxauth{b, auth.NewAuthStore(b, mailer, config.StoragePrefix, config.CookieDomain, cookieKey, false), config, eLog}, nil
 }
 
 func (n *authConf) NewEmailer() (*auth.Emailer, error) {
@@ -216,7 +216,7 @@ func login(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
 }
 
 func register(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	outputMessage(w, `{ "result": "Success" }`, authStore.Register(w, r, "", auth.TemplateNames{}, "", nil))
+	outputMessage(w, `{ "result": "Success" }`, authStore.Register(w, r, auth.EmailSendParams{}, ""))
 }
 
 func createProfile(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
@@ -243,7 +243,7 @@ type verifyEmailResponse struct {
 }
 
 func verifyEmail(authStore auth.AuthStorer, w http.ResponseWriter, r *http.Request) {
-	csrfToken, user, err := authStore.VerifyEmail(w, r, "", "", "")
+	csrfToken, user, err := authStore.VerifyEmail(w, r, auth.EmailSendParams{})
 	if err != nil {
 		outputError(w, err)
 		return
