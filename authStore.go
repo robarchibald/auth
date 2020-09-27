@@ -433,10 +433,6 @@ func (s *authStore) Register(w http.ResponseWriter, r *http.Request, params Emai
 }
 
 func (s *authStore) register(r *http.Request, b Backender, params EmailSendParams, password string) error {
-	if !isValidEmail(params.Email) {
-		return newAuthError("Invalid email", nil)
-	}
-
 	userID, err := getRegisterUserID(b, params, password)
 	if err != nil {
 		return err
@@ -456,6 +452,10 @@ func (s *authStore) register(r *http.Request, b Backender, params EmailSendParam
 }
 
 func getRegisterUserID(b Backender, params EmailSendParams, password string) (string, error) {
+	if !isValidEmail(params.Email) {
+		return "", newAuthError("Invalid email", nil)
+	}
+
 	user, _ := b.GetUser(params.Email)
 	if user != nil {
 		if user.IsEmailVerified {
