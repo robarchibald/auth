@@ -162,8 +162,9 @@ func (m *backendMemory) AddUserFull(email, password string, info map[string]inte
 		return nil, errUserAlreadyExists
 	}
 	m.LastUserID++
-	m.Users = append(m.Users, &user{strconv.Itoa(m.LastUserID), email, passwordHash, false, info, nil, 0})
-	return &User{u.UserID, u.PrimaryEmail, u.IsEmailVerified, u.Info}, nil
+	user := &user{strconv.Itoa(m.LastUserID), email, passwordHash, false, info, nil, 0}
+	m.Users = append(m.Users, user)
+	return &User{user.UserID, user.PrimaryEmail, user.IsEmailVerified, user.Info}, nil
 }
 
 func (m *backendMemory) GetUser(email string) (*User, error) {

@@ -789,7 +789,7 @@ func TestCreateProfilePub(t *testing.T) {
 	backend := &mockBackend{}
 	store := getAuthStore(nil, nil, nil, true, false, nil, backend)
 	_, err := store.CreateProfile(nil, r)
-	if err == nil || err.Error() != "Unable to get email verification cookie" {
+	if err == nil || err.Error() != "Password must be at least 7 characters" {
 		t.Error("expected error from CreateProfile method", err)
 	}
 

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"reflect"
 	"testing"
 	"time"
 )
@@ -130,6 +131,17 @@ func TestMemoryAddVerifiedUser(t *testing.T) {
 	}
 }
 
+func TestMemoryAddUserFull(t *testing.T) {
+	backend := NewBackendMemory(&plaintextStore{}).(*backendMemory)
+	if user, err := backend.AddUserFull("email", "password", map[string]interface{}{"key": "value"}); err != nil || len(backend.Users) != 1 || user == nil || user.UserID != "1" {
+		t.Error("expected valid session", err, backend.Users)
+	}
+
+	if user, err := backend.AddUserFull("email", "password", map[string]interface{}{"key": "value"}); err != errUserAlreadyExists || user != nil {
+		t.Error("expected user to already exist", err)
+	}
+}
+
 func TestMemoryGetEmailSession(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
 	if _, err := backend.GetEmailSession("verifyHash"); err != errInvalidEmailVerifyHash {
@@ -168,9 +180,37 @@ func TestMemorySetPrimaryEmail(t *testing.T) {
 	backend.UpdatePrimaryEmail("userID", "newPrimaryEmail")
 }
 
-func TestMemoryUpdatePassword(t *testing.T) {
+func TestMemoryUpdateInfo(t *testing.T) {
 	backend := NewBackendMemory(&hashStore{}).(*backendMemory)
-	backend.UpdatePassword("userID", "newPassword")
+	info := map[string]interface{}{"hello": "there"}
+	if err := backend.UpdateInfo("userID", info); err == nil {
+		t.Error("expected error due to no user to update")
+	}
+	user, _ := backend.AddUserFull("email", "password", nil)
+	backend.UpdateInfo(user.UserID, info)
+	if user := backend.getUserByEmail("email"); !reflect.DeepEqual(user.Info, info) {
+		t.Errorf("Expected to update info: got %v", user.Info)
+	}
+}
+
+func TestMemoryUpdatePassword(t *testing.T) {
+	backend := NewBackendMemory(&plaintextStore{}).(*backendMemory)
+	userID, _ := backend.AddVerifiedUser("email", nil)
+	backend.UpdatePassword(userID, "newPassword")
+	user := backend.getUserByID(userID)
+	if user.PasswordHash != "newPassword" {
+		t.Errorf("Expected newPassword, got: %s", user.PasswordHash)
+	}
+}
+
+func TestMemoryVerifyEmail(t *testing.T) {
+	backend := NewBackendMemory(&plaintextStore{}).(*backendMemory)
+	userID, _ := backend.AddVerifiedUser("email", nil)
+	backend.VerifyEmail("email")
+	user := backend.getUserByID(userID)
+	if !user.IsEmailVerified {
+		t.Errorf("Expected isEmailVerified to be true")
+	}
 }
 
 func TestMemoryDeleteSession(t *testing.T) {

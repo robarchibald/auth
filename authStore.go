@@ -464,6 +464,9 @@ func getRegisterUserID(b Backender, params EmailSendParams, password string) (st
 		return user.UserID, nil
 	}
 	if password != "" {
+		if !isValidPassword(password) {
+			return "", newAuthError(passwordValidationMessage, nil)
+		}
 		user, err := b.AddUserFull(params.Email, password, params.Info)
 		if err != nil {
 			return "", newLoggedError("Failed to add user", err)
@@ -507,6 +510,10 @@ func (s *authStore) CreateProfile(w http.ResponseWriter, r *http.Request) (*Logi
 }
 
 func (s *authStore) createProfile(w http.ResponseWriter, r *http.Request, b Backender, csrfToken string, userProfile *profile) (*LoginSession, error) {
+	if !isValidPassword(userProfile.Password) {
+		return nil, newAuthError(passwordValidationMessage, nil)
+	}
+
 	emailCookie, err := s.getEmailCookie(w, r)
 	if err != nil || emailCookie.EmailVerificationCode == "" {
 		return nil, newLoggedError("Unable to get email verification cookie", err)

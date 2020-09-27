@@ -4,6 +4,21 @@ import (
 	"testing"
 )
 
+type plaintextStore struct {
+	Crypter
+}
+
+func (c *plaintextStore) HashEquals(token, tokenHash string) error {
+	if token != tokenHash {
+		return errHashNotEqual
+	}
+	return nil
+}
+
+func (c *plaintextStore) Hash(token string) (string, error) {
+	return token, nil
+}
+
 func TestGetHash(t *testing.T) {
 	/*for i := 0; i < 13; i++ {
 		code, hash, err := generateStringAndHash()
